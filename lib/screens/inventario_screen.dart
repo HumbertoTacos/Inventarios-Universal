@@ -5,6 +5,7 @@ import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
+import 'editar_producto_screen.dart';
 import 'estadisticas_screen.dart';
 import 'ventas_screen.dart';
 
@@ -327,6 +328,30 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   icon: const Icon(Icons.add_shopping_cart, color: Colors.blue),
                   tooltip: 'Reabastecer / Ingresar lote',
                   onPressed: () => _mostrarModalReabastecimiento(producto),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'Opciones del producto',
+                  onSelected: (value) async {
+                    if (value == 'editar') {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => EditarProductoScreen(producto: producto)));
+                    } else if (value == 'eliminar') {
+                      final confirmed = await _confirmarEliminacion(producto.nombre);
+                      if (confirmed) {
+                        await _eliminarProducto(producto);
+                      }
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'editar',
+                      child: Row(children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Editar')]),
+                    ),
+                    const PopupMenuItem(
+                      value: 'eliminar',
+                      child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Eliminar', style: TextStyle(color: Colors.red))]),
+                    ),
+                  ],
                 ),
               ],
             ],
