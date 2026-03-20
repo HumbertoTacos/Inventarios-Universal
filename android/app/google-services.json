@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "125596404673",
+    "project_id": "inventario-blancosgina",
+    "storage_bucket": "inventario-blancosgina.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:125596404673:android:61d2f03a89f6a3cb267d40",
+        "android_client_info": {
+          "package_name": "com.example.blancos_gina"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnM1jVbxkoPsldhwq3y6D-LAO5c0meKrQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
