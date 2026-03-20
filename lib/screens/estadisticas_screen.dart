@@ -91,6 +91,16 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             contadoresProductos[item.productoId] = (contadoresProductos[item.productoId] ?? 0) + qty;
             nombresProductos[item.productoId] = item.nombre; // Guardar nombre para listado
           }
+          if (venta.costoEnvio > 0) {
+            if (venta.envioPagadoPorVendedor) {
+               // El vendedor pierde dinero pagando el envío, baja la ganancia.
+               costosTotales += venta.costoEnvio;
+            } else {
+               // El cliente lo paga, ingresa al cajón pero sale a la mensajería (neto 0).
+               ingresosTotales += venta.costoEnvio;
+               costosTotales += venta.costoEnvio;
+            }
+          }
         }
 
         final gananciaNeta = ingresosTotales - costosTotales;
@@ -246,6 +256,15 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       for (var item in v.items) {
         mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + (item.precioUnitario * item.cantidad);
         mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + (item.costoUnitario * item.cantidad);
+      }
+      
+      if (v.costoEnvio > 0) {
+        if (v.envioPagadoPorVendedor) {
+          mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
+        } else {
+          mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + v.costoEnvio;
+          mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
+        }
       }
     }
 

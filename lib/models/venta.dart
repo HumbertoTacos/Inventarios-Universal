@@ -41,20 +41,29 @@ class Venta {
   final String id;
   final DateTime fecha;
   final List<VentaItem> items;
-  final double total;
+  final double costoEnvio;
+  final bool envioPagadoPorVendedor;
+
+  // Si el cliente paga el envío, se suma al total a cobrar. 
+  // Si el vendedor lo paga (envío gratis), no se le cobra al cliente.
+  double get total =>
+      items.fold(0.0, (sum, item) => sum + item.subtotal) +
+      (!envioPagadoPorVendedor ? costoEnvio : 0.0);
 
   Venta({
     required this.id,
     required this.fecha,
     required this.items,
-    required this.total,
+    this.costoEnvio = 0.0,
+    this.envioPagadoPorVendedor = true,
   });
 
   Map<String, dynamic> toMap() {
     return {
       'fecha': fecha.toIso8601String(),
-      'items': items.map((x) => x.toMap()).toList(),
-      'total': total,
+      'items': items.map((i) => i.toMap()).toList(),
+      'costoEnvio': costoEnvio,
+      'envioPagadoPorVendedor': envioPagadoPorVendedor,
     };
   }
 
@@ -62,12 +71,12 @@ class Venta {
     return Venta(
       id: id,
       fecha: map['fecha'] != null ? DateTime.parse(map['fecha']) : DateTime.now(),
-      items: List<VentaItem>.from(
-        (map['items'] as List<dynamic>? ?? []).map<VentaItem>(
-          (x) => VentaItem.fromMap(x as Map<String, dynamic>),
-        ),
-      ),
-      total: (map['total'] as num?)?.toDouble() ?? 0.0,
+      items: (map['items'] as List<dynamic>?)
+              ?.map((i) => VentaItem.fromMap(i as Map<String, dynamic>))
+              .toList() ??
+          [],
+      costoEnvio: (map['costoEnvio'] as num?)?.toDouble() ?? 0.0,
+      envioPagadoPorVendedor: map['envioPagadoPorVendedor'] as bool? ?? true,
     );
   }
 }

@@ -18,7 +18,20 @@ class _VentasScreenState extends State<VentasScreen> {
   final List<VentaItem> _carrito = [];
   bool _procesando = false;
 
-  double get _totalVenta => _carrito.fold(0, (sum, item) => sum + item.subtotal);
+  final _costoEnvioCtrl = TextEditingController(text: '0');
+  bool _envioPagadoPorVendedor = true; // Por default lo paga Vendedor
+
+  @override
+  void dispose() {
+    _costoEnvioCtrl.dispose();
+    super.dispose();
+  }
+
+  double get _totalVenta {
+    double base = _carrito.fold(0, (sum, item) => sum + item.subtotal);
+    double envio = double.tryParse(_costoEnvioCtrl.text.trim()) ?? 0.0;
+    return base + (!_envioPagadoPorVendedor ? envio : 0.0);
+  }
 
   // ── Agregar al carrito ──────────────────────────────────────────────────
 
@@ -188,7 +201,8 @@ class _VentasScreenState extends State<VentasScreen> {
         id: '',
         fecha: DateTime.now(),
         items: List.from(_carrito),
-        total: _totalVenta,
+        costoEnvio: double.tryParse(_costoEnvioCtrl.text.trim()) ?? 0.0,
+        envioPagadoPorVendedor: _envioPagadoPorVendedor,
       );
 
       await _firebaseService.registrarVenta(nuevaVenta);
@@ -345,7 +359,49 @@ class _VentasScreenState extends State<VentasScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: _costoEnvioCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                            decoration: const InputDecoration(labelText: 'Envío (\$)', isDense: true, border: OutlineInputBorder()),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 3,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Paga el envío:', style: TextStyle(fontSize: 12)),
+                              Row(
+                                children: [
+                                  ChoiceChip(
+                                    label: const Text('Vendedor'),
+                                    selected: _envioPagadoPorVendedor,
+                                    onSelected: (v) => setState(() => _envioPagadoPorVendedor = true),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ChoiceChip(
+                                    label: const Text('Cliente'),
+                                    selected: !_envioPagadoPorVendedor,
+                                    onSelected: (v) => setState(() => _envioPagadoPorVendedor = false),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(

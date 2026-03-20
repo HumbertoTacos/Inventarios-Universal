@@ -160,7 +160,8 @@ class FirebaseService {
       id: docVenta.id,
       fecha: venta.fecha,
       items: venta.items,
-      total: venta.total,
+      costoEnvio: venta.costoEnvio,
+      envioPagadoPorVendedor: venta.envioPagadoPorVendedor,
     );
     
     batch.set(docVenta, ventaParaGuardar.toMap());
