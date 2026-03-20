@@ -7,6 +7,7 @@ import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'editar_producto_screen.dart';
 import 'estadisticas_screen.dart';
+import 'historial_ventas_screen.dart';
 import 'ventas_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
@@ -95,6 +96,14 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasScreen()));
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Historial de Pedidos'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialVentasScreen()));
                     },
                   ),
                   const Divider(),

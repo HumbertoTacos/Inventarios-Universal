@@ -43,6 +43,9 @@ class Venta {
   final List<VentaItem> items;
   final double costoEnvio;
   final bool envioPagadoPorVendedor;
+  final String estado; // 'completada', 'cancelada', 'devuelta'
+  final double costoEnvioDevolucion;
+  final bool devueltoAlInventario;
 
   // Si el cliente paga el envío, se suma al total a cobrar. 
   // Si el vendedor lo paga (envío gratis), no se le cobra al cliente.
@@ -56,6 +59,9 @@ class Venta {
     required this.items,
     this.costoEnvio = 0.0,
     this.envioPagadoPorVendedor = true,
+    this.estado = 'completada',
+    this.costoEnvioDevolucion = 0.0,
+    this.devueltoAlInventario = true,
   });
 
   Map<String, dynamic> toMap() {
@@ -64,6 +70,9 @@ class Venta {
       'items': items.map((i) => i.toMap()).toList(),
       'costoEnvio': costoEnvio,
       'envioPagadoPorVendedor': envioPagadoPorVendedor,
+      'estado': estado,
+      'costoEnvioDevolucion': costoEnvioDevolucion,
+      'devueltoAlInventario': devueltoAlInventario,
     };
   }
 
@@ -77,6 +86,9 @@ class Venta {
           [],
       costoEnvio: (map['costoEnvio'] as num?)?.toDouble() ?? 0.0,
       envioPagadoPorVendedor: map['envioPagadoPorVendedor'] as bool? ?? true,
+      estado: map['estado'] as String? ?? 'completada',
+      costoEnvioDevolucion: (map['costoEnvioDevolucion'] as num?)?.toDouble() ?? 0.0,
+      devueltoAlInventario: map['devueltoAlInventario'] as bool? ?? true,
     );
   }
 }

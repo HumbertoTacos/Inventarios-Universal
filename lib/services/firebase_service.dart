@@ -182,11 +182,80 @@ class FirebaseService {
     }
   }
 
+  Future<void> cancelarVenta(Venta venta) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    // 1. Cambiar estado a 'cancelada'
+    final docVenta = _ventasRef.doc(venta.id);
+    batch.update(docVenta, {'estado': 'cancelada'});
+
+    // 2. Devolver productos al inventario
+    for (final item in venta.items) {
+      final docProd = _productosRef.doc(item.productoId);
+      batch.update(docProd, {
+        'cantidad': FieldValue.increment(item.cantidad),
+      });
+    }
+
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al cancelar venta: ${e.message}');
+    }
+  }
+
+  Future<void> devolverVenta({
+    required Venta venta,
+    required double costoEnvioDevolucion,
+    required bool volverAVender,
+  }) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    // 1. Cambiar estado a 'devuelta' y registrar costos
+    final docVenta = _ventasRef.doc(venta.id);
+    batch.update(docVenta, {
+      'estado': 'devuelta',
+      'costoEnvioDevolucion': costoEnvioDevolucion,
+      'devueltoAlInventario': volverAVender,
+    });
+
+    // 2. Devolver productos al inventario SI están aptos para volver a venderse
+    if (volverAVender) {
+      for (final item in venta.items) {
+        final docProd = _productosRef.doc(item.productoId);
+        batch.update(docProd, {
+          'cantidad': FieldValue.increment(item.cantidad),
+        });
+      }
+    }
+
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar devolución: ${e.message}');
+    }
+  }
+
   // ── Estadísticas y Ganancias ──────────────────────────────────────────────
 
   /// Obtiene el flujo en vivo de todas las ventas (ordenadas de más reciente a más antigua)
   Stream<List<Venta>> getVentasStream() {
     return _ventasRef
+        .orderBy('fecha', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              return Venta.fromMap(
+                doc.data() as Map<String, dynamic>,
+                doc.id,
+              );
+            }).toList());
+  }
+
+  /// Obtiene ventas en un rango de fechas
+  Stream<List<Venta>> getVentasPorRango(DateTime inicio, DateTime fin) {
+    return _ventasRef
+        .where('fecha', isGreaterThanOrEqualTo: inicio.toIso8601String())
+        .where('fecha', isLessThanOrEqualTo: fin.toIso8601String())
         .orderBy('fecha', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) {

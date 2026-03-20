@@ -83,22 +83,39 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
         final Map<String, String> nombresProductos = {};
 
         for (var venta in ventas) {
-          for (var item in venta.items) {
-            final qty = item.cantidad;
-            ingresosTotales += (item.precioUnitario * qty);
-            costosTotales += (item.costoUnitario * qty);
-            
-            contadoresProductos[item.productoId] = (contadoresProductos[item.productoId] ?? 0) + qty;
-            nombresProductos[item.productoId] = item.nombre; // Guardar nombre para listado
-          }
-          if (venta.costoEnvio > 0) {
-            if (venta.envioPagadoPorVendedor) {
-               // El vendedor pierde dinero pagando el envío, baja la ganancia.
-               costosTotales += venta.costoEnvio;
-            } else {
-               // El cliente lo paga, ingresa al cajón pero sale a la mensajería (neto 0).
-               ingresosTotales += venta.costoEnvio;
-               costosTotales += venta.costoEnvio;
+          if (venta.estado == 'cancelada') continue; // Ingresa $0, Gasta $0
+
+          if (venta.estado == 'completada') {
+            for (var item in venta.items) {
+              final qty = item.cantidad;
+              ingresosTotales += (item.precioUnitario * qty);
+              costosTotales += (item.costoUnitario * qty);
+              
+              contadoresProductos[item.productoId] = (contadoresProductos[item.productoId] ?? 0) + qty;
+              nombresProductos[item.productoId] = item.nombre; // Guardar nombre para listado
+            }
+            if (venta.costoEnvio > 0) {
+              if (venta.envioPagadoPorVendedor) {
+                 costosTotales += venta.costoEnvio;
+              } else {
+                 ingresosTotales += venta.costoEnvio;
+                 costosTotales += venta.costoEnvio;
+              }
+            }
+          } else if (venta.estado == 'devuelta') {
+            // No recibe ingresos.
+            // Si no se devuelve al inventario (Merma), el producto es pérdida neta.
+            if (!venta.devueltoAlInventario) {
+              for (var item in venta.items) {
+                costosTotales += (item.costoUnitario * item.cantidad);
+              }
+            }
+            // Sunk costs de envío
+            if (venta.envioPagadoPorVendedor && venta.costoEnvio > 0) {
+              costosTotales += venta.costoEnvio;
+            }
+            if (venta.costoEnvioDevolucion > 0) {
+              costosTotales += venta.costoEnvioDevolucion;
             }
           }
         }
@@ -248,22 +265,38 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     final mapDias = <String, Map<String, double>>{};
     
     for (var v in ventas) {
+      if (v.estado == 'cancelada') continue;
+
       final fechaStr = DateFormat('MM/dd').format(v.fecha);
       if (!mapDias.containsKey(fechaStr)) {
         mapDias[fechaStr] = {'ingreso': 0.0, 'costo': 0.0};
       }
       
-      for (var item in v.items) {
-        mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + (item.precioUnitario * item.cantidad);
-        mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + (item.costoUnitario * item.cantidad);
-      }
-      
-      if (v.costoEnvio > 0) {
-        if (v.envioPagadoPorVendedor) {
+      if (v.estado == 'completada') {
+        for (var item in v.items) {
+          mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + (item.precioUnitario * item.cantidad);
+          mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + (item.costoUnitario * item.cantidad);
+        }
+        
+        if (v.costoEnvio > 0) {
+          if (v.envioPagadoPorVendedor) {
+            mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
+          } else {
+            mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + v.costoEnvio;
+            mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
+          }
+        }
+      } else if (v.estado == 'devuelta') {
+        if (!v.devueltoAlInventario) {
+          for (var item in v.items) {
+            mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + (item.costoUnitario * item.cantidad);
+          }
+        }
+        if (v.envioPagadoPorVendedor && v.costoEnvio > 0) {
           mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
-        } else {
-          mapDias[fechaStr]!['ingreso'] = mapDias[fechaStr]!['ingreso']! + v.costoEnvio;
-          mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvio;
+        }
+        if (v.costoEnvioDevolucion > 0) {
+          mapDias[fechaStr]!['costo'] = mapDias[fechaStr]!['costo']! + v.costoEnvioDevolucion;
         }
       }
     }
