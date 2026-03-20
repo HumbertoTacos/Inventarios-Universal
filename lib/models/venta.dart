@@ -1,6 +1,7 @@
 class VentaItem {
   final String productoId;
   final String nombre;
+  final double costoUnitario;
   final double precioUnitario;
   final int cantidad;
 
@@ -9,6 +10,7 @@ class VentaItem {
   VentaItem({
     required this.productoId,
     required this.nombre,
+    required this.costoUnitario,
     required this.precioUnitario,
     required this.cantidad,
   });
@@ -17,6 +19,7 @@ class VentaItem {
     return {
       'productoId': productoId,
       'nombre': nombre,
+      'costoUnitario': costoUnitario,
       'precioUnitario': precioUnitario,
       'cantidad': cantidad,
       'subtotal': subtotal,
@@ -27,6 +30,7 @@ class VentaItem {
     return VentaItem(
       productoId: map['productoId'] as String? ?? '',
       nombre: map['nombre'] as String? ?? '',
+      costoUnitario: (map['costoUnitario'] as num?)?.toDouble() ?? 0.0,
       precioUnitario: (map['precioUnitario'] as num?)?.toDouble() ?? 0.0,
       cantidad: (map['cantidad'] as num?)?.toInt() ?? 0,
     );

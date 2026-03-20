@@ -97,6 +97,7 @@ class _VentasScreenState extends State<VentasScreen> {
           _carrito[existingIndex] = VentaItem(
             productoId: oldItem.productoId,
             nombre: oldItem.nombre,
+            costoUnitario: oldItem.costoUnitario,
             precioUnitario: oldItem.precioUnitario,
             cantidad: nuevaCant,
           );
@@ -104,6 +105,7 @@ class _VentasScreenState extends State<VentasScreen> {
           _carrito.add(VentaItem(
             productoId: producto.id,
             nombre: producto.nombre,
+            costoUnitario: producto.costoPromedio,
             precioUnitario: producto.precio,
             cantidad: cantidad,
           ));

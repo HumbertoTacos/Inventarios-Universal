@@ -282,30 +282,43 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 Text('Código: ${producto.codigoBarras}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ],
           ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '\$${producto.precio.toStringAsFixed(2)}',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
-              ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: producto.cantidad > 0 ? Colors.green.shade50 : Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Stock: ${producto.cantidad}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: producto.cantidad > 0 ? Colors.green.shade700 : Colors.red.shade700,
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '\$${producto.precio.toStringAsFixed(2)}',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: producto.cantidad > 0 ? Colors.green.shade50 : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Stock: ${producto.cantidad}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: producto.cantidad > 0 ? Colors.green.shade700 : Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              if (!widget.modoSeleccion) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.add_shopping_cart, color: Colors.blue),
+                  tooltip: 'Reabastecer / Ingresar lote',
+                  onPressed: () => _mostrarModalReabastecimiento(producto),
+                ),
+              ],
             ],
           ),
         ),
@@ -449,14 +462,77 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     await _firebaseService.actualizarProducto(updated);
                     if (context.mounted) {
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Stock actualizado a $nuevaCantidad'), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock actualizado')));
                     }
                   },
-                  child: const Text('Guardar'),
+                  child: const Text('Actualizar'),
                 ),
               ],
             );
           },
+        );
+      },
+    );
+  }
+
+  Future<void> _mostrarModalReabastecimiento(Producto producto) async {
+    final qtyCtrl = TextEditingController();
+    final costCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Reabastecer: ${producto.nombre}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Ingresa los datos del nuevo lote. El costo promedio se recalculará automáticamente.', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: qtyCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(labelText: 'Cantidad entrante', prefixIcon: Icon(Icons.add_box), border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: costCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                decoration: const InputDecoration(labelText: 'Costo unitario (compra)', prefixIcon: Icon(Icons.attach_money), prefixText: '\$ ', border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+            FilledButton(
+              onPressed: () async {
+                if (qtyCtrl.text.isEmpty || costCtrl.text.isEmpty) return;
+                final cantidadInput = int.tryParse(qtyCtrl.text) ?? 0;
+                final costoInput = double.tryParse(costCtrl.text) ?? -1;
+
+                if (cantidadInput <= 0 || costoInput < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valores inválidos'), backgroundColor: Colors.red));
+                  return;
+                }
+
+                Navigator.pop(ctx); 
+
+                try {
+                  await _firebaseService.reabastecerProducto(producto.id, cantidadInput, costoInput);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reabastecimiento exitoso y costo promediado.'), backgroundColor: Colors.green));
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  }
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
         );
       },
     );

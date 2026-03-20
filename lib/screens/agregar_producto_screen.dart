@@ -19,6 +19,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   // Controladores
   final _nombreCtrl = TextEditingController();
   final _cantidadCtrl = TextEditingController();
+  final _costoCtrl = TextEditingController();
   final _precioCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _codigoBarrasCtrl = TextEditingController();
@@ -34,6 +35,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   void dispose() {
     _nombreCtrl.dispose();
     _cantidadCtrl.dispose();
+    _costoCtrl.dispose();
     _precioCtrl.dispose();
     _descripcionCtrl.dispose();
     _codigoBarrasCtrl.dispose();
@@ -156,50 +158,65 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                  // ── Cantidad ──
+                  TextFormField(
+                    controller: _cantidadCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Cantidad *',
+                      prefixIcon: Icon(Icons.numbers),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Requerido';
+                      if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
-                  // ── Cantidad y Precio ──
+                  // ── Costo y Precio ──
                   Row(
                     children: [
                       Expanded(
                         child: TextFormField(
-                          controller: _cantidadCtrl,
+                          controller: _costoCtrl,
                           decoration: const InputDecoration(
-                            labelText: 'Cantidad *',
-                            prefixIcon: Icon(Icons.numbers),
+                            labelText: 'Costo *',
+                            prefixText: '\$ ',
+                            prefixIcon: Icon(Icons.money_off),
                             border: OutlineInputBorder(),
                           ),
-                          keyboardType: TextInputType.number,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                           ],
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Requerido';
-                            final n = int.tryParse(v.trim());
-                            if (n == null || n < 0) return 'Número inválido';
+                            if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
                             return null;
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: TextFormField(
                           controller: _precioCtrl,
                           decoration: const InputDecoration(
-                            labelText: 'Precio *',
-                            prefixIcon: Icon(Icons.attach_money),
+                            labelText: 'Precio venta *',
+                            prefixText: '\$ ',
+                            prefixIcon: Icon(Icons.sell),
                             border: OutlineInputBorder(),
                           ),
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp(r'^\d+\.?\d{0,2}'),
-                            ),
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                           ],
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Requerido';
                             final n = double.tryParse(v.trim());
-                            if (n == null || n < 0) return 'Precio inválido';
+                            if (n == null || n < 0) return 'Invalido';
                             return null;
                           },
                         ),
@@ -307,6 +324,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       color: esDiseno ? null : _atributoCtrl.text.trim(),
       diseno: esDiseno ? _atributoCtrl.text.trim() : null,
       cantidad: int.parse(_cantidadCtrl.text.trim()),
+      costoPromedio: double.parse(_costoCtrl.text.trim()),
       precio: double.parse(_precioCtrl.text.trim()),
       descripcion: _descripcionCtrl.text.trim(),
       codigoBarras: _codigoBarrasCtrl.text.trim().isNotEmpty

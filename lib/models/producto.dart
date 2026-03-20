@@ -6,6 +6,7 @@ class Producto {
   final String? color;       // Aplica cuando tipoAtributo == "color"
   final String? diseno;      // Aplica cuando tipoAtributo == "diseño"
   final int cantidad;
+  final double costoPromedio;
   final double precio;
   final String descripcion;
   final String? codigoBarras;
@@ -18,6 +19,7 @@ class Producto {
     this.color,
     this.diseno,
     required this.cantidad,
+    required this.costoPromedio,
     required this.precio,
     this.descripcion = '',
     this.codigoBarras,
@@ -33,6 +35,7 @@ class Producto {
       color: map['color'] as String?,
       diseno: map['diseño'] as String?,
       cantidad: (map['cantidad'] as num?)?.toInt() ?? 0,
+      costoPromedio: (map['costo_promedio'] as num? ?? map['costo'] as num?)?.toDouble() ?? 0.0,
       precio: (map['precio'] as num?)?.toDouble() ?? 0.0,
       descripcion: map['descripcion'] as String? ?? '',
       codigoBarras: map['codigoBarras'] as String?,
@@ -48,6 +51,7 @@ class Producto {
       if (color != null) 'color': color,
       if (diseno != null) 'diseño': diseno,
       'cantidad': cantidad,
+      'costo_promedio': costoPromedio,
       'precio': precio,
       'descripcion': descripcion,
       if (codigoBarras != null) 'codigoBarras': codigoBarras,
@@ -69,6 +73,7 @@ class Producto {
     String? color,
     String? diseno,
     int? cantidad,
+    double? costoPromedio,
     double? precio,
     String? descripcion,
     String? codigoBarras,
@@ -81,6 +86,7 @@ class Producto {
       color: color ?? this.color,
       diseno: diseno ?? this.diseno,
       cantidad: cantidad ?? this.cantidad,
+      costoPromedio: costoPromedio ?? this.costoPromedio,
       precio: precio ?? this.precio,
       descripcion: descripcion ?? this.descripcion,
       codigoBarras: codigoBarras ?? this.codigoBarras,
@@ -91,5 +97,5 @@ class Producto {
   String toString() =>
       'Producto(id: $id, nombre: $nombre, cat: $categoria, '
       'tamaño: $tamano, color: $color, diseño: $diseno, '
-      'cant: $cantidad, precio: \$$precio)';
+      'cant: $cantidad, costoPromedio: \$$costoPromedio, precio: \$$precio)';
 }

@@ -61,6 +61,44 @@ class FirebaseService {
     }
   }
 
+  /// Método para reabastecer inventario recalculando el Costo Promedio Ponderado
+  Future<void> reabastecerProducto(String productoId, int cantidadNueva, double costoCompraNuevo) async {
+    final docRef = _productosRef.doc(productoId);
+    
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) {
+          throw Exception("El producto no existe");
+        }
+        
+        final data = snapshot.data() as Map<String, dynamic>;
+        
+        // Obtener valores actuales (con fallback para documentos viajos con 'costo')
+        final stockViejo = (data['cantidad'] as num?)?.toInt() ?? 0;
+        final costoViejo = (data['costo_promedio'] as num? ?? data['costo'] as num?)?.toDouble() ?? 0.0;
+        
+        // Lógica de Costo Promedio Ponderado
+        final valorViejo = stockViejo * costoViejo;
+        final valorNuevo = cantidadNueva * costoCompraNuevo;
+        final nuevoStock = stockViejo + cantidadNueva;
+        
+        double nuevoCostoPromedio = costoViejo;
+        if (nuevoStock > 0) {
+          nuevoCostoPromedio = (valorViejo + valorNuevo) / nuevoStock;
+        }
+
+        // Ejecutar actualización
+        transaction.update(docRef, {
+          'cantidad': nuevoStock,
+          'costo_promedio': nuevoCostoPromedio,
+        });
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al reabastecer producto: ${e.message}');
+    }
+  }
+
   // ── Categorías ────────────────────────────────────────────────────────────
 
   /// Stream en tiempo real de todas las categorías, ordenadas por `orden`.
