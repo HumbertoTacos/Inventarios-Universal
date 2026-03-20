@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
+import '../models/venta.dart';
 
 class FirebaseService {
   final CollectionReference _productosRef =
@@ -8,6 +9,9 @@ class FirebaseService {
 
   final CollectionReference _categoriasRef =
       FirebaseFirestore.instance.collection('categorias');
+
+  final CollectionReference _ventasRef =
+      FirebaseFirestore.instance.collection('ventas');
 
   // ── Productos ─────────────────────────────────────────────────────────────
 
@@ -103,5 +107,39 @@ class FirebaseService {
       batch.set(_categoriasRef.doc(), cat.toMap());
     }
     await batch.commit();
+  }
+
+  // ── Ventas ────────────────────────────────────────────────────────────────
+
+  Future<void> registrarVenta(Venta venta) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    // 1. Guardar la venta (el ID se generará automáticamente si mandamos uno vacío, o usamos uno nuevo)
+    final docVenta = _ventasRef.doc();
+    
+    // Asignar el ID autogenerado al modelo antes de guardar
+    final ventaParaGuardar = Venta(
+      id: docVenta.id,
+      fecha: venta.fecha,
+      items: venta.items,
+      total: venta.total,
+    );
+    
+    batch.set(docVenta, ventaParaGuardar.toMap());
+
+    // 2. Descontar inventario de todos los productos
+    for (final item in venta.items) {
+      final docProd = _productosRef.doc(item.productoId);
+      // Usamos increment con valor negativo para restar atómicamente
+      batch.update(docProd, {
+        'cantidad': FieldValue.increment(-item.cantidad),
+      });
+    }
+
+    try {
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar venta: ${e.message}');
+    }
   }
 }

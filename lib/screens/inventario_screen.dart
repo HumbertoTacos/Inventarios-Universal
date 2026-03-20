@@ -5,9 +5,12 @@ import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
+import 'ventas_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
-  const InventarioScreen({super.key});
+  final bool modoSeleccion;
+
+  const InventarioScreen({super.key, this.modoSeleccion = false});
 
   @override
   State<InventarioScreen> createState() => _InventarioScreenState();
@@ -66,6 +69,35 @@ class _InventarioScreenState extends State<InventarioScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      drawer: widget.modoSeleccion
+          ? null
+          : Drawer(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  DrawerHeader(
+                    decoration: BoxDecoration(color: colorScheme.primary),
+                    child: const Text(
+                      'Blancos Gina',
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: const Text('Inventario'),
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.point_of_sale),
+                    title: const Text('Punto de Venta (Carrito)'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasScreen()));
+                    },
+                  ),
+                ],
+              ),
+            ),
       appBar: AppBar(
         title: const Text(
           'Inventario',
@@ -149,11 +181,13 @@ class _InventarioScreenState extends State<InventarioScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navegarAAgregarProducto,
-        icon: const Icon(Icons.add),
-        label: const Text('Agregar'),
-      ),
+      floatingActionButton: widget.modoSeleccion
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _navegarAAgregarProducto,
+              icon: const Icon(Icons.add),
+              label: const Text('Agregar'),
+            ),
     );
   }
 
@@ -202,7 +236,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
     return Dismissible(
       key: Key(producto.id),
-      direction: DismissDirection.endToStart,
+      direction: widget.modoSeleccion ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
@@ -220,7 +254,13 @@ class _InventarioScreenState extends State<InventarioScreen> {
         margin: const EdgeInsets.symmetric(vertical: 4),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
-          onTap: () => _mostrarDialogoRestock(producto),
+          onTap: () {
+            if (widget.modoSeleccion) {
+              Navigator.pop(context, producto);
+            } else {
+              _mostrarDialogoRestock(producto);
+            }
+          },
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: CircleAvatar(
             backgroundColor: colorScheme.secondaryContainer,
