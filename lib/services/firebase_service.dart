@@ -180,4 +180,37 @@ class FirebaseService {
       throw Exception('Error al registrar venta: ${e.message}');
     }
   }
+
+  // ── Estadísticas y Ganancias ──────────────────────────────────────────────
+
+  /// Obtiene el flujo en vivo de todas las ventas (ordenadas de más reciente a más antigua)
+  Stream<List<Venta>> getVentasStream() {
+    return _ventasRef
+        .orderBy('fecha', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+              return Venta.fromMap(
+                doc.data() as Map<String, dynamic>,
+                doc.id,
+              );
+            }).toList());
+  }
+
+  /// Calcula el capital total congelado en el inventario
+  Future<double> getCapitalEnInventario() async {
+    final snapshot = await _productosRef.get();
+    double totalCapital = 0.0;
+    
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final stock = (data['cantidad'] as num?)?.toInt() ?? 0;
+      final costoPromedio = (data['costo_promedio'] as num? ?? data['costo'] as num?)?.toDouble() ?? 0.0;
+      
+      if (stock > 0) {
+        totalCapital += (stock * costoPromedio);
+      }
+    }
+    
+    return totalCapital;
+  }
 }

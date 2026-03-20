@@ -5,6 +5,7 @@ import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
+import 'estadisticas_screen.dart';
 import 'ventas_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
@@ -93,6 +94,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasScreen()));
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.bar_chart),
+                    title: const Text('Estadísticas y Ganancias'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
                     },
                   ),
                 ],
