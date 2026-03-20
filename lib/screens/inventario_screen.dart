@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/producto.dart';
+import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
+import 'barcode_scanner_screen.dart';
 
 class InventarioScreen extends StatefulWidget {
   const InventarioScreen({super.key});
@@ -13,6 +15,51 @@ class InventarioScreen extends StatefulWidget {
 
 class _InventarioScreenState extends State<InventarioScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+
+  // Estados de búsqueda y filtrado
+  String _searchQuery = '';
+  Categoria? _filtroCategoria;
+  String? _filtroTamano;
+  String? _filtroAtributo;
+
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Filtrado Local ────────────────────────────────────────────────────────
+
+  List<Producto> _filtrarProductos(List<Producto> productos) {
+    return productos.where((p) {
+      // Búsqueda por texto (nombre o código de barras)
+      final query = _searchQuery.trim().toLowerCase();
+      final matchQuery = query.isEmpty ||
+          p.nombre.toLowerCase().contains(query) ||
+          (p.codigoBarras != null && p.codigoBarras!.toLowerCase() == query);
+
+      // Filtro por categoría
+      final matchCat = _filtroCategoria == null || p.categoria == _filtroCategoria!.nombre;
+
+      // Filtro por tamaño
+      final matchTamano = _filtroTamano == null || p.tamano == _filtroTamano;
+
+      // Filtro por atributo (color o diseño)
+      final attrQuery = _filtroAtributo?.trim().toLowerCase() ?? '';
+      final matchAttr = attrQuery.isEmpty ||
+          (p.color != null && p.color!.toLowerCase().contains(attrQuery)) ||
+          (p.diseno != null && p.diseno!.toLowerCase().contains(attrQuery));
+
+      return matchQuery && matchCat && matchTamano && matchAttr;
+    }).toList();
+  }
+
+  bool get _hayFiltrosActivos =>
+      _filtroCategoria != null || _filtroTamano != null || (_filtroAtributo?.isNotEmpty ?? false);
+
+  // ── UI Principal ──────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -28,33 +75,76 @@ class _InventarioScreenState extends State<InventarioScreen> {
         backgroundColor: colorScheme.primaryContainer,
         foregroundColor: colorScheme.onPrimaryContainer,
         elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(76),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchCtrl,
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar nombre o código...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        tooltip: 'Escanear con cámara',
+                        onPressed: _escanearParaBuscar,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).scaffoldBackgroundColor,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: _hayFiltrosActivos ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.filter_list,
+                      color: _hayFiltrosActivos ? colorScheme.onPrimary : colorScheme.onSurface,
+                    ),
+                    tooltip: 'Filtrar',
+                    onPressed: _mostrarModalFiltros,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
       body: StreamBuilder<List<Producto>>(
         stream: _firebaseService.getProductos(),
         builder: (context, snapshot) {
-          // ── Estado de error ──
           if (snapshot.hasError) {
             return _buildEstadoError(snapshot.error.toString());
           }
 
-          // ── Estado de carga ──
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final productos = snapshot.data ?? [];
+          final productosRaw = snapshot.data ?? [];
+          final productosFiltrados = _filtrarProductos(productosRaw);
 
-          // ── Lista vacía ──
-          if (productos.isEmpty) {
-            return _buildEstadoVacio();
-          }
+          if (productosRaw.isEmpty) return _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
+          if (productosFiltrados.isEmpty) return _buildEstadoVacio('Sin resultados', 'Intenta con otra búsqueda o limpia los filtros.');
 
-          // ── Lista con datos ──
           return ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: productos.length,
+            itemCount: productosFiltrados.length,
             itemBuilder: (context, index) {
-              return _buildProductoCard(productos[index]);
+              return _buildProductoCard(productosFiltrados[index]);
             },
           );
         },
@@ -67,7 +157,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
-  // ── Widgets de estado ──────────────────────────────────────────────────────
+  // ── Widgets de Estado ─────────────────────────────────────────────────────
 
   Widget _buildEstadoError(String mensaje) {
     return Center(
@@ -78,46 +168,29 @@ class _InventarioScreenState extends State<InventarioScreen> {
           children: [
             Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
-            Text(
-              'Ocurrió un error',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Ocurrió un error', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text(
-              mensaje,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
-            ),
+            Text(mensaje, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEstadoVacio() {
+  Widget _buildEstadoVacio(String titulo, String subtitulo) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.inventory_2_outlined,
-              size: 80, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(
-            'Sin productos',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Toca el botón + para agregar tu primer producto',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade500,
-                ),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            Text(subtitulo, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500)),
+          ],
+        ),
       ),
     );
   }
@@ -148,24 +221,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           onTap: () => _mostrarDialogoRestock(producto),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: CircleAvatar(
             backgroundColor: colorScheme.secondaryContainer,
             child: Text(
-              producto.nombre.isNotEmpty
-                  ? producto.nombre[0].toUpperCase()
-                  : '?',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSecondaryContainer,
-              ),
+              producto.nombre.isNotEmpty ? producto.nombre[0].toUpperCase() : '?',
+              style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSecondaryContainer),
             ),
           ),
-          title: Text(
-            producto.nombre,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
+          title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -174,15 +238,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 '${producto.tamano}${producto.atributoVisual.isNotEmpty ? ' · ${producto.atributoVisual}' : ''}',
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
               ),
-              if (producto.codigoBarras != null &&
-                  producto.codigoBarras!.isNotEmpty)
-                Text(
-                  'Código: ${producto.codigoBarras}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
+              if (producto.codigoBarras != null && producto.codigoBarras!.isNotEmpty)
+                Text('Código: ${producto.codigoBarras}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             ],
           ),
           trailing: Column(
@@ -191,20 +248,13 @@ class _InventarioScreenState extends State<InventarioScreen> {
             children: [
               Text(
                 '\$${producto.precio.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
-                  fontSize: 15,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
               ),
               const SizedBox(height: 4),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: producto.cantidad > 0
-                      ? Colors.green.shade50
-                      : Colors.red.shade50,
+                  color: producto.cantidad > 0 ? Colors.green.shade50 : Colors.red.shade50,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -212,9 +262,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: producto.cantidad > 0
-                        ? Colors.green.shade700
-                        : Colors.red.shade700,
+                    color: producto.cantidad > 0 ? Colors.green.shade700 : Colors.red.shade700,
                   ),
                 ),
               ),
@@ -225,7 +273,46 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
-  // ── Acciones ──────────────────────────────────────────────────────────────
+  // ── Modal de Filtros ──────────────────────────────────────────────────────
+
+  void _mostrarModalFiltros() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return _FiltrosBottomSheet(
+          filtroCategoriaInicial: _filtroCategoria,
+          filtroTamanoInicial: _filtroTamano,
+          filtroAtributoInicial: _filtroAtributo,
+          onApply: (cat, tamano, atributo) {
+            setState(() {
+              _filtroCategoria = cat;
+              _filtroTamano = tamano;
+              _filtroAtributo = atributo;
+            });
+          },
+        );
+      },
+    );
+  }
+
+  // ── Acciones Secundarias ──────────────────────────────────────────────────
+
+  Future<void> _escanearParaBuscar() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _searchCtrl.text = result;
+        _searchQuery = result;
+      });
+    }
+  }
 
   Future<bool> _confirmarEliminacion(String nombre) async {
     final resultado = await showDialog<bool>(
@@ -234,15 +321,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
         title: const Text('Eliminar producto'),
         content: Text('¿Estás seguro de que deseas eliminar "$nombre"?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Eliminar'),
           ),
         ],
@@ -254,33 +336,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
   Future<void> _eliminarProducto(Producto producto) async {
     try {
       await _firebaseService.eliminarProducto(producto.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"${producto.nombre}" eliminado')),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${producto.nombre}" eliminado')));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al eliminar: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.red));
     }
   }
 
   void _navegarAAgregarProducto() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AgregarProductoScreen()),
-    );
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarProductoScreen()));
   }
+
+  // ── Diálogo Restock ──────────────────────────────────────────────────────
 
   Future<void> _mostrarDialogoRestock(Producto producto) async {
     final TextEditingController ctrl = TextEditingController();
-    bool sumando = true; // true: +, false: -
+    bool sumando = true;
 
     await showDialog(
       context: context,
@@ -316,35 +386,22 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     controller: ctrl,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      labelText: 'Cantidad',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Cantidad', border: OutlineInputBorder()),
                   ),
                 ],
               ),
               actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancelar'),
-                ),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
                 FilledButton(
                   onPressed: () async {
                     if (ctrl.text.isEmpty) return;
                     final cantidadInput = int.tryParse(ctrl.text) ?? 0;
                     if (cantidadInput == 0) return;
 
-                    final nuevaCantidad = sumando
-                        ? producto.cantidad + cantidadInput
-                        : producto.cantidad - cantidadInput;
+                    final nuevaCantidad = sumando ? producto.cantidad + cantidadInput : producto.cantidad - cantidadInput;
 
                     if (nuevaCantidad < 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No puedes tener stock negativo'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No puedes tener stock negativo'), backgroundColor: Colors.red));
                       return;
                     }
 
@@ -352,12 +409,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     await _firebaseService.actualizarProducto(updated);
                     if (context.mounted) {
                       Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Stock actualizado a $nuevaCantidad'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Stock actualizado a $nuevaCantidad'), backgroundColor: Colors.green));
                     }
                   },
                   child: const Text('Guardar'),
@@ -367,6 +419,137 @@ class _InventarioScreenState extends State<InventarioScreen> {
           },
         );
       },
+    );
+  }
+}
+
+// ── Bottom Sheet de Filtros ─────────────────────────────────────────────────
+
+class _FiltrosBottomSheet extends StatefulWidget {
+  final Categoria? filtroCategoriaInicial;
+  final String? filtroTamanoInicial;
+  final String? filtroAtributoInicial;
+  final Function(Categoria?, String?, String?) onApply;
+
+  const _FiltrosBottomSheet({
+    this.filtroCategoriaInicial,
+    this.filtroTamanoInicial,
+    this.filtroAtributoInicial,
+    required this.onApply,
+  });
+
+  @override
+  State<_FiltrosBottomSheet> createState() => _FiltrosBottomSheetState();
+}
+
+class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
+  final FirebaseService _firebaseService = FirebaseService();
+
+  Categoria? _catSelect;
+  String? _tamSelect;
+  final _attrCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _catSelect = widget.filtroCategoriaInicial;
+    _tamSelect = widget.filtroTamanoInicial;
+    _attrCtrl.text = widget.filtroAtributoInicial ?? '';
+  }
+
+  @override
+  void dispose() {
+    _attrCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Evita que el teclado del attrCtrl tape el modal
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+      child: StreamBuilder<List<Categoria>>(
+        stream: _firebaseService.getCategorias(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+          }
+
+          final categorias = snapshot.data ?? [];
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Filtros Avanzados', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+
+              DropdownButtonFormField<Categoria>(
+                initialValue: _catSelect,
+                decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
+                items: [
+                  const DropdownMenuItem<Categoria>(value: null, child: Text('Cualquiera')),
+                  ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
+                ],
+                onChanged: (cat) {
+                  setState(() {
+                    _catSelect = cat;
+                    _tamSelect = null; // resetear tamaño
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+
+              DropdownButtonFormField<String>(
+                key: ValueKey('tamano_${_catSelect?.id}'),
+                initialValue: _tamSelect,
+                decoration: const InputDecoration(labelText: 'Tamaño', border: OutlineInputBorder()),
+                items: [
+                  const DropdownMenuItem<String>(value: null, child: Text('Cualquiera')),
+                  if (_catSelect != null)
+                    ..._catSelect!.tamanos.map((t) => DropdownMenuItem(value: t, child: Text(t))),
+                ],
+                onChanged: (t) => setState(() => _tamSelect = t),
+              ),
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _attrCtrl,
+                decoration: const InputDecoration(labelText: 'Color / Diseño', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 32),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      onPressed: () {
+                        widget.onApply(null, null, null);
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Limpiar Filtros'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      onPressed: () {
+                        widget.onApply(_catSelect, _tamSelect, _attrCtrl.text.trim());
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Aplicar'),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          );
+        },
+      ),
     );
   }
 }
