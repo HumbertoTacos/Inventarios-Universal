@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.blancos_gina"
+    namespace = "com.example.inventarios_universal"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.blancos_gina"
+        applicationId = "com.example.inventarios_universal"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

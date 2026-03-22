@@ -1,7 +1,7 @@
 // Test básico de humo para la app de inventario.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:blancos_gina/main.dart';
+import 'package:inventarios_universal/main.dart';
 
 void main() {
   testWidgets('La app se renderiza correctamente', (WidgetTester tester) async {

@@ -1,4 +1,4 @@
-# blancos_gina
+# inventarios_universal
 
 A new Flutter project.
 
