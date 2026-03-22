@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -92,6 +93,49 @@ class AuthService {
     await _firestore.collection('usuarios').doc(user.uid).set({
       'nombre': nombre,
       'email': email,
+      'negocioNombre': negocioNombre,
+      'negocioId': negocioRef.id,
+      'estatus': 'pendiente',
+      'rol': 'usuario',
+    });
+
+    await reloadUserData();
+  }
+
+  Future<void> loginWithGoogle() async {
+    UserCredential? credential;
+    try {
+      if (kIsWeb) {
+        credential = await _auth.signInWithPopup(GoogleAuthProvider());
+      } else {
+        credential = await _auth.signInWithProvider(GoogleAuthProvider());
+      }
+      
+      if (credential.user != null) {
+        await reloadUserData();
+      }
+    } catch (e) {
+      throw Exception('Error en Google Sign-In: $e');
+    }
+  }
+
+  Future<void> completarRegistroGoogle({
+    required String negocioNombre,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No hay usuario autenticado');
+
+    // 1. Crear el negocio
+    final negocioRef = _firestore.collection('negocios').doc();
+    await negocioRef.set({
+      'nombre': negocioNombre,
+      'creadoPor': user.uid,
+    });
+
+    // 2. Crear el usuario
+    await _firestore.collection('usuarios').doc(user.uid).set({
+      'nombre': user.displayName ?? 'Usuario Google',
+      'email': user.email ?? '',
       'negocioNombre': negocioNombre,
       'negocioId': negocioRef.id,
       'estatus': 'pendiente',

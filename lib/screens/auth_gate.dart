@@ -6,6 +6,7 @@ import 'login_screen.dart';
 import 'espera_aprobacion_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'verificacion_correo_screen.dart';
+import 'completar_registro_google_screen.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -39,7 +40,7 @@ class AuthGate extends StatelessWidget {
             final userData = AuthService().currentUserData;
             
             if (userData == null) {
-              return const LoginScreen();
+              return const CompletarRegistroGoogleScreen();
             }
 
             if (userData.rol == 'admin') {

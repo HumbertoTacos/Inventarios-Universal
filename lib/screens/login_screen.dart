@@ -71,6 +71,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Iniciar Sesión', style: TextStyle(fontSize: 16)),
                     ),
               const SizedBox(height: 16),
+              if (!_isLoading)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.login, color: Colors.red),
+                  label: const Text('Continuar con Google'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+                  onPressed: () async {
+                    setState(() => _isLoading = true);
+                    try {
+                      await AuthService().loginWithGoogle();
+                      if (mounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const AuthGate())
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isLoading = false);
+                    }
+                  },
+                ),
+              const SizedBox(height: 16),
               TextButton(
                 onPressed: () {
                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RegistroScreen()));
