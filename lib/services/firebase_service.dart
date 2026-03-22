@@ -3,15 +3,23 @@ import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/venta.dart';
 
+import 'auth_service.dart';
+
 class FirebaseService {
-  final CollectionReference _productosRef =
-      FirebaseFirestore.instance.collection('productos');
+  String get _negocioId {
+    final id = AuthService().currentNegocioId;
+    if (id.isEmpty) throw Exception("No hay negocio seleccionado");
+    return id;
+  }
 
-  final CollectionReference _categoriasRef =
-      FirebaseFirestore.instance.collection('categorias');
+  CollectionReference get _productosRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('productos');
 
-  final CollectionReference _ventasRef =
-      FirebaseFirestore.instance.collection('ventas');
+  CollectionReference get _categoriasRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('categorias');
+
+  CollectionReference get _ventasRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('ventas');
 
   // ── Productos ─────────────────────────────────────────────────────────────
 
