@@ -71,7 +71,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   DrawerHeader(
                     decoration: BoxDecoration(color: colorScheme.primary),
                     child: const Text(
-                      'Blancos Gina',
+                      'Inventarios Universal',
                       style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                   ),
