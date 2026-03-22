@@ -7,6 +7,7 @@ import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'editar_producto_screen.dart';
 import 'estadisticas_screen.dart';
+import 'gestion_categorias_screen.dart';
 import 'historial_ventas_screen.dart';
 import 'ventas_screen.dart';
 
@@ -25,8 +26,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
   // Estados de búsqueda y filtrado
   String _searchQuery = '';
   Categoria? _filtroCategoria;
-  String? _filtroTamano;
-  String? _filtroAtributo;
 
   final TextEditingController _searchCtrl = TextEditingController();
 
@@ -47,23 +46,14 @@ class _InventarioScreenState extends State<InventarioScreen> {
           (p.codigoBarras != null && p.codigoBarras!.toLowerCase() == query);
 
       // Filtro por categoría
-      final matchCat = _filtroCategoria == null || p.categoria == _filtroCategoria!.nombre;
+      final matchCat =
+          _filtroCategoria == null || p.categoria == _filtroCategoria!.nombre;
 
-      // Filtro por tamaño
-      final matchTamano = _filtroTamano == null || p.tamano == _filtroTamano;
-
-      // Filtro por atributo (color o diseño)
-      final attrQuery = _filtroAtributo?.trim().toLowerCase() ?? '';
-      final matchAttr = attrQuery.isEmpty ||
-          (p.color != null && p.color!.toLowerCase().contains(attrQuery)) ||
-          (p.diseno != null && p.diseno!.toLowerCase().contains(attrQuery));
-
-      return matchQuery && matchCat && matchTamano && matchAttr;
+      return matchQuery && matchCat;
     }).toList();
   }
 
-  bool get _hayFiltrosActivos =>
-      _filtroCategoria != null || _filtroTamano != null || (_filtroAtributo?.isNotEmpty ?? false);
+  bool get _hayFiltrosActivos => _filtroCategoria != null;
 
   // ── UI Principal ──────────────────────────────────────────────────────────
 
@@ -113,6 +103,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.category_outlined),
+                    title: const Text('Gestionar Categorías'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
                     },
                   ),
                 ],
@@ -295,7 +294,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
             children: [
               Text(producto.categoria),
               Text(
-                '${producto.tamano}${producto.atributoVisual.isNotEmpty ? ' · ${producto.atributoVisual}' : ''}',
+                producto.atributoVisual,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
               ),
               if (producto.codigoBarras != null && producto.codigoBarras!.isNotEmpty)
@@ -382,13 +381,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
       builder: (ctx) {
         return _FiltrosBottomSheet(
           filtroCategoriaInicial: _filtroCategoria,
-          filtroTamanoInicial: _filtroTamano,
-          filtroAtributoInicial: _filtroAtributo,
-          onApply: (cat, tamano, atributo) {
+          onApply: (cat) {
             setState(() {
               _filtroCategoria = cat;
-              _filtroTamano = tamano;
-              _filtroAtributo = atributo;
             });
           },
         );
@@ -587,14 +582,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
 class _FiltrosBottomSheet extends StatefulWidget {
   final Categoria? filtroCategoriaInicial;
-  final String? filtroTamanoInicial;
-  final String? filtroAtributoInicial;
-  final Function(Categoria?, String?, String?) onApply;
+  final void Function(Categoria?) onApply;
 
   const _FiltrosBottomSheet({
     this.filtroCategoriaInicial,
-    this.filtroTamanoInicial,
-    this.filtroAtributoInicial,
     required this.onApply,
   });
 
@@ -604,37 +595,24 @@ class _FiltrosBottomSheet extends StatefulWidget {
 
 class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
   final FirebaseService _firebaseService = FirebaseService();
-
   Categoria? _catSelect;
-  String? _tamSelect;
-  final _attrCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _catSelect = widget.filtroCategoriaInicial;
-    _tamSelect = widget.filtroTamanoInicial;
-    _attrCtrl.text = widget.filtroAtributoInicial ?? '';
-  }
-
-  @override
-  void dispose() {
-    _attrCtrl.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Evita que el teclado del attrCtrl tape el modal
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-
     return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
       child: StreamBuilder<List<Categoria>>(
         stream: _firebaseService.getCategorias(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+            return const SizedBox(
+                height: 150, child: Center(child: CircularProgressIndicator()));
           }
 
           final categorias = snapshot.data ?? [];
@@ -643,69 +621,56 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Filtros Avanzados', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Filtrar por Categoría',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 20),
-
               DropdownButtonFormField<Categoria>(
                 initialValue: _catSelect,
-                decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                    labelText: 'Categoría', border: OutlineInputBorder()),
                 items: [
-                  const DropdownMenuItem<Categoria>(value: null, child: Text('Cualquiera')),
-                  ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
+                  const DropdownMenuItem<Categoria>(
+                      value: null, child: Text('Cualquiera')),
+                  ...categorias.map((cat) =>
+                      DropdownMenuItem(value: cat, child: Text(cat.nombre))),
                 ],
-                onChanged: (cat) {
-                  setState(() {
-                    _catSelect = cat;
-                    _tamSelect = null; // resetear tamaño
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-
-              DropdownButtonFormField<String>(
-                key: ValueKey('tamano_${_catSelect?.id}'),
-                initialValue: _tamSelect,
-                decoration: const InputDecoration(labelText: 'Tamaño', border: OutlineInputBorder()),
-                items: [
-                  const DropdownMenuItem<String>(value: null, child: Text('Cualquiera')),
-                  if (_catSelect != null)
-                    ..._catSelect!.tamanos.map((t) => DropdownMenuItem(value: t, child: Text(t))),
-                ],
-                onChanged: (t) => setState(() => _tamSelect = t),
-              ),
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _attrCtrl,
-                decoration: const InputDecoration(labelText: 'Color / Diseño', border: OutlineInputBorder()),
+                onChanged: (cat) => setState(() => _catSelect = cat),
               ),
               const SizedBox(height: 32),
-
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      style: OutlinedButton.styleFrom(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16)),
                       onPressed: () {
-                        widget.onApply(null, null, null);
+                        widget.onApply(null);
                         Navigator.pop(context);
                       },
-                      child: const Text('Limpiar Filtros'),
+                      child: const Text('Limpiar'),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: FilledButton(
-                      style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                      style: FilledButton.styleFrom(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16)),
                       onPressed: () {
-                        widget.onApply(_catSelect, _tamSelect, _attrCtrl.text.trim());
+                        widget.onApply(_catSelect);
                         Navigator.pop(context);
                       },
                       child: const Text('Aplicar'),
                     ),
                   ),
                 ],
-              )
+              ),
             ],
           );
         },

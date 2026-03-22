@@ -16,20 +16,21 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirebaseService _firebaseService = FirebaseService();
 
-  // Controladores
+  // Controladores base
   final _nombreCtrl = TextEditingController();
   final _cantidadCtrl = TextEditingController();
   final _costoCtrl = TextEditingController();
   final _precioCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _codigoBarrasCtrl = TextEditingController();
-  final _atributoCtrl = TextEditingController(); // color o diseño
 
   bool _guardando = false;
-
-  // Selecciones de dropdowns en cascada
   Categoria? _categoriaSeleccionada;
-  String? _tamanoSeleccionado;
+
+  // Valores dinámicos por atributo: nombre → valor elegido/escrito
+  final Map<String, String> _atributos = {};
+  // Controladores de texto libre: nombre → controller
+  final Map<String, TextEditingController> _atributoCtrl = {};
 
   @override
   void dispose() {
@@ -39,8 +40,32 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     _precioCtrl.dispose();
     _descripcionCtrl.dispose();
     _codigoBarrasCtrl.dispose();
-    _atributoCtrl.dispose();
+    for (final c in _atributoCtrl.values) {
+      c.dispose();
+    }
     super.dispose();
+  }
+
+  /// Reconstruye los controladores de atributos cuando cambia la categoría.
+  void _alCambiarCategoria(Categoria? cat) {
+    // Liberar controladores anteriores
+    for (final c in _atributoCtrl.values) {
+      c.dispose();
+    }
+    _atributoCtrl.clear();
+    _atributos.clear();
+
+    if (cat != null) {
+      for (final attr in cat.atributos) {
+        if (!attr.esListaFija) {
+          _atributoCtrl[attr.nombre] = TextEditingController();
+        }
+      }
+    }
+
+    setState(() {
+      _categoriaSeleccionada = cat;
+    });
   }
 
   @override
@@ -62,7 +87,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
         stream: _firebaseService.getCategorias(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error al cargar categorías: ${snapshot.error}'));
+            return Center(
+                child: Text('Error al cargar categorías: ${snapshot.error}'));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -91,7 +117,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Categoría (Dropdown desde Firestore) ──
+                  // ── Categoría ──
                   DropdownButtonFormField<Categoria>(
                     initialValue: _categoriaSeleccionada,
                     decoration: const InputDecoration(
@@ -105,59 +131,16 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                               child: Text(cat.nombre),
                             ))
                         .toList(),
-                    onChanged: (cat) {
-                      setState(() {
-                        _categoriaSeleccionada = cat;
-                        _tamanoSeleccionado = null; // Reset tamaño
-                        _atributoCtrl.clear();
-                      });
-                    },
-                    validator: (v) => v == null ? 'Selecciona una categoría' : null,
+                    onChanged: _alCambiarCategoria,
+                    validator: (v) =>
+                        v == null ? 'Selecciona una categoría' : null,
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Tamaño (Dropdown dinámico según categoría) ──
-                  if (_categoriaSeleccionada != null) ...[
-                    DropdownButtonFormField<String>(
-                      key: ValueKey('tamano_${_categoriaSeleccionada!.id}'),
-                      initialValue: _tamanoSeleccionado,
-                      decoration: const InputDecoration(
-                        labelText: 'Tamaño *',
-                        prefixIcon: Icon(Icons.straighten),
-                        border: OutlineInputBorder(),
-                      ),
-                      items: _categoriaSeleccionada!.tamanos
-                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() => _tamanoSeleccionado = value);
-                      },
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Selecciona un tamaño' : null,
-                    ),
-                    const SizedBox(height: 16),
+                  // ── Atributos dinámicos ──
+                  if (_categoriaSeleccionada != null)
+                    ..._buildAtributoFields(_categoriaSeleccionada!),
 
-                    // ── Color o Diseño (dinámico según tipoAtributo) ──
-                    TextFormField(
-                      controller: _atributoCtrl,
-                      decoration: InputDecoration(
-                        labelText: _categoriaSeleccionada!.tipoAtributo == 'diseño'
-                            ? 'Diseño *'
-                            : 'Color *',
-                        prefixIcon: Icon(
-                          _categoriaSeleccionada!.tipoAtributo == 'diseño'
-                              ? Icons.brush
-                              : Icons.palette,
-                        ),
-                        border: const OutlineInputBorder(),
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Ingresa un ${_categoriaSeleccionada!.tipoAtributo}'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
                   // ── Cantidad ──
                   TextFormField(
                     controller: _cantidadCtrl,
@@ -170,7 +153,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Requerido';
-                      if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                      if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
                       return null;
                     },
                   ),
@@ -188,13 +171,17 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                             prefixIcon: Icon(Icons.money_off),
                             border: OutlineInputBorder(),
                           ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d+\.?\d{0,2}')),
                           ],
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Requerido';
-                            if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                            if ((double.tryParse(v.trim()) ?? -1) < 0) {
+                              return 'Inválido';
+                            }
                             return null;
                           },
                         ),
@@ -209,14 +196,16 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                             prefixIcon: Icon(Icons.sell),
                             border: OutlineInputBorder(),
                           ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d+\.?\d{0,2}')),
                           ],
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Requerido';
                             final n = double.tryParse(v.trim());
-                            if (n == null || n < 0) return 'Invalido';
+                            if (n == null || n < 0) return 'Inválido';
                             return null;
                           },
                         ),
@@ -225,7 +214,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Código de barras (cámara) ──
+                  // ── Código de barras ──
                   TextFormField(
                     controller: _codigoBarrasCtrl,
                     readOnly: true,
@@ -267,7 +256,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                   ),
                   const SizedBox(height: 28),
 
-                  // ── Botón guardar ──
+                  // ── Guardar ──
                   FilledButton.icon(
                     onPressed: _guardando ? null : _guardarProducto,
                     icon: _guardando
@@ -295,6 +284,53 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     );
   }
 
+  /// Genera los campos de formulario para cada atributo de la categoría.
+  List<Widget> _buildAtributoFields(Categoria categoria) {
+    return categoria.atributos.map((attr) {
+      if (attr.esListaFija) {
+        // Combobox con las opciones definidas al crear la categoría
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('attr_${categoria.id}_${attr.nombre}'),
+            initialValue: _atributos[attr.nombre],
+            decoration: InputDecoration(
+              labelText: '${attr.nombre} *',
+              prefixIcon: const Icon(Icons.list_alt_outlined),
+              border: const OutlineInputBorder(),
+            ),
+            items: attr.opciones
+                .map((op) => DropdownMenuItem(value: op, child: Text(op)))
+                .toList(),
+            onChanged: (val) {
+              if (val != null) setState(() => _atributos[attr.nombre] = val);
+            },
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'Selecciona ${attr.nombre}' : null,
+          ),
+        );
+      } else {
+        // Texto libre
+        final ctrl = _atributoCtrl[attr.nombre]!;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: TextFormField(
+            key: ValueKey('attr_${categoria.id}_${attr.nombre}'),
+            controller: ctrl,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: '${attr.nombre} *',
+              prefixIcon: const Icon(Icons.edit_outlined),
+              border: const OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Ingresa ${attr.nombre}' : null,
+          ),
+        );
+      }
+    }).toList();
+  }
+
   // ── Escanear código de barras ─────────────────────────────────────────────
 
   Future<void> _escanearCodigoBarras() async {
@@ -310,19 +346,22 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   // ── Guardar producto ──────────────────────────────────────────────────────
 
   Future<void> _guardarProducto() async {
+    // Recolectar valores de texto libre antes de validar
+    for (final attr in _categoriaSeleccionada!.atributos) {
+      if (!attr.esListaFija) {
+        _atributos[attr.nombre] = _atributoCtrl[attr.nombre]!.text.trim();
+      }
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _guardando = true);
-
-    final esDiseno = _categoriaSeleccionada!.tipoAtributo == 'diseño';
 
     final producto = Producto(
       id: '',
       nombre: _nombreCtrl.text.trim(),
       categoria: _categoriaSeleccionada!.nombre,
-      tamano: _tamanoSeleccionado!,
-      color: esDiseno ? null : _atributoCtrl.text.trim(),
-      diseno: esDiseno ? _atributoCtrl.text.trim() : null,
+      atributos: Map<String, String>.from(_atributos),
       cantidad: int.parse(_cantidadCtrl.text.trim()),
       costoPromedio: double.parse(_costoCtrl.text.trim()),
       precio: double.parse(_precioCtrl.text.trim()),

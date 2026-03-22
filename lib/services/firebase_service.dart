@@ -114,30 +114,59 @@ class FirebaseService {
             }).toList());
   }
 
+  /// Agrega una nueva categoría.
+  Future<void> agregarCategoria(Categoria categoria) async {
+    try {
+      await _categoriasRef.add(categoria.toMap());
+    } on FirebaseException catch (e) {
+      throw Exception('Error al agregar categoría: ${e.message}');
+    }
+  }
+
+  /// Devuelve cuántos productos usan la categoría con ese [nombreCategoria].
+  Future<int> contarProductosPorCategoria(String nombreCategoria) async {
+    final snapshot = await _productosRef
+        .where('categoria', isEqualTo: nombreCategoria)
+        .count()
+        .get();
+    return snapshot.count ?? 0;
+  }
+
+  /// Elimina una categoría por su [id]. Verificar antes que no tenga productos.
+  Future<void> eliminarCategoria(String id) async {
+    try {
+      await _categoriasRef.doc(id).delete();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al eliminar categoría: ${e.message}');
+    }
+  }
+
   /// Siembra las categorías iniciales SOLO si la colección está vacía.
   Future<void> sembrarCategorias() async {
     final snapshot = await _categoriasRef.limit(1).get();
     if (snapshot.docs.isNotEmpty) return; // Ya hay datos, no sembrar
 
+    List<AtributoCategoria> atributosTamanoColor(List<String> tamanos) {
+      return [
+        AtributoCategoria(
+            nombre: 'Tamaño', esListaFija: true, opciones: tamanos),
+        AtributoCategoria(nombre: 'Color', esListaFija: false),
+      ];
+    }
+
     final categorias = [
-      Categoria(id: '', nombre: 'Sábanas', tipoAtributo: 'color',
-          tamanos: ['Individual', 'Matrimonial', 'Queen', 'King'], orden: 1),
-      Categoria(id: '', nombre: 'Cortinas', tipoAtributo: 'color',
-          tamanos: ['Unitalla'], orden: 2),
-      Categoria(id: '', nombre: 'Fundas de almohada', tipoAtributo: 'color',
-          tamanos: ['Matrimonial', 'King'], orden: 3),
-      Categoria(id: '', nombre: 'Cobertores Lisos', tipoAtributo: 'color',
-          tamanos: ['Individual', 'Matrimonial', 'Queen', 'King'], orden: 4),
-      Categoria(id: '', nombre: 'Cobertores Diseños', tipoAtributo: 'diseño',
-          tamanos: ['Individual', 'Matrimonial', 'Queen', 'King'], orden: 5),
-      Categoria(id: '', nombre: 'Colchas', tipoAtributo: 'color',
-          tamanos: ['Matrimonial', 'Queen', 'King'], orden: 6),
-      Categoria(id: '', nombre: 'Cubre sillas', tipoAtributo: 'color',
-          tamanos: ['Unitalla'], orden: 7),
-      Categoria(id: '', nombre: 'Cubre sillones', tipoAtributo: 'color',
-          tamanos: ['Unitalla'], orden: 8),
-      Categoria(id: '', nombre: 'Almohada viajera', tipoAtributo: 'color',
-          tamanos: ['Unitalla'], orden: 9),
+      Categoria(id: '', nombre: 'Sábanas', atributos: atributosTamanoColor(['Individual', 'Matrimonial', 'Queen', 'King']), orden: 1),
+      Categoria(id: '', nombre: 'Cortinas', atributos: atributosTamanoColor(['Unitalla']), orden: 2),
+      Categoria(id: '', nombre: 'Fundas de almohada', atributos: atributosTamanoColor(['Matrimonial', 'King']), orden: 3),
+      Categoria(id: '', nombre: 'Cobertores Lisos', atributos: atributosTamanoColor(['Individual', 'Matrimonial', 'Queen', 'King']), orden: 4),
+      Categoria(id: '', nombre: 'Cobertores Diseños', atributos: [
+        AtributoCategoria(nombre: 'Tamaño', esListaFija: true, opciones: ['Individual', 'Matrimonial', 'Queen', 'King']),
+        AtributoCategoria(nombre: 'Diseño', esListaFija: false),
+      ], orden: 5),
+      Categoria(id: '', nombre: 'Colchas', atributos: atributosTamanoColor(['Matrimonial', 'Queen', 'King']), orden: 6),
+      Categoria(id: '', nombre: 'Cubre sillas', atributos: atributosTamanoColor(['Unitalla']), orden: 7),
+      Categoria(id: '', nombre: 'Cubre sillones', atributos: atributosTamanoColor(['Unitalla']), orden: 8),
+      Categoria(id: '', nombre: 'Almohada viajera', atributos: atributosTamanoColor(['Unitalla']), orden: 9),
     ];
 
     final batch = FirebaseFirestore.instance.batch();

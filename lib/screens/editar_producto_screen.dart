@@ -116,9 +116,10 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                               'Categoría: ${widget.producto.categoria}',
                               style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            Text('Tamaño: ${widget.producto.tamano}'),
-                            if (widget.producto.atributoVisual.isNotEmpty)
-                              Text('Atributo: ${widget.producto.atributoVisual}'),
+                            ...widget.producto.atributos.entries.map(
+                              (e) => Text('${e.key}: ${e.value}'),
+                            ),
+                            const SizedBox(height: 6),
                             Text(
                               'Estos valores estructurales no se pueden editar. Elimina el producto y crea uno nuevo si necesitas cambiar su categoría.',
                               style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.5),
@@ -127,6 +128,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                         ),
                       ),
                     ),
+
 
                     // Nombre
                     TextFormField(

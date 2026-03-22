@@ -218,7 +218,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               child: ListTile(
                 leading: Icon(esCriticoSevero ? Icons.warning : Icons.inventory_2, color: esCriticoSevero ? Colors.red : Colors.orange),
                 title: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${p.categoria} - ${p.tamano}${p.color != null ? ' - ${p.color}' : ''}'),
+                subtitle: Text('${p.categoria} - ${p.atributoVisual}'),
                 trailing: Text(
                   'Quedan: ${p.cantidad}',
                   style: TextStyle(
