@@ -29,7 +29,7 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_INVENTARIOS_UNIVERSAL }}'
-          projectId: Inventarios_Universal
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_INVENTARIO_BLANCOSGINA }}'
+          projectId: inventarios_universal
           channelId: live
       
