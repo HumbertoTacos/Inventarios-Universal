@@ -30,6 +30,6 @@ jobs:
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_INVENTARIO_BLANCOSGINA }}'
-          projectId: inventarios_universal
+          projectId: inventarios-universal
           channelId: live
       
