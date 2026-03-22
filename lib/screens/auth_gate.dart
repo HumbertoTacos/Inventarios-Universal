@@ -7,6 +7,7 @@ import 'espera_aprobacion_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'verificacion_correo_screen.dart';
 import 'completar_registro_google_screen.dart';
+import 'cuenta_inactiva_screen.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -41,6 +42,10 @@ class AuthGate extends StatelessWidget {
             
             if (userData == null) {
               return const CompletarRegistroGoogleScreen();
+            }
+
+            if (userData.estatus == 'inactivo' || userData.estatus == 'despedido') {
+              return const CuentaInactivaScreen();
             }
 
             if (userData.rol == 'admin') {

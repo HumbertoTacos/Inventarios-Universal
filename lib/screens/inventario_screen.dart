@@ -10,6 +10,8 @@ import 'estadisticas_screen.dart';
 import 'gestion_categorias_screen.dart';
 import 'historial_ventas_screen.dart';
 import 'ventas_screen.dart';
+import 'mi_equipo_screen.dart';
+import '../services/auth_service.dart';
 
 class InventarioScreen extends StatefulWidget {
   final bool modoSeleccion;
@@ -114,6 +116,17 @@ class _InventarioScreenState extends State<InventarioScreen> {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
                     },
                   ),
+                  if (AuthService().currentUserData?.rol == 'dueño') ...[
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.people_alt_outlined),
+                      title: const Text('Mi Equipo'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const MiEquipoScreen()));
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

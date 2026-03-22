@@ -11,6 +11,8 @@ class CompletarRegistroGoogleScreen extends StatefulWidget {
 
 class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleScreen> {
   final _negocioController = TextEditingController();
+  final _codigoController = TextEditingController();
+  bool _isCreatingBusiness = true;
   bool _isLoading = false;
 
   void _completar() async {
@@ -19,7 +21,8 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
     
     try {
       await AuthService().completarRegistroGoogle(
-        negocioNombre: _negocioController.text.trim(),
+        negocioNombre: _isCreatingBusiness ? _negocioController.text.trim() : null,
+        codigoInvitacion: !_isCreatingBusiness ? _codigoController.text.trim() : null,
       );
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -55,17 +58,39 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
               ),
               const SizedBox(height: 16),
               const Text(
-                'Hemos vinculado tu cuenta de Google. Ahora, para configurar tu base de datos y aislarla correctamente, dinos cómo se llama tu negocio:',
+                'Hemos vinculado tu cuenta de Google. Selecciona si quieres crear un nuevo negocio o ingresar a uno usando un Código de Invitación:',
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _negocioController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre de tu Negocio',
-                  border: OutlineInputBorder(),
+              const SizedBox(height: 24),
+              SwitchListTile(
+                title: Text(
+                  _isCreatingBusiness ? 'Soy Dueño (Crear Negocio)' : 'Soy Empleado (Tengo Código)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
+                value: _isCreatingBusiness,
+                activeColor: Colors.blue,
+                inactiveThumbColor: Colors.orange,
+                inactiveTrackColor: Colors.orange.withOpacity(0.3),
+                onChanged: (val) {
+                  setState(() {
+                    _isCreatingBusiness = val;
+                    if (val) _codigoController.clear();
+                    else _negocioController.clear();
+                  });
+                },
               ),
+              const SizedBox(height: 16),
+              if (_isCreatingBusiness)
+                TextField(
+                  controller: _negocioController,
+                  decoration: const InputDecoration(labelText: 'Nombre de tu Negocio', border: OutlineInputBorder()),
+                )
+              else
+                TextField(
+                  controller: _codigoController,
+                  decoration: const InputDecoration(labelText: 'Código de Invitación (6 letras)', border: OutlineInputBorder()),
+                  textCapitalization: TextCapitalization.characters,
+                ),
               const SizedBox(height: 24),
               _isLoading
                   ? const CircularProgressIndicator()

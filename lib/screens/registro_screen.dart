@@ -14,6 +14,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _negocioController = TextEditingController();
+  final _codigoController = TextEditingController();
+  bool _isCreatingBusiness = true;
   bool _isLoading = false;
 
   void _registrar() async {
@@ -23,7 +25,8 @@ class _RegistroScreenState extends State<RegistroScreen> {
         nombre: _nombreController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        negocioNombre: _negocioController.text.trim(),
+        negocioNombre: _isCreatingBusiness ? _negocioController.text.trim() : null,
+        codigoInvitacion: !_isCreatingBusiness ? _codigoController.text.trim() : null,
       );
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -71,10 +74,35 @@ class _RegistroScreenState extends State<RegistroScreen> {
                 obscureText: true,
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _negocioController,
-                decoration: const InputDecoration(labelText: 'Nombre de tu Negocio', border: OutlineInputBorder()),
+              SwitchListTile(
+                title: Text(
+                  _isCreatingBusiness ? 'Soy Dueño (Crear Negocio)' : 'Soy Empleado (Tengo Código)',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                value: _isCreatingBusiness,
+                activeColor: Colors.blue,
+                inactiveThumbColor: Colors.orange,
+                inactiveTrackColor: Colors.orange.withOpacity(0.3),
+                onChanged: (val) {
+                  setState(() {
+                    _isCreatingBusiness = val;
+                    if (val) _codigoController.clear();
+                    else _negocioController.clear();
+                  });
+                },
               ),
+              const SizedBox(height: 8),
+              if (_isCreatingBusiness)
+                TextField(
+                  controller: _negocioController,
+                  decoration: const InputDecoration(labelText: 'Nombre de tu Negocio', border: OutlineInputBorder()),
+                )
+              else
+                TextField(
+                  controller: _codigoController,
+                  decoration: const InputDecoration(labelText: 'Código de Invitación (Proporcionado por dueño)', border: OutlineInputBorder()),
+                  textCapitalization: TextCapitalization.characters,
+                ),
               const SizedBox(height: 24),
               _isLoading
                   ? const CircularProgressIndicator()

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -66,11 +67,18 @@ class AuthService {
     await reloadUserData();
   }
 
+  String _generarCodigo() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = math.Random();
+    return String.fromCharCodes(Iterable.generate(6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
+  }
+
   Future<void> register({
     required String nombre,
     required String email,
     required String password,
-    required String negocioNombre,
+    String? negocioNombre,
+    String? codigoInvitacion,
   }) async {
     final userCredential = await _auth.createUserWithEmailAndPassword(
       email: email, 
@@ -82,22 +90,40 @@ class AuthService {
       await user.sendEmailVerification();
     }
     
-    // Crear el negocio
-    final negocioRef = _firestore.collection('negocios').doc();
-    await negocioRef.set({
-      'nombre': negocioNombre,
-      'creadoPor': user.uid,
-    });
+    if (codigoInvitacion != null && codigoInvitacion.isNotEmpty) {
+      // Entra como empleado aprobado de inmediato
+      final query = await _firestore.collection('negocios').where('codigoInvitacion', isEqualTo: codigoInvitacion).limit(1).get();
+      if (query.docs.isEmpty) throw Exception('El código de invitación no existe o ya expiró');
+      
+      final negocioDoc = query.docs.first;
+      await _firestore.collection('usuarios').doc(user.uid).set({
+        'nombre': nombre,
+        'email': email,
+        'negocioNombre': negocioDoc['nombre'],
+        'negocioId': negocioDoc.id,
+        'estatus': 'aprobado',
+        'rol': 'empleado',
+      });
+    } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
+      // Crea el negocio como dueño
+      final negocioRef = _firestore.collection('negocios').doc();
+      await negocioRef.set({
+        'nombre': negocioNombre,
+        'creadoPor': user.uid,
+        'codigoInvitacion': _generarCodigo(),
+      });
 
-    // Crear el usuario con estatus pendiente
-    await _firestore.collection('usuarios').doc(user.uid).set({
-      'nombre': nombre,
-      'email': email,
-      'negocioNombre': negocioNombre,
-      'negocioId': negocioRef.id,
-      'estatus': 'pendiente',
-      'rol': 'usuario',
-    });
+      await _firestore.collection('usuarios').doc(user.uid).set({
+        'nombre': nombre,
+        'email': email,
+        'negocioNombre': negocioNombre,
+        'negocioId': negocioRef.id,
+        'estatus': 'pendiente',
+        'rol': 'dueño',
+      });
+    } else {
+      throw Exception('Falta el nombre del negocio o un código de invitación');
+    }
 
     await reloadUserData();
   }
@@ -120,29 +146,69 @@ class AuthService {
   }
 
   Future<void> completarRegistroGoogle({
-    required String negocioNombre,
+    String? negocioNombre,
+    String? codigoInvitacion,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('No hay usuario autenticado');
 
-    // 1. Crear el negocio
-    final negocioRef = _firestore.collection('negocios').doc();
-    await negocioRef.set({
-      'nombre': negocioNombre,
-      'creadoPor': user.uid,
-    });
+    if (codigoInvitacion != null && codigoInvitacion.isNotEmpty) {
+      final query = await _firestore.collection('negocios').where('codigoInvitacion', isEqualTo: codigoInvitacion).limit(1).get();
+      if (query.docs.isEmpty) throw Exception('El código de invitación no existe o ya expiró');
+      
+      final negocioDoc = query.docs.first;
+      await _firestore.collection('usuarios').doc(user.uid).set({
+        'nombre': user.displayName ?? 'Usuario Google',
+        'email': user.email ?? '',
+        'negocioNombre': negocioDoc['nombre'],
+        'negocioId': negocioDoc.id,
+        'estatus': 'aprobado',
+        'rol': 'empleado',
+      });
+    } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
+      final negocioRef = _firestore.collection('negocios').doc();
+      await negocioRef.set({
+        'nombre': negocioNombre,
+        'creadoPor': user.uid,
+        'codigoInvitacion': _generarCodigo(),
+      });
 
-    // 2. Crear el usuario
-    await _firestore.collection('usuarios').doc(user.uid).set({
-      'nombre': user.displayName ?? 'Usuario Google',
-      'email': user.email ?? '',
-      'negocioNombre': negocioNombre,
-      'negocioId': negocioRef.id,
-      'estatus': 'pendiente',
-      'rol': 'usuario',
-    });
+      await _firestore.collection('usuarios').doc(user.uid).set({
+        'nombre': user.displayName ?? 'Usuario Google',
+        'email': user.email ?? '',
+        'negocioNombre': negocioNombre,
+        'negocioId': negocioRef.id,
+        'estatus': 'pendiente',
+        'rol': 'dueño',
+      });
+    } else {
+      throw Exception('Falta el nombre del negocio o un código de invitación');
+    }
 
     await reloadUserData();
+  }
+
+  Future<String> obtenerCodigoInvitacionActual() async {
+    final negocioId = currentNegocioId;
+    if (negocioId.isEmpty) return '';
+    final doc = await _firestore.collection('negocios').doc(negocioId).get();
+    return doc.data()?['codigoInvitacion'] ?? '';
+  }
+
+  Future<String> regenerarCodigoInvitacion() async {
+    final negocioId = currentNegocioId;
+    if (negocioId.isEmpty) throw Exception('No hay negocio activo');
+    final nuevoCodigo = _generarCodigo();
+    await _firestore.collection('negocios').doc(negocioId).update({
+      'codigoInvitacion': nuevoCodigo
+    });
+    return nuevoCodigo;
+  }
+
+  Future<void> despedirEmpleado(String empleadoUid) async {
+    await _firestore.collection('usuarios').doc(empleadoUid).update({
+      'estatus': 'despedido'
+    });
   }
 
   Future<void> logout() async {
