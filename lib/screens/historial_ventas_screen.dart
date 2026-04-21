@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
+import '../services/impresora_service.dart';
+import '../services/auth_service.dart';
 import 'detalle_venta_screen.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
@@ -144,18 +146,46 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
       subtitle: Text(
         '${DateFormat('dd/MM/yy HH:mm').format(venta.fecha)} • ${venta.items.length} items',
       ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            '\$${venta.total.toStringAsFixed(2)}',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '\$${venta.total.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              Text(
+                statusText,
+                style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
           ),
-          Text(
-            statusText,
-            style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
-          ),
+          const SizedBox(width: 4),
+          // Botón de imprimir ticket
+          if (venta.estado == 'completada')
+            IconButton(
+              icon: const Icon(Icons.receipt_long_outlined),
+              tooltip: 'Imprimir ticket',
+              color: Colors.blueGrey,
+              onPressed: () async {
+                try {
+                  final negocio = AuthService().currentUserData?.negocioNombre ?? 'Mi Negocio';
+                  await ImpresoraService.imprimirTicket(
+                    venta: venta,
+                    negocioNombre: negocio,
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error al imprimir: $e'), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
         ],
       ),
       onTap: () {

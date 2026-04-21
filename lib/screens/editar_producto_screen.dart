@@ -18,6 +18,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nombreCtrl;
+  late final TextEditingController _costoCtrl;
   late final TextEditingController _precioCtrl;
   late final TextEditingController _descripcionCtrl;
   late final TextEditingController _codigoBarrasCtrl;
@@ -28,6 +29,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   void initState() {
     super.initState();
     _nombreCtrl = TextEditingController(text: widget.producto.nombre);
+    _costoCtrl = TextEditingController(text: widget.producto.costoPromedio.toStringAsFixed(2));
     _precioCtrl = TextEditingController(text: widget.producto.precio.toStringAsFixed(2));
     _descripcionCtrl = TextEditingController(text: widget.producto.descripcion);
     _codigoBarrasCtrl = TextEditingController(text: widget.producto.codigoBarras ?? '');
@@ -36,6 +38,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   @override
   void dispose() {
     _nombreCtrl.dispose();
+    _costoCtrl.dispose();
     _precioCtrl.dispose();
     _descripcionCtrl.dispose();
     _codigoBarrasCtrl.dispose();
@@ -62,6 +65,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     try {
       final productoEditado = widget.producto.copyWith(
         nombre: _nombreCtrl.text.trim(),
+        costoPromedio: double.parse(_costoCtrl.text.trim()),
         precio: double.parse(_precioCtrl.text.trim()),
         descripcion: _descripcionCtrl.text.trim(),
         codigoBarras: _codigoBarrasCtrl.text.trim().isNotEmpty ? _codigoBarrasCtrl.text.trim() : null,
@@ -142,7 +146,26 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Precio Moficable (El costo no se modifica aquí, se modifica vía Restock)
+                    // Costo Modificable
+                    TextFormField(
+                      controller: _costoCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Costo base de compra (Unitario) *',
+                        prefixText: '\$ ',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.attach_money),
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Requerido';
+                        if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Precio Moficable
                     TextFormField(
                       controller: _precioCtrl,
                       decoration: const InputDecoration(

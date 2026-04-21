@@ -62,16 +62,14 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Dar de baja?'),
-        content: Text('¿Seguro que deseas revocar el acceso a $nombreEmpleado? Se bloqueará su entrada al inventario de inmediato.'),
+        content: Text('¿Seguro que deseas revocar el acceso a $nombreEmpleado?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí, despedir', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
-
     if (confirmar != true) return;
-
     try {
       await AuthService().despedirEmpleado(uid);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Empleado dado de baja')));
@@ -80,99 +78,196 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
     }
   }
 
+  void _abrirPanelPermisos(String uid, String nombre, String email, Map<String, dynamic> data) {
+    final permisosMap = data['permisos'] as Map<String, dynamic>?;
+    final permisos = permisosMap != null
+        ? PermisosEmpleado.fromMap(permisosMap)
+        : const PermisosEmpleado();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => _PanelPermisosEmpleado(
+        uid: uid,
+        nombre: nombre,
+        email: email,
+        permisosIniciales: permisos,
+        onDespedir: () => _despedirEmpleado(uid, nombre),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (AuthService().currentUserData?.rol != 'dueño') {
       return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver esta pantalla.')));
     }
 
+    final cs = Theme.of(context).colorScheme;
     final currentNegocioId = AuthService().currentNegocioId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mi Equipo y Accesos')),
+      appBar: AppBar(
+        title: const Text('Mi Equipo', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: cs.primaryContainer,
+        foregroundColor: cs.onPrimaryContainer,
+        elevation: 0,
+      ),
       body: Column(
         children: [
-          // Sección de Código
+          // ── Código de Invitación ─────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.all(24),
-            color: Colors.blue.withOpacity(0.1),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [cs.primaryContainer, cs.secondaryContainer],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             width: double.infinity,
             child: Column(
               children: [
-                const Text('Tu Código de Invitación para nuevos empleados:', style: TextStyle(fontSize: 16)),
-                const SizedBox(height: 16),
-                _isLoadingCodigo 
-                  ? const CircularProgressIndicator() 
-                  : SelectableText(
-                      _codigoActual, 
-                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, letterSpacing: 8, color: Colors.blueAccent),
-                    ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.refresh),
+                Row(
+                  children: [
+                    Icon(Icons.group_add_outlined, color: cs.onPrimaryContainer),
+                    const SizedBox(width: 8),
+                    Text('Código de Invitación',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _isLoadingCodigo
+                    ? const CircularProgressIndicator()
+                    : SelectableText(
+                        _codigoActual,
+                        style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 10,
+                            color: cs.primary),
+                      ),
+                const SizedBox(height: 4),
+                Text('Comparte este código con tus empleados para que puedan unirse.',
+                    style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer.withAlpha(160)),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh, size: 16),
                   label: const Text('Regenerar Código'),
                   onPressed: _isLoadingCodigo ? null : _regenerarCodigo,
-                )
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: cs.primary,
+                      side: BorderSide(color: cs.primary)),
+                ),
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1),
-          // Lista de Empleados
+          // ── Lista de Empleados ───────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Row(children: [
+              Icon(Icons.people_outlined, color: cs.outline, size: 18),
+              const SizedBox(width: 8),
+              Text('Empleados activos',
+                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.outline)),
+            ]),
+          ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('usuarios')
                   .where('negocioId', isEqualTo: currentNegocioId)
-                  .where('rol', isNotEqualTo: 'dueño') // Filtramos a los empleados
+                  .where('rol', isNotEqualTo: 'dueño')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
-                final docs = snapshot.data?.docs ?? [];
-                
-                // Firestore requiere filtros adicionales en memoria a veces si usamos múltiples wheres complejos
-                final empleados = docs.where((doc) {
+                final docs = (snapshot.data?.docs ?? []).where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   return data['rol'] == 'empleado' || data['rol'] == 'usuario';
                 }).toList();
 
-                if (empleados.isEmpty) {
-                  return const Center(child: Text('No tienes empleados registrados en tu equipo.'));
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.people_outline, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      Text('No tienes empleados registrados.',
+                          style: TextStyle(color: Colors.grey.shade500)),
+                    ]),
+                  );
                 }
 
-                return ListView.builder(
-                  itemCount: empleados.length,
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 4),
                   itemBuilder: (context, index) {
-                    final data = empleados[index].data() as Map<String, dynamic>;
-                    final uid = empleados[index].id;
-                    final nombre = data['nombre'] ?? 'Sin nombre';
-                    final email = data['email'] ?? 'Sin correo';
-                    final estatus = data['estatus'] ?? '';
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final uid = docs[index].id;
+                    final nombre = data['nombre'] as String? ?? 'Sin nombre';
+                    final email = data['email'] as String? ?? '';
+                    final estatus = data['estatus'] as String? ?? '';
                     final isActivo = estatus != 'despedido' && estatus != 'inactivo';
 
+                    // Contar permisos activos
+                    final permisosMap = data['permisos'] as Map<String, dynamic>?;
+                    final permisos = permisosMap != null
+                        ? PermisosEmpleado.fromMap(permisosMap)
+                        : const PermisosEmpleado();
+                    final permisosActivos = [
+                      permisos.puedeAjustarStock,
+                      permisos.puedeEditarProductos,
+                      permisos.puedeEliminarProductos,
+                      permisos.puedeVerEstadisticas,
+                      permisos.puedeVerHistorialVentas,
+                      permisos.puedeAbrirCerrarCaja,
+                    ].where((v) => v).length;
+
                     return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      elevation: isActivo ? 1 : 0,
+                      color: isActivo ? null : Colors.grey.shade100,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
+                        onTap: isActivo
+                            ? () => _abrirPanelPermisos(uid, nombre, email, data)
+                            : null,
                         leading: CircleAvatar(
-                          backgroundColor: isActivo ? Colors.green : Colors.red,
-                          child: Icon(isActivo ? Icons.person : Icons.person_off, color: Colors.white),
+                          backgroundColor: isActivo ? cs.primaryContainer : Colors.grey.shade300,
+                          child: Text(nombre[0].toUpperCase(),
+                              style: TextStyle(
+                                  color: isActivo ? cs.onPrimaryContainer : Colors.grey,
+                                  fontWeight: FontWeight.bold)),
                         ),
-                        title: Text(nombre, style: TextStyle(fontWeight: FontWeight.bold, decoration: isActivo ? null : TextDecoration.lineThrough)),
-                        subtitle: Text('$email\nEstatus: ${estatus.toUpperCase()}'),
-                        isThreeLine: true,
-                        trailing: isActivo 
-                          ? IconButton(
-                              icon: const Icon(Icons.remove_circle, color: Colors.red),
-                              tooltip: 'Despedir/Bloquear',
-                              onPressed: () => _despedirEmpleado(uid, nombre),
-                            )
-                          : const Icon(Icons.block, color: Colors.red),
+                        title: Text(nombre,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                decoration: isActivo ? null : TextDecoration.lineThrough)),
+                        subtitle: Text(email),
+                        trailing: isActivo
+                            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                                // Badge de permisos
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: cs.secondaryContainer,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text('$permisosActivos/6 permisos',
+                                      style: TextStyle(fontSize: 11, color: cs.onSecondaryContainer)),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(Icons.chevron_right, color: cs.outline),
+                              ])
+                            : const Icon(Icons.block, color: Colors.red),
                       ),
                     );
                   },
@@ -184,4 +279,207 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
       ),
     );
   }
+}
+
+// ── Panel de Permisos por Empleado ────────────────────────────────────────────
+
+class _PanelPermisosEmpleado extends StatefulWidget {
+  final String uid;
+  final String nombre;
+  final String email;
+  final PermisosEmpleado permisosIniciales;
+  final VoidCallback onDespedir;
+
+  const _PanelPermisosEmpleado({
+    required this.uid,
+    required this.nombre,
+    required this.email,
+    required this.permisosIniciales,
+    required this.onDespedir,
+  });
+
+  @override
+  State<_PanelPermisosEmpleado> createState() => _PanelPermisosEmpleadoState();
+}
+
+class _PanelPermisosEmpleadoState extends State<_PanelPermisosEmpleado> {
+  late bool _ajustarStock;
+  late bool _editarProductos;
+  late bool _eliminarProductos;
+  late bool _verEstadisticas;
+  late bool _verHistorial;
+  late bool _abrirCaja;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ajustarStock = widget.permisosIniciales.puedeAjustarStock;
+    _editarProductos = widget.permisosIniciales.puedeEditarProductos;
+    _eliminarProductos = widget.permisosIniciales.puedeEliminarProductos;
+    _verEstadisticas = widget.permisosIniciales.puedeVerEstadisticas;
+    _verHistorial = widget.permisosIniciales.puedeVerHistorialVentas;
+    _abrirCaja = widget.permisosIniciales.puedeAbrirCerrarCaja;
+  }
+
+  Future<void> _guardar() async {
+    setState(() => _guardando = true);
+    try {
+      final nuevos = PermisosEmpleado(
+        puedeAjustarStock: _ajustarStock,
+        puedeEditarProductos: _editarProductos,
+        puedeEliminarProductos: _eliminarProductos,
+        puedeVerEstadisticas: _verEstadisticas,
+        puedeVerHistorialVentas: _verHistorial,
+        puedeAbrirCerrarCaja: _abrirCaja,
+      );
+      await AuthService().actualizarPermisosEmpleado(widget.uid, nuevos);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permisos actualizados'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (_, sc) => Column(
+        children: [
+          // Handle
+          const SizedBox(height: 8),
+          Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          // Cabecera del empleado
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: cs.primaryContainer,
+                  child: Text(widget.nombre[0].toUpperCase(),
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onPrimaryContainer)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(widget.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    Text(widget.email, style: TextStyle(color: cs.outline, fontSize: 13)),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(),
+          // Lista scrollable de permisos
+          Expanded(
+            child: ListView(
+              controller: sc,
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                _seccion('Inventario', Icons.inventory_2_outlined),
+                _permiso('Ajustar Stock (manual)', 'Puede sumar o restar unidades al inventario.',
+                    _ajustarStock, (v) => setState(() => _ajustarStock = v)),
+                _permiso('Editar Productos', 'Puede cambiar nombre, precio y código de barras.',
+                    _editarProductos, (v) => setState(() => _editarProductos = v)),
+                _permiso('Eliminar Productos', 'Puede borrar productos del catálogo.',
+                    _eliminarProductos, (v) => setState(() => _eliminarProductos = v)),
+                const Divider(indent: 16, endIndent: 16, height: 8),
+                _seccion('Reportes', Icons.bar_chart_outlined),
+                _permiso('Ver Estadísticas y Ganancias', 'Acceso al dashboard de análisis.',
+                    _verEstadisticas, (v) => setState(() => _verEstadisticas = v)),
+                _permiso('Ver Historial de Pedidos', 'Consultar el listado de ventas.',
+                    _verHistorial, (v) => setState(() => _verHistorial = v)),
+                const Divider(indent: 16, endIndent: 16, height: 8),
+                _seccion('Caja', Icons.point_of_sale_outlined),
+                _permiso('Abrir y Cerrar Caja', 'Puede iniciar y cerrar turnos de caja.',
+                    _abrirCaja, (v) => setState(() => _abrirCaja = v)),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+          // Botones de acción
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+            child: Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onDespedir();
+                  },
+                  icon: const Icon(Icons.remove_circle_outline, size: 18),
+                  label: const Text('Dar de baja'),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _guardando ? null : _guardar,
+                    icon: _guardando
+                        ? const SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.save_outlined, size: 18),
+                    label: Text(_guardando ? 'Guardando...' : 'Guardar Permisos'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _seccion(String titulo, IconData icon) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+        child: Row(children: [
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(titulo.toUpperCase(),
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1,
+                  color: Theme.of(context).colorScheme.primary)),
+        ]),
+      );
+
+  Widget _permiso(String titulo, String subtitulo, bool value, ValueChanged<bool> onChanged) =>
+      SwitchListTile(
+        title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+        subtitle: Text(subtitulo, style: const TextStyle(fontSize: 12)),
+        value: value,
+        onChanged: onChanged,
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+      );
 }

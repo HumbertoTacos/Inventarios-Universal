@@ -1,11 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/venta.dart';
+import '../models/turno_caja.dart';
+import '../models/movimiento_inventario.dart';
+import '../models/dashboard_data.dart';
+import '../models/cliente.dart';
+import '../models/abono.dart';
 
 import 'auth_service.dart';
 
+/// Resultado paginado que incluye la lista de productos y el cursor para la siguiente página.
+class ProductosPaginadosResult {
+  final List<Producto> productos;
+  final DocumentSnapshot? lastDoc;
+  ProductosPaginadosResult({required this.productos, this.lastDoc});
+}
+
 class FirebaseService {
+
   String get _negocioId {
     final id = AuthService().currentNegocioId;
     if (id.isEmpty) throw Exception("No hay negocio seleccionado");
@@ -21,28 +35,80 @@ class FirebaseService {
   CollectionReference get _ventasRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('ventas');
 
-  // ── Productos ─────────────────────────────────────────────────────────────
+  CollectionReference get _turnosCajaRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('turnos_caja');
 
-  /// Stream en tiempo real de todos los productos.
-  Stream<List<Producto>> getProductos() {
-    return _productosRef
+  CollectionReference get _kardexRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('kardex');
+
+  CollectionReference get _clientesRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('clientes');
+
+  CollectionReference get _abonosRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('abonos');
+
+  String get _currentUserId => AuthService().currentUser?.uid ?? 'unknown';
+
+  // ── Productos (Optimizados) ───────────────────────────────────────────────
+
+  /// Obtiene de manera Paginada los Productos.
+  /// - Primera página (startAfter == null): siempre va al servidor
+  ///   para reflejar cambios de stock recientes (ventas, ajustes).
+  /// - Páginas siguientes: caché primero para reducir lecturas.
+  Future<ProductosPaginadosResult> getProductosPaginados({int limite = 20, DocumentSnapshot? startAfter}) async {
+    Query query = _productosRef
+        .where('esBase', isEqualTo: true)
         .orderBy('nombre')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
-              return Producto.fromMap(
-                doc.data() as Map<String, dynamic>,
-                doc.id,
-              );
-            }).toList());
+        .limit(limite);
+        
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+
+    // Primera carga → forzar servidor (stock siempre fresco)
+    if (startAfter == null) {
+      final snap = await query.get(const GetOptions(source: Source.server));
+      return ProductosPaginadosResult(
+        productos: snap.docs.map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id)).toList(),
+        lastDoc: snap.docs.isNotEmpty ? snap.docs.last : null,
+      );
+    }
+
+    // Páginas siguientes → caché primero para ahorrar lecturas
+    try {
+      final snapshot = await query.get(const GetOptions(source: Source.cache));
+      if (snapshot.docs.isNotEmpty) {
+        return ProductosPaginadosResult(
+          productos: snapshot.docs.map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id)).toList(),
+          lastDoc: snapshot.docs.last,
+        );
+      }
+    } catch (_) {}
+    
+    final onlineSnapshot = await query.get(const GetOptions(source: Source.serverAndCache));
+    return ProductosPaginadosResult(
+      productos: onlineSnapshot.docs.map((doc) => Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList(),
+      lastDoc: onlineSnapshot.docs.isNotEmpty ? onlineSnapshot.docs.last : null,
+    );
   }
 
-  /// Busca productos cuyo código de barras coincida exactamente.
-  Future<List<Producto>> buscarPorCodigoBarras(String codigo) async {
-    final snapshot =
-        await _productosRef.where('codigoBarras', isEqualTo: codigo).get();
-    return snapshot.docs.map((doc) {
-      return Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-    }).toList();
+
+  /// Busca variante plana por código de barras de manera eficiente limitando la respuesta a 1
+  Future<Producto?> buscarVariantePorSKU(String codigo) async {
+    final query = _productosRef.where('codigoBarras', isEqualTo: codigo).limit(1);
+    
+    try {
+      final cacheSnap = await query.get(const GetOptions(source: Source.cache));
+      if (cacheSnap.docs.isNotEmpty) {
+        return Producto.fromMap(cacheSnap.docs.first.data() as Map<String, dynamic>, cacheSnap.docs.first.id);
+      }
+    } catch (_) {}
+    
+    final serverSnap = await query.get(const GetOptions(source: Source.serverAndCache));
+    if (serverSnap.docs.isNotEmpty) {
+      return Producto.fromMap(serverSnap.docs.first.data() as Map<String, dynamic>, serverSnap.docs.first.id);
+    }
+    return null;
   }
 
   Future<void> agregarProducto(Producto producto) async {
@@ -69,7 +135,7 @@ class FirebaseService {
     }
   }
 
-  /// Método para reabastecer inventario recalculando el Costo Promedio Ponderado
+  /// Método para reabastecer inventario recalculando el Costo Promedio Ponderado y registrando Kardex
   Future<void> reabastecerProducto(String productoId, int cantidadNueva, double costoCompraNuevo) async {
     final docRef = _productosRef.doc(productoId);
     
@@ -82,11 +148,9 @@ class FirebaseService {
         
         final data = snapshot.data() as Map<String, dynamic>;
         
-        // Obtener valores actuales (con fallback para documentos viajos con 'costo')
         final stockViejo = (data['cantidad'] as num?)?.toInt() ?? 0;
         final costoViejo = (data['costo_promedio'] as num? ?? data['costo'] as num?)?.toDouble() ?? 0.0;
         
-        // Lógica de Costo Promedio Ponderado
         final valorViejo = stockViejo * costoViejo;
         final valorNuevo = cantidadNueva * costoCompraNuevo;
         final nuevoStock = stockViejo + cantidadNueva;
@@ -96,14 +160,60 @@ class FirebaseService {
           nuevoCostoPromedio = (valorViejo + valorNuevo) / nuevoStock;
         }
 
-        // Ejecutar actualización
+        // Ejecutar actualización de stock
         transaction.update(docRef, {
           'cantidad': nuevoStock,
           'costo_promedio': nuevoCostoPromedio,
         });
+
+        // Escribir Kardex atómicamente
+        final kardexDoc = _kardexRef.doc();
+        final movimiento = MovimientoInventario(
+          id: kardexDoc.id,
+          productoId: productoId,
+          tipoMovimiento: TipoMovimiento.entrada,
+          cantidadAlterada: cantidadNueva,
+          stockResultante: nuevoStock,
+          motivo: 'Reabastecimiento/Compra',
+          fecha: DateTime.now(),
+          usuarioId: _currentUserId,
+        );
+        transaction.set(kardexDoc, movimiento.toMap());
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al reabastecer producto: ${e.message}');
+    }
+  }
+
+  /// Realiza un ajuste manual del inventario registrando el Kardex.
+  Future<void> ajustarInventario(String productoId, int cantidad, String motivo) async {
+    final docRef = _productosRef.doc(productoId);
+
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) throw Exception("El producto no existe");
+
+        final currentStock = (snapshot.get('cantidad') as num).toInt();
+        final nuevoStock = currentStock + cantidad;
+
+        transaction.update(docRef, {'cantidad': nuevoStock});
+
+        final kardexDoc = _kardexRef.doc();
+        final mov = MovimientoInventario(
+          id: kardexDoc.id,
+          productoId: productoId,
+          tipoMovimiento: TipoMovimiento.ajuste,
+          cantidadAlterada: cantidad,
+          stockResultante: nuevoStock,
+          motivo: motivo,
+          fecha: DateTime.now(),
+          usuarioId: _currentUserId,
+        );
+        transaction.set(kardexDoc, mov.toMap());
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al ajustar inventario: ${e.message}');
     }
   }
 
@@ -184,58 +294,227 @@ class FirebaseService {
     await batch.commit();
   }
 
+  // ── Arqueo de Caja (Turnos) ───────────────────────────────────────────────
+
+  /// Crea un nuevo turno de caja abierto
+  Future<void> abrirTurnoCaja(TurnoCaja turno) async {
+    try {
+      final docTurno = _turnosCajaRef.doc();
+      final turnoGuardar = TurnoCaja(
+        id: docTurno.id,
+        fechaApertura: turno.fechaApertura,
+        fondoInicial: turno.fondoInicial,
+        estado: EstadoTurno.abierto,
+      );
+      await docTurno.set(turnoGuardar.toMap());
+    } on FirebaseException catch (e) {
+      throw Exception('Error al abrir caja: ${e.message}');
+    }
+  }
+
+  /// Cierra un turno de caja existente, actualizando efectivo físico y fecha
+  Future<void> cerrarTurnoCaja(String turnoId, double efectivoContado) async {
+    try {
+      await _turnosCajaRef.doc(turnoId).update({
+        'estado': EstadoTurno.cerrado.name,
+        'fechaCierre': DateTime.now().toIso8601String(),
+        'efectivoContado': efectivoContado,
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al cerrar caja: ${e.message}');
+    }
+  }
+
+  /// Obtiene el turno de caja abierto actual (si hay alguno)
+  Future<TurnoCaja?> getTurnoActivo() async {
+    final snapshot = await _turnosCajaRef
+        .where('estado', isEqualTo: EstadoTurno.abierto.name)
+        .limit(1)
+        .get();
+    if (snapshot.docs.isEmpty) return null;
+    return TurnoCaja.fromMap(
+        snapshot.docs.first.data() as Map<String, dynamic>,
+        snapshot.docs.first.id);
+  }
+
   // ── Ventas ────────────────────────────────────────────────────────────────
 
-  Future<void> registrarVenta(Venta venta) async {
-    final batch = FirebaseFirestore.instance.batch();
+  Future<void> registrarVenta(Venta venta, {String? turnoCajaId}) async {
+    // Validación de crédito
+    if (venta.metodoPago == MetodoPago.credito) {
+      if (venta.clienteId == null || venta.clienteId!.isEmpty) {
+        throw Exception('Debes seleccionar un cliente para ventas a crédito.');
+      }
+    }
 
-    // 1. Guardar la venta (el ID se generará automáticamente si mandamos uno vacío, o usamos uno nuevo)
-    final docVenta = _ventasRef.doc();
-    
-    // Asignar el ID autogenerado al modelo antes de guardar
-    final ventaParaGuardar = Venta(
-      id: docVenta.id,
-      fecha: venta.fecha,
-      items: venta.items,
-      costoEnvio: venta.costoEnvio,
-      envioPagadoPorVendedor: venta.envioPagadoPorVendedor,
-    );
-    
-    batch.set(docVenta, ventaParaGuardar.toMap());
-
-    // 2. Descontar inventario de todos los productos
-    for (final item in venta.items) {
-      final docProd = _productosRef.doc(item.productoId);
-      // Usamos increment con valor negativo para restar atómicamente
-      batch.update(docProd, {
-        'cantidad': FieldValue.increment(-item.cantidad),
-      });
+    // Si la venta es en efectivo, exigimos que nos pasen el ID del turno actual
+    if (venta.metodoPago == MetodoPago.efectivo && turnoCajaId == null) {
+      throw Exception('Se requiere una caja abierta para registrar ventas en efectivo.');
     }
 
     try {
-      await batch.commit();
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // 1. Lecturas obligatorias antes de escrituras
+        DocumentSnapshot? docTurnoSnapshot;
+        if (turnoCajaId != null) {
+          docTurnoSnapshot = await transaction.get(_turnosCajaRef.doc(turnoCajaId));
+          if (!docTurnoSnapshot.exists) throw Exception('El turno de caja no existe.');
+          if (docTurnoSnapshot.get('estado') != EstadoTurno.abierto.name) {
+            throw Exception('El turno de caja ya está cerrado.');
+          }
+        }
+
+        // 1b. Si es crédito, leer y validar el cliente
+        DocumentSnapshot? docClienteSnapshot;
+        if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
+          docClienteSnapshot = await transaction.get(_clientesRef.doc(venta.clienteId!));
+          if (!docClienteSnapshot.exists) throw Exception('El cliente no existe.');
+          final clienteData = docClienteSnapshot.data() as Map<String, dynamic>;
+          final limiteCredito = (clienteData['limiteCredito'] as num?)?.toDouble() ?? 0.0;
+          final saldoActual = (clienteData['saldoDeudor'] as num?)?.toDouble() ?? 0.0;
+
+          if (limiteCredito <= 0) {
+            throw Exception('Este cliente tiene el crédito bloqueado (límite = \$0).');
+          }
+          if (saldoActual + venta.total > limiteCredito) {
+            final disponible = limiteCredito - saldoActual;
+            throw Exception(
+              'Límite de crédito insuficiente. '
+              'Disponible: \$${disponible.toStringAsFixed(2)}, '
+              'Requerido: \$${venta.total.toStringAsFixed(2)}.',
+            );
+          }
+        }
+
+        // Leer productos para validar stock
+        Map<String, DocumentSnapshot> productosSnaps = {};
+        for (final item in venta.items) {
+          final docSnap = await transaction.get(_productosRef.doc(item.productoId));
+          if (!docSnap.exists) throw Exception('El producto ${item.nombre} ya no existe.');
+          productosSnaps[item.productoId] = docSnap;
+        }
+
+        // 2. Escrituras
+        // a) Guardar la venta
+        final docVenta = _ventasRef.doc();
+        final ventaParaGuardar = Venta(
+          id: docVenta.id,
+          fecha: venta.fecha,
+          items: venta.items,
+          costoEnvio: venta.costoEnvio,
+          envioPagadoPorVendedor: venta.envioPagadoPorVendedor,
+          estado: venta.estado,
+          metodoPago: venta.metodoPago,
+          tipoDescuento: venta.tipoDescuento,
+          valorDescuento: venta.valorDescuento,
+          porcentajeImpuesto: venta.porcentajeImpuesto,
+          clienteId: venta.clienteId,
+        );
+        transaction.set(docVenta, ventaParaGuardar.toMap());
+
+        // b) Descontar inventario y registrar Kardex de Salida
+        for (final item in venta.items) {
+          final ref = _productosRef.doc(item.productoId);
+          final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toInt();
+          final newStock = currentStock - item.cantidad;
+          
+          transaction.update(ref, {'cantidad': newStock});
+
+          final kardexDoc = _kardexRef.doc();
+          final mov = MovimientoInventario(
+            id: kardexDoc.id,
+            productoId: item.productoId,
+            tipoMovimiento: TipoMovimiento.salida,
+            cantidadAlterada: -item.cantidad,
+            stockResultante: newStock,
+            motivo: 'Venta realizada (POS)',
+            fecha: DateTime.now(),
+            usuarioId: _currentUserId,
+          );
+          transaction.set(kardexDoc, mov.toMap());
+        }
+
+        // c) Si es crédito, actualizar saldo del cliente
+        if (venta.metodoPago == MetodoPago.credito &&
+            venta.clienteId != null &&
+            docClienteSnapshot != null) {
+          final refCliente = _clientesRef.doc(venta.clienteId!);
+          final saldoActual = (docClienteSnapshot.data() as Map<String, dynamic>)['saldoDeudor'] ?? 0.0;
+          transaction.update(refCliente, {
+            'saldoDeudor': saldoActual + ventaParaGuardar.total,
+          });
+        }
+
+        // d) Actualizar turno de caja según método de pago
+        if (turnoCajaId != null && docTurnoSnapshot != null) {
+          final refTurno = _turnosCajaRef.doc(turnoCajaId);
+          String campoActualizar;
+          switch (venta.metodoPago) {
+            case MetodoPago.efectivo:
+              campoActualizar = 'ventasEfectivo';
+              break;
+            case MetodoPago.tarjeta:
+              campoActualizar = 'ventasTarjeta';
+              break;
+            case MetodoPago.transferencia:
+              campoActualizar = 'ventasTransferencia';
+              break;
+            case MetodoPago.credito:
+              campoActualizar = 'ventasCredito';
+              break;
+          }
+          final valorActual = (docTurnoSnapshot.data() as Map<String, dynamic>)[campoActualizar] ?? 0.0;
+          transaction.update(refTurno, {
+            campoActualizar: valorActual + ventaParaGuardar.total,
+          });
+        }
+      });
     } on FirebaseException catch (e) {
-      throw Exception('Error al registrar venta: ${e.message}');
+      throw Exception('Error al registrar venta (Firebase): ${e.message}');
+    } catch (e) {
+      throw Exception('Error en transacción de venta: $e');
     }
   }
 
   Future<void> cancelarVenta(Venta venta) async {
-    final batch = FirebaseFirestore.instance.batch();
-
-    // 1. Cambiar estado a 'cancelada'
-    final docVenta = _ventasRef.doc(venta.id);
-    batch.update(docVenta, {'estado': 'cancelada'});
-
-    // 2. Devolver productos al inventario
-    for (final item in venta.items) {
-      final docProd = _productosRef.doc(item.productoId);
-      batch.update(docProd, {
-        'cantidad': FieldValue.increment(item.cantidad),
-      });
-    }
-
     try {
-      await batch.commit();
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final docVenta = _ventasRef.doc(venta.id);
+        
+        // 1. Lecturas (Productos para obtener su stock actual y evitar fallos del Kardex)
+        Map<String, DocumentSnapshot> productosSnaps = {};
+        for (final item in venta.items) {
+          final docSnap = await transaction.get(_productosRef.doc(item.productoId));
+          if (!docSnap.exists) throw Exception("Producto ${item.nombre} no existe");
+          productosSnaps[item.productoId] = docSnap;
+        }
+
+        // 2. Escrituras
+        // a) Cambiar estado
+        transaction.update(docVenta, {'estado': 'cancelada'});
+
+        // b) Devolver productos al inventario y Kardex
+        for (final item in venta.items) {
+          final ref = _productosRef.doc(item.productoId);
+          final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toInt();
+          final newStock = currentStock + item.cantidad;
+          
+          transaction.update(ref, {'cantidad': newStock});
+
+          final kardexDoc = _kardexRef.doc();
+          final mov = MovimientoInventario(
+            id: kardexDoc.id,
+            productoId: item.productoId,
+            tipoMovimiento: TipoMovimiento.entrada,
+            cantidadAlterada: item.cantidad,
+            stockResultante: newStock,
+            motivo: 'Cancelación de Venta',
+            fecha: DateTime.now(),
+            usuarioId: _currentUserId,
+          );
+          transaction.set(kardexDoc, mov.toMap());
+        }
+      });
     } on FirebaseException catch (e) {
       throw Exception('Error al cancelar venta: ${e.message}');
     }
@@ -246,28 +525,48 @@ class FirebaseService {
     required double costoEnvioDevolucion,
     required bool volverAVender,
   }) async {
-    final batch = FirebaseFirestore.instance.batch();
-
-    // 1. Cambiar estado a 'devuelta' y registrar costos
-    final docVenta = _ventasRef.doc(venta.id);
-    batch.update(docVenta, {
-      'estado': 'devuelta',
-      'costoEnvioDevolucion': costoEnvioDevolucion,
-      'devueltoAlInventario': volverAVender,
-    });
-
-    // 2. Devolver productos al inventario SI están aptos para volver a venderse
-    if (volverAVender) {
-      for (final item in venta.items) {
-        final docProd = _productosRef.doc(item.productoId);
-        batch.update(docProd, {
-          'cantidad': FieldValue.increment(item.cantidad),
-        });
-      }
-    }
-
     try {
-      await batch.commit();
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final docVenta = _ventasRef.doc(venta.id);
+
+        Map<String, DocumentSnapshot> productosSnaps = {};
+        if (volverAVender) {
+          for (final item in venta.items) {
+            final docSnap = await transaction.get(_productosRef.doc(item.productoId));
+            if (!docSnap.exists) throw Exception("Producto ${item.nombre} no existe");
+            productosSnaps[item.productoId] = docSnap;
+          }
+        }
+
+        transaction.update(docVenta, {
+          'estado': 'devuelta',
+          'costoEnvioDevolucion': costoEnvioDevolucion,
+          'devueltoAlInventario': volverAVender,
+        });
+
+        if (volverAVender) {
+          for (final item in venta.items) {
+            final ref = _productosRef.doc(item.productoId);
+            final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toInt();
+            final newStock = currentStock + item.cantidad;
+            
+            transaction.update(ref, {'cantidad': newStock});
+
+            final kardexDoc = _kardexRef.doc();
+            final mov = MovimientoInventario(
+              id: kardexDoc.id,
+              productoId: item.productoId,
+              tipoMovimiento: TipoMovimiento.entrada,
+              cantidadAlterada: item.cantidad,
+              stockResultante: newStock,
+              motivo: 'Devolución de Venta',
+              fecha: DateTime.now(),
+              usuarioId: _currentUserId,
+            );
+            transaction.set(kardexDoc, mov.toMap());
+          }
+        }
+      });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar devolución: ${e.message}');
     }
@@ -275,17 +574,18 @@ class FirebaseService {
 
   // ── Estadísticas y Ganancias ──────────────────────────────────────────────
 
-  /// Obtiene el flujo en vivo de todas las ventas (ordenadas de más reciente a más antigua)
-  Stream<List<Venta>> getVentasStream() {
-    return _ventasRef
+  /// Obtiene historial paginado de ventas
+  Future<List<Venta>> getVentasPaginadas({int limite = 20, DocumentSnapshot? startAfter}) async {
+    Query query = _ventasRef
         .orderBy('fecha', descending: true)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
-              return Venta.fromMap(
-                doc.data() as Map<String, dynamic>,
-                doc.id,
-              );
-            }).toList());
+        .limit(limite);
+        
+    if (startAfter != null) {
+      query = query.startAfterDocument(startAfter);
+    }
+    
+    final snapshot = await query.get(const GetOptions(source: Source.serverAndCache));
+    return snapshot.docs.map((doc) => Venta.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList();
   }
 
   /// Obtiene ventas en un rango de fechas
@@ -319,5 +619,231 @@ class FirebaseService {
     }
     
     return totalCapital;
+  }
+
+  /// Retorna datos analíticos para el Dashboard, filtrando por los últimos [dias] días.
+  /// Optimizado: solo lee ventas dentro del rango de fechas, no toda la colección.
+  Future<DashboardData> getDashboardData({int dias = 7}) async {
+    final ahora = DateTime.now();
+    final inicio = DateTime(ahora.year, ahora.month, ahora.day)
+        .subtract(Duration(days: dias - 1));
+    final inicioStr = inicio.toIso8601String();
+
+    final snapshot = await _ventasRef
+        .where('fecha', isGreaterThanOrEqualTo: inicioStr)
+        .orderBy('fecha', descending: false)
+        .get(const GetOptions(source: Source.serverAndCache));
+
+    final ventas = snapshot.docs
+        .map((d) => Venta.fromMap(d.data() as Map<String, dynamic>, d.id))
+        .toList();
+
+    final fmt = DateFormat('MM/dd');
+    final ingresosPorDia = <String, double>{};
+    final costosPorDia = <String, double>{};
+    final contadores = <String, int>{};
+    final nombres = <String, String>{};
+    final ingresosProd = <String, double>{};
+
+    double ingresosTotales = 0;
+    double costosTotales = 0;
+    int totalVentas = 0;
+
+    for (final v in ventas) {
+      if (v.estado == 'cancelada') continue;
+
+      final key = fmt.format(v.fecha);
+      ingresosPorDia[key] ??= 0;
+      costosPorDia[key] ??= 0;
+
+      if (v.estado == 'completada') {
+        totalVentas++;
+        for (final item in v.items) {
+          final ing = item.precioUnitario * item.cantidad;
+          final cos = item.costoUnitario * item.cantidad;
+          ingresosPorDia[key] = ingresosPorDia[key]! + ing;
+          costosPorDia[key] = costosPorDia[key]! + cos;
+          ingresosTotales += ing;
+          costosTotales += cos;
+          contadores[item.productoId] = (contadores[item.productoId] ?? 0) + item.cantidad;
+          nombres[item.productoId] = item.nombre;
+          ingresosProd[item.productoId] = (ingresosProd[item.productoId] ?? 0) + ing;
+        }
+        if (v.costoEnvio > 0) {
+          if (v.envioPagadoPorVendedor) {
+            costosPorDia[key] = costosPorDia[key]! + v.costoEnvio;
+            costosTotales += v.costoEnvio;
+          } else {
+            ingresosPorDia[key] = ingresosPorDia[key]! + v.costoEnvio;
+            ingresosTotales += v.costoEnvio;
+          }
+        }
+      } else if (v.estado == 'devuelta') {
+        if (!v.devueltoAlInventario) {
+          for (final item in v.items) {
+            final cos = item.costoUnitario * item.cantidad;
+            costosPorDia[key] = costosPorDia[key]! + cos;
+            costosTotales += cos;
+          }
+        }
+        if (v.costoEnvioDevolucion > 0) {
+          costosPorDia[key] = costosPorDia[key]! + v.costoEnvioDevolucion;
+          costosTotales += v.costoEnvioDevolucion;
+        }
+      }
+    }
+
+    final ganancia = ingresosTotales - costosTotales;
+    final margen = ingresosTotales > 0 ? (ganancia / ingresosTotales) * 100 : 0.0;
+
+    final top = (contadores.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value)))
+        .take(5)
+        .map((e) => TopProducto(
+              productoId: e.key,
+              nombre: nombres[e.key] ?? 'Desconocido',
+              cantidadVendida: e.value,
+              ingresoGenerado: ingresosProd[e.key] ?? 0,
+            ))
+        .toList();
+
+    return DashboardData(
+      ingresosPorDia: ingresosPorDia,
+      costosPorDia: costosPorDia,
+      ingresosTotales: ingresosTotales,
+      costosTotales: costosTotales,
+      gananciaBruta: ganancia,
+      margenPorcentaje: margen,
+      totalVentas: totalVentas,
+      topProductos: top,
+      diasConsultados: dias,
+    );
+  }
+
+  /// Productos con stock por debajo del umbral de alerta.
+  Future<List<Producto>> getProductosBajoStock({int umbral = 5}) async {
+    final snap = await _productosRef
+        .where('esBase', isEqualTo: true)
+        .where('cantidad', isLessThanOrEqualTo: umbral)
+        .orderBy('cantidad')
+        .get(const GetOptions(source: Source.serverAndCache));
+    return snap.docs
+        .map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id))
+        .toList();
+  }
+
+  // ── Clientes ──────────────────────────────────────────────────────────────
+
+  Future<String> agregarCliente(Cliente cliente) async {
+    final doc = await _clientesRef.add(cliente.toMap()
+      ..['fechaRegistro'] = DateTime.now().toIso8601String());
+    return doc.id;
+  }
+
+  Future<void> actualizarCliente(Cliente cliente) async {
+    await _clientesRef.doc(cliente.id).update(cliente.toMap());
+  }
+
+  Future<void> eliminarCliente(String clienteId) async {
+    await _clientesRef.doc(clienteId).delete();
+  }
+
+  /// Stream paginado de clientes ordenados por nombre.
+  Stream<List<Cliente>> getClientesStream() {
+    return _clientesRef
+        .orderBy('nombre')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => Cliente.fromMap(d.data() as Map<String, dynamic>, d.id))
+            .toList());
+  }
+
+  /// Busca clientes cuyo nombre empiece con [query] (prefix search).
+  Future<List<Cliente>> buscarClientes(String query) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim();
+    final snap = await _clientesRef
+        .where('nombre', isGreaterThanOrEqualTo: q)
+        .where('nombre', isLessThan: '$q\uf8ff')
+        .limit(10)
+        .get();
+    return snap.docs
+        .map((d) => Cliente.fromMap(d.data() as Map<String, dynamic>, d.id))
+        .toList();
+  }
+
+  Future<Cliente?> getCliente(String clienteId) async {
+    final doc = await _clientesRef.doc(clienteId).get();
+    if (!doc.exists) return null;
+    return Cliente.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+  }
+
+  // ── Abonos ────────────────────────────────────────────────────────────────
+
+  /// Registra un abono de forma atómica:
+  /// 1. Guarda el abono en la subcolección `abonos`.
+  /// 2. Resta el monto del saldoDeudor del cliente.
+  /// 3. Si el abono es en efectivo, suma al turno de caja activo.
+  Future<void> registrarAbono(Abono abono) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // ── Lecturas ────────────────────────────────────────────────────
+        final docCliente = await transaction.get(_clientesRef.doc(abono.clienteId));
+        if (!docCliente.exists) throw Exception('Cliente no encontrado.');
+        final saldoActual = (docCliente.data() as Map<String, dynamic>)['saldoDeudor'] as num? ?? 0.0;
+        if (abono.monto > saldoActual) {
+          throw Exception(
+            'El abono (\$${abono.monto.toStringAsFixed(2)}) supera la deuda actual (\$${saldoActual.toStringAsFixed(2)}).',
+          );
+        }
+
+        // Si el abono es en efectivo, buscamos el turno activo
+        DocumentSnapshot? docTurno;
+        if (abono.metodoPago == MetodoPago.efectivo) {
+          final turnoSnap = await _turnosCajaRef
+              .where('estado', isEqualTo: EstadoTurno.abierto.name)
+              .limit(1)
+              .get();
+          if (turnoSnap.docs.isNotEmpty) {
+            docTurno = await transaction.get(_turnosCajaRef.doc(turnoSnap.docs.first.id));
+          }
+        }
+
+        // ── Escrituras ──────────────────────────────────────────────────
+        // a) Guardar el abono
+        final docAbono = _abonosRef.doc();
+        transaction.set(docAbono, {
+          ...abono.toMap(),
+        });
+
+        // b) Restar saldo del cliente
+        transaction.update(_clientesRef.doc(abono.clienteId), {
+          'saldoDeudor': (saldoActual - abono.monto).clamp(0.0, double.infinity),
+        });
+
+        // c) Sumar al turno de caja si el abono es en efectivo
+        if (docTurno != null) {
+          final ventasEfActual = (docTurno.data() as Map<String, dynamic>)['ventasEfectivo'] as num? ?? 0.0;
+          transaction.update(docTurno.reference, {
+            'ventasEfectivo': ventasEfActual + abono.monto,
+          });
+        }
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar abono: ${e.message}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Historial de abonos de un cliente en tiempo real.
+  Stream<List<Abono>> getAbonosPorCliente(String clienteId) {
+    return _abonosRef
+        .where('clienteId', isEqualTo: clienteId)
+        .orderBy('fecha', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => Abono.fromMap(d.data() as Map<String, dynamic>, d.id))
+            .toList());
   }
 }

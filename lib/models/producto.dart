@@ -7,7 +7,15 @@ class Producto {
   /// Clave = nombre del atributo (ej: "Tamaño"), valor = valor elegido (ej: "Queen").
   final Map<String, String> atributos;
 
-  final int cantidad;
+  // Estrategia de Variantes en NoSQL
+  final bool esBase; // true si es el producto padre/resumen
+  final String? grupoId; // Si no esBase, el ID del documento padre correspondiente
+  
+  /// Documento padre: guarda info vitalísima de los hijos para no quemar lecturas en Firestore
+  /// ej: [{"id": "abc", "atributos": "Azul Matrimonial", "stock": 5}]
+  final List<Map<String, dynamic>> variantesResumen;
+
+  final int cantidad; // Cantidad total del padre si agrupa, o la específica de la variante
   final double costoPromedio;
   final double precio;
   final String descripcion;
@@ -23,6 +31,9 @@ class Producto {
     required this.precio,
     this.descripcion = '',
     this.codigoBarras,
+    this.esBase = true,
+    this.grupoId,
+    this.variantesResumen = const [],
   });
 
   /// Crea un [Producto] a partir de un documento de Firestore.
@@ -59,6 +70,12 @@ class Producto {
       precio: (map['precio'] as num?)?.toDouble() ?? 0.0,
       descripcion: map['descripcion'] as String? ?? '',
       codigoBarras: map['codigoBarras'] as String?,
+      esBase: map['esBase'] as bool? ?? true,
+      grupoId: map['grupoId'] as String?,
+      variantesResumen: (map['variantesResumen'] as List<dynamic>?)
+              ?.map((item) => item as Map<String, dynamic>)
+              .toList() ??
+          const [],
     );
   }
 
@@ -72,6 +89,9 @@ class Producto {
         'precio': precio,
         'descripcion': descripcion,
         if (codigoBarras != null) 'codigoBarras': codigoBarras,
+        'esBase': esBase,
+        if (grupoId != null) 'grupoId': grupoId,
+        'variantesResumen': variantesResumen,
       };
 
   /// Resumen de todos los atributos para mostrar en la UI (ej: "Queen · Rojo").
@@ -89,6 +109,9 @@ class Producto {
     double? precio,
     String? descripcion,
     String? codigoBarras,
+    bool? esBase,
+    String? grupoId,
+    List<Map<String, dynamic>>? variantesResumen,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -100,6 +123,9 @@ class Producto {
       precio: precio ?? this.precio,
       descripcion: descripcion ?? this.descripcion,
       codigoBarras: codigoBarras ?? this.codigoBarras,
+      esBase: esBase ?? this.esBase,
+      grupoId: grupoId ?? this.grupoId,
+      variantesResumen: variantesResumen ?? List.from(this.variantesResumen),
     );
   }
 

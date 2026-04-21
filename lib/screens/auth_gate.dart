@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'inventario_screen.dart';
+import 'ventas_screen.dart';
 import 'login_screen.dart';
 import 'espera_aprobacion_screen.dart';
 import 'admin_dashboard_screen.dart';
@@ -48,13 +49,14 @@ class AuthGate extends StatelessWidget {
               return const CuentaInactivaScreen();
             }
 
-            if (userData.rol == 'admin') {
-              return const AdminDashboardScreen();
-            }
+            // Dueño → acceso completo al inventario
+            if (userData.rol == 'dueño') return const InventarioScreen();
 
-            if (userData.estatus == 'pendiente') {
-              return const EsperaAprobacionScreen();
-            }
+            // Empleado → solo Punto de Venta (actúa como cajero)
+            if (userData.rol == 'empleado') return const VentasScreen();
+
+            // Administrador de plataforma
+            if (userData.rol == 'admin') return const AdminDashboardScreen();
 
             return const InventarioScreen();
           },

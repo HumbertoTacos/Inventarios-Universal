@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../services/firebase_service.dart';
@@ -11,6 +12,7 @@ import 'gestion_categorias_screen.dart';
 import 'historial_ventas_screen.dart';
 import 'ventas_screen.dart';
 import 'mi_equipo_screen.dart';
+import 'clientes_screen.dart';
 import '../services/auth_service.dart';
 
 class InventarioScreen extends StatefulWidget {
@@ -24,38 +26,140 @@ class InventarioScreen extends StatefulWidget {
 
 class _InventarioScreenState extends State<InventarioScreen> {
   final FirebaseService _firebaseService = FirebaseService();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchCtrl = TextEditingController();
 
-  // Estados de búsqueda y filtrado
-  String _searchQuery = '';
+  // Rol y permisos del usuario activo
+  String get _rol => AuthService().currentUserData?.rol ?? 'empleado';
+  bool get _esDueno => _rol == 'dueño';
+
+  bool get _puedeAjustarStock    => _esDueno || (AuthService().currentUserData?.permisos.puedeAjustarStock ?? true);
+  bool get _puedeEditarProductos => _esDueno || (AuthService().currentUserData?.permisos.puedeEditarProductos ?? false);
+  bool get _puedeEliminarProductos => _esDueno || (AuthService().currentUserData?.permisos.puedeEliminarProductos ?? false);
+  bool get _puedeVerEstadisticas => _esDueno || (AuthService().currentUserData?.permisos.puedeVerEstadisticas ?? false);
+  bool get _puedeVerHistorial    => _esDueno || (AuthService().currentUserData?.permisos.puedeVerHistorialVentas ?? true);
+  bool get _puedeAgregarProductos => _esDueno || _puedeEditarProductos;
+
+
+  // Estado de Datos
+  List<Producto> _productos = [];
+  DocumentSnapshot? _lastDoc;
+  Producto? _searchResult; // Para mostrar un resultado exacto por SKU
+  
+  // Estado de Carga
+  bool _isLoading = true;         // Carga inicial
+  bool _isFetchingMore = false;   // Cargando página siguiente
+  bool _hasMoreData = true;       // ¿Quedan más datos en Firebase?
+  bool _isSearching = false;      // ¿Estamos en modo búsqueda/SKU?
+
+  // Filtros
   Categoria? _filtroCategoria;
 
-  final TextEditingController _searchCtrl = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    _fetchInitial();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  // ── Filtrado Local ────────────────────────────────────────────────────────
+  // ── Lógica de Datos ───────────────────────────────────────────────────────
 
-  List<Producto> _filtrarProductos(List<Producto> productos) {
-    return productos.where((p) {
-      // Búsqueda por texto (nombre o código de barras)
-      final query = _searchQuery.trim().toLowerCase();
-      final matchQuery = query.isEmpty ||
-          p.nombre.toLowerCase().contains(query) ||
-          (p.codigoBarras != null && p.codigoBarras!.toLowerCase() == query);
+  Future<void> _fetchInitial() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _productos = [];
+      _lastDoc = null;
+      _hasMoreData = true;
+      _isSearching = false;
+      _searchResult = null;
+    });
 
-      // Filtro por categoría
-      final matchCat =
-          _filtroCategoria == null || p.categoria == _filtroCategoria!.nombre;
-
-      return matchQuery && matchCat;
-    }).toList();
+    try {
+      final result = await _firebaseService.getProductosPaginados(limite: 20);
+      if (!mounted) return;
+      setState(() {
+        _productos = result.productos;
+        _lastDoc = result.lastDoc;
+        _isLoading = false;
+        if (result.productos.length < 20) _hasMoreData = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
-  bool get _hayFiltrosActivos => _filtroCategoria != null;
+  Future<void> _fetchNext() async {
+    if (_isFetchingMore || !_hasMoreData || _isSearching) return;
+
+    if (!mounted) return;
+    setState(() => _isFetchingMore = true);
+
+    try {
+      final result = await _firebaseService.getProductosPaginados(
+        limite: 20, 
+        startAfter: _lastDoc
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _productos.addAll(result.productos);
+        _lastDoc = result.lastDoc;
+        _isFetchingMore = false;
+        if (result.productos.length < 20) _hasMoreData = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _isFetchingMore = false);
+    }
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    
+    // Si llegamos al 90% del scroll, cargamos más
+    if (currentScroll >= (maxScroll * 0.9)) {
+      _fetchNext();
+    }
+  }
+
+  // ── Búsqueda y Scanner ────────────────────────────────────────────────────
+
+  Future<void> _ejecutarBusqueda(String query) async {
+    if (query.trim().isEmpty) {
+      _fetchInitial();
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _isLoading = true;
+      _searchResult = null;
+    });
+
+    try {
+      // Intentamos buscar por SKU como prioridad (Lo que pide el POS/Senior)
+      final res = await _firebaseService.buscarVariantePorSKU(query.trim());
+      if (mounted) {
+        setState(() {
+          _searchResult = res;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   // ── UI Principal ──────────────────────────────────────────────────────────
 
@@ -90,33 +194,46 @@ class _InventarioScreenState extends State<InventarioScreen> {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasScreen()));
                     },
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.history),
-                    title: const Text('Historial de Pedidos'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialVentasScreen()));
-                    },
-                  ),
+                  if (_puedeVerHistorial)
+                    ListTile(
+                      leading: const Icon(Icons.history),
+                      title: const Text('Historial de Pedidos'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialVentasScreen()));
+                      },
+                    ),
                   const Divider(),
                   ListTile(
-                    leading: const Icon(Icons.bar_chart),
-                    title: const Text('Estadísticas y Ganancias'),
+                    leading: const Icon(Icons.people_outlined),
+                    title: const Text('Clientes y Créditos'),
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
                     },
                   ),
-                  const Divider(),
-                  ListTile(
-                    leading: const Icon(Icons.category_outlined),
-                    title: const Text('Gestionar Categorías'),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
-                    },
-                  ),
-                  if (AuthService().currentUserData?.rol == 'dueño') ...[
+                  if (_puedeVerEstadisticas) ...[
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.bar_chart),
+                      title: const Text('Estadísticas y Ganancias'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
+                      },
+                    ),
+                  ],
+                  // Solo dueño: categorías y equipo
+                  if (_esDueno) ...[
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.category_outlined),
+                      title: const Text('Gestionar Categorías'),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
+                      },
+                    ),
                     const Divider(),
                     ListTile(
                       leading: const Icon(Icons.people_alt_outlined),
@@ -131,10 +248,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
               ),
             ),
       appBar: AppBar(
-        title: const Text(
-          'Inventario',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: colorScheme.primaryContainer,
         foregroundColor: colorScheme.onPrimaryContainer,
@@ -148,37 +262,31 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 Expanded(
                   child: TextField(
                     controller: _searchCtrl,
-                    onChanged: (val) => setState(() => _searchQuery = val),
+                    onSubmitted: _ejecutarBusqueda,
                     decoration: InputDecoration(
-                      hintText: 'Buscar nombre o código...',
+                      hintText: 'Buscar SKU / Código...',
                       prefixIcon: const Icon(Icons.search),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        tooltip: 'Escanear con cámara',
-                        onPressed: _escanearParaBuscar,
-                      ),
+                      suffixIcon: _searchCtrl.text.isNotEmpty 
+                        ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _searchCtrl.clear(); _fetchInitial(); })
+                        : IconButton(
+                            icon: const Icon(Icons.qr_code_scanner),
+                            onPressed: _escanearParaBuscar,
+                          ),
                       filled: true,
                       fillColor: Theme.of(context).scaffoldBackgroundColor,
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Container(
                   decoration: BoxDecoration(
-                    color: _hayFiltrosActivos ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
+                    color: _filtroCategoria != null ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: IconButton(
-                    icon: Icon(
-                      Icons.filter_list,
-                      color: _hayFiltrosActivos ? colorScheme.onPrimary : colorScheme.onSurface,
-                    ),
-                    tooltip: 'Filtrar',
+                    icon: Icon(Icons.filter_list, color: _filtroCategoria != null ? colorScheme.onPrimary : colorScheme.onSurface),
                     onPressed: _mostrarModalFiltros,
                   ),
                 ),
@@ -187,33 +295,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<List<Producto>>(
-        stream: _firebaseService.getProductos(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return _buildEstadoError(snapshot.error.toString());
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final productosRaw = snapshot.data ?? [];
-          final productosFiltrados = _filtrarProductos(productosRaw);
-
-          if (productosRaw.isEmpty) return _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
-          if (productosFiltrados.isEmpty) return _buildEstadoVacio('Sin resultados', 'Intenta con otra búsqueda o limpia los filtros.');
-
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            itemCount: productosFiltrados.length,
-            itemBuilder: (context, index) {
-              return _buildProductoCard(productosFiltrados[index]);
-            },
-          );
-        },
-      ),
-      floatingActionButton: widget.modoSeleccion
+      body: _buildBody(),
+      floatingActionButton: widget.modoSeleccion || !_puedeAgregarProductos
           ? null
           : FloatingActionButton.extended(
               onPressed: _navegarAAgregarProducto,
@@ -223,371 +306,226 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
-  // ── Widgets de Estado ─────────────────────────────────────────────────────
+  Widget _buildBody() {
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
-  Widget _buildEstadoError(String mensaje) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
-            const SizedBox(height: 16),
-            Text('Ocurrió un error', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(mensaje, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
-          ],
-        ),
+    if (_isSearching) {
+      if (_searchResult == null) return _buildEstadoVacio('No encontrado', 'No hay productos con ese código.');
+      return ListView(
+        padding: const EdgeInsets.all(12),
+        children: [_buildProductoCard(_searchResult!)],
+      );
+    }
+
+    if (_productos.isEmpty) return _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
+
+    return RefreshIndicator(
+      onRefresh: _fetchInitial,
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        itemCount: _productos.length + (_hasMoreData ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == _productos.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
+          return _buildProductoCard(_productos[index]);
+        },
       ),
     );
   }
+
+  // ── Widgets de Estado y Cards ─────────────────────────────────────────────
 
   Widget _buildEstadoVacio(String titulo, String subtitulo) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
-            const SizedBox(height: 8),
-            Text(subtitulo, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── Card del producto ─────────────────────────────────────────────────────
-
-  Widget _buildProductoCard(Producto producto) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Dismissible(
-      key: Key(producto.id),
-      direction: widget.modoSeleccion ? DismissDirection.none : DismissDirection.endToStart,
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 24),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.red.shade400,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
-      ),
-      confirmDismiss: (_) => _confirmarEliminacion(producto.nombre),
-      onDismissed: (_) => _eliminarProducto(producto),
-      child: Card(
-        elevation: 1,
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
-          onTap: () {
-            if (widget.modoSeleccion) {
-              Navigator.pop(context, producto);
-            } else {
-              _mostrarDialogoRestock(producto);
-            }
-          },
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: CircleAvatar(
-            backgroundColor: colorScheme.secondaryContainer,
-            child: Text(
-              producto.nombre.isNotEmpty ? producto.nombre[0].toUpperCase() : '?',
-              style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSecondaryContainer),
-            ),
-          ),
-          title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(producto.categoria),
-              Text(
-                producto.atributoVisual,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
-              ),
-              if (producto.codigoBarras != null && producto.codigoBarras!.isNotEmpty)
-                Text('Código: ${producto.codigoBarras}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-            ],
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '\$${producto.precio.toStringAsFixed(2)}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 15),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: producto.cantidad > 0 ? Colors.green.shade50 : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Stock: ${producto.cantidad}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: producto.cantidad > 0 ? Colors.green.shade700 : Colors.red.shade700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (!widget.modoSeleccion) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.add_shopping_cart, color: Colors.blue),
-                  tooltip: 'Reabastecer / Ingresar lote',
-                  onPressed: () => _mostrarModalReabastecimiento(producto),
-                ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'Opciones del producto',
-                  onSelected: (value) async {
-                    if (value == 'editar') {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => EditarProductoScreen(producto: producto)));
-                    } else if (value == 'eliminar') {
-                      final confirmed = await _confirmarEliminacion(producto.nombre);
-                      if (confirmed) {
-                        await _eliminarProducto(producto);
-                      }
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'editar',
-                      child: Row(children: [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Editar')]),
-                    ),
-                    const PopupMenuItem(
-                      value: 'eliminar',
-                      child: Row(children: [Icon(Icons.delete, color: Colors.red, size: 20), SizedBox(width: 8), Text('Eliminar', style: TextStyle(color: Colors.red))]),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Modal de Filtros ──────────────────────────────────────────────────────
-
-  void _mostrarModalFiltros() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return _FiltrosBottomSheet(
-          filtroCategoriaInicial: _filtroCategoria,
-          onApply: (cat) {
-            setState(() {
-              _filtroCategoria = cat;
-            });
-          },
-        );
-      },
-    );
-  }
-
-  // ── Acciones Secundarias ──────────────────────────────────────────────────
-
-  Future<void> _escanearParaBuscar() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
-    );
-    if (result != null && mounted) {
-      setState(() {
-        _searchCtrl.text = result;
-        _searchQuery = result;
-      });
-    }
-  }
-
-  Future<bool> _confirmarEliminacion(String nombre) async {
-    final resultado = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eliminar producto'),
-        content: Text('¿Estás seguro de que deseas eliminar "$nombre"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade400),
+          const SizedBox(height: 16),
+          Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
+          Text(subtitulo, style: TextStyle(color: Colors.grey.shade500)),
+          if (_isSearching) TextButton(onPressed: () { _searchCtrl.clear(); _fetchInitial(); }, child: const Text('Ver todo')),
         ],
       ),
     );
-    return resultado ?? false;
   }
 
-  Future<void> _eliminarProducto(Producto producto) async {
-    try {
-      await _firebaseService.eliminarProducto(producto.id);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('"${producto.nombre}" eliminado')));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al eliminar: $e'), backgroundColor: Colors.red));
+  Widget _buildProductoCard(Producto producto) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      elevation: 1,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        onTap: () => widget.modoSeleccion
+            ? Navigator.pop(context, producto)
+            : _abrirMenuAcciones(producto),
+        leading: CircleAvatar(
+          backgroundColor: colorScheme.secondaryContainer,
+          child: Text(producto.nombre[0].toUpperCase(),
+              style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
+        ),
+        title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('${producto.categoria} • ${producto.atributoVisual}'),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text('\$${producto.precio.toStringAsFixed(2)}',
+                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+            Text('Stock: ${producto.cantidad}',
+                style: TextStyle(fontSize: 12, color: producto.cantidad > 0 ? Colors.green : Colors.red)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Métodos de apoyo (Filtros, Modales, etc.) ──────────────────────────────
+  
+  void _mostrarModalFiltros() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _FiltrosBottomSheet(
+        filtroCategoriaInicial: _filtroCategoria,
+        onApply: (cat) { setState(() => _filtroCategoria = cat); _fetchInitial(); },
+      ),
+    );
+  }
+
+  Future<void> _escanearParaBuscar() async {
+    final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()));
+    if (result != null) {
+      _searchCtrl.text = result;
+      _ejecutarBusqueda(result);
     }
   }
 
-  void _navegarAAgregarProducto() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarProductoScreen()));
-  }
-
-  // ── Diálogo Restock ──────────────────────────────────────────────────────
+  void _navegarAAgregarProducto() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarProductoScreen())).then((_) => _fetchInitial());
 
   Future<void> _mostrarDialogoRestock(Producto producto) async {
     final TextEditingController ctrl = TextEditingController();
-    bool sumando = true;
-
     await showDialog(
       context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('Restock: ${producto.nombre}'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Stock actual: ${producto.cantidad}'),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      ChoiceChip(
-                        label: const Text('Agregar'),
-                        selected: sumando,
-                        onSelected: (v) => setState(() => sumando = true),
-                        selectedColor: Colors.green.shade100,
-                      ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('Quitar'),
-                        selected: !sumando,
-                        onSelected: (v) => setState(() => sumando = false),
-                        selectedColor: Colors.red.shade100,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: ctrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(labelText: 'Cantidad', border: OutlineInputBorder()),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-                FilledButton(
-                  onPressed: () async {
-                    if (ctrl.text.isEmpty) return;
-                    final cantidadInput = int.tryParse(ctrl.text) ?? 0;
-                    if (cantidadInput == 0) return;
-
-                    final nuevaCantidad = sumando ? producto.cantidad + cantidadInput : producto.cantidad - cantidadInput;
-
-                    if (nuevaCantidad < 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No puedes tener stock negativo'), backgroundColor: Colors.red));
-                      return;
-                    }
-
-                    final updated = producto.copyWith(cantidad: nuevaCantidad);
-                    await _firebaseService.actualizarProducto(updated);
-                    if (context.mounted) {
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stock actualizado')));
-                    }
-                  },
-                  child: const Text('Actualizar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (ctx) => AlertDialog(
+        title: Text('Stock: ${producto.nombre}'),
+        content: TextField(
+          controller: ctrl, 
+          keyboardType: TextInputType.number, 
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*'))],
+          decoration: const InputDecoration(labelText: 'Cantidad a ajustar (ej. -5 o 10)')
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(onPressed: () async {
+            final val = int.tryParse(ctrl.text) ?? 0;
+            if (val == 0) return;
+            await _firebaseService.ajustarInventario(producto.id, val, 'Ajuste manual rápido');
+            if (mounted) { Navigator.pop(ctx); _fetchInitial(); }
+          }, child: const Text('Guardar'))
+        ],
+      )
     );
   }
 
-  Future<void> _mostrarModalReabastecimiento(Producto producto) async {
-    final qtyCtrl = TextEditingController();
-    final costCtrl = TextEditingController();
+  // ── Menú de Acciones por Permisos ──────────────────────────────────────────
 
-    await showDialog(
+  void _abrirMenuAcciones(Producto producto) {
+    final tieneAlgunaAccion = _puedeAjustarStock || _puedeEditarProductos || _puedeEliminarProductos;
+    if (!tieneAlgunaAccion) return;
+
+    final cs = Theme.of(context).colorScheme;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text('Reabastecer: ${producto.nombre}'),
-          content: Column(
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Ingresa los datos del nuevo lote. El costo promedio se recalculará automáticamente.', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: qtyCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(labelText: 'Cantidad entrante', prefixIcon: Icon(Icons.add_box), border: OutlineInputBorder()),
+              // Handle
+              Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 12),
+              // Info del producto
+              ListTile(
+                leading: CircleAvatar(
+                    backgroundColor: cs.secondaryContainer,
+                    child: Text(producto.nombre[0].toUpperCase(),
+                        style: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.bold))),
+                title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('\$${producto.precio.toStringAsFixed(2)} • Stock: ${producto.cantidad}'),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                decoration: const InputDecoration(labelText: 'Costo unitario (compra)', prefixIcon: Icon(Icons.attach_money), prefixText: '\$ ', border: OutlineInputBorder()),
-              ),
+              const Divider(),
+              if (_puedeAjustarStock)
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('Ajustar Stock'),
+                  onTap: () { Navigator.pop(context); _mostrarDialogoRestock(producto); },
+                ),
+              if (_puedeEditarProductos)
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Editar Producto'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => EditarProductoScreen(producto: producto)))
+                        .then((_) => _fetchInitial());
+                  },
+                ),
+              if (_puedeEliminarProductos)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Eliminar Producto', style: TextStyle(color: Colors.red)),
+                  onTap: () { Navigator.pop(context); _confirmarEliminacion(producto); },
+                ),
             ],
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-            FilledButton(
-              onPressed: () async {
-                if (qtyCtrl.text.isEmpty || costCtrl.text.isEmpty) return;
-                final cantidadInput = int.tryParse(qtyCtrl.text) ?? 0;
-                final costoInput = double.tryParse(costCtrl.text) ?? -1;
-
-                if (cantidadInput <= 0 || costoInput < 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Valores inválidos'), backgroundColor: Colors.red));
-                  return;
-                }
-
-                Navigator.pop(ctx); 
-
-                try {
-                  await _firebaseService.reabastecerProducto(producto.id, cantidadInput, costoInput);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reabastecimiento exitoso y costo promediado.'), backgroundColor: Colors.green));
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-                  }
-                }
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
-        );
-      },
+        ),
+      ),
     );
+  }
+
+  Future<void> _confirmarEliminacion(Producto producto) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar Producto'),
+        content: Text(
+            '¿Deseas eliminar "${producto.nombre}" permanentemente?\nEsta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    try {
+      await _firebaseService.eliminarProducto(producto.id);
+      if (mounted) {
+        _fetchInitial();
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Producto eliminado'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+    }
   }
 }
 
@@ -597,10 +535,7 @@ class _FiltrosBottomSheet extends StatefulWidget {
   final Categoria? filtroCategoriaInicial;
   final void Function(Categoria?) onApply;
 
-  const _FiltrosBottomSheet({
-    this.filtroCategoriaInicial,
-    required this.onApply,
-  });
+  const _FiltrosBottomSheet({this.filtroCategoriaInicial, required this.onApply});
 
   @override
   State<_FiltrosBottomSheet> createState() => _FiltrosBottomSheetState();
@@ -624,33 +559,21 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
         stream: _firebaseService.getCategorias(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox(
-                height: 150, child: Center(child: CircularProgressIndicator()));
+            return const SizedBox(height: 150, child: Center(child: CircularProgressIndicator()));
           }
-
           final categorias = snapshot.data ?? [];
-
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Filtrar por Categoría',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
+              Text('Filtrar por Categoría', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
               DropdownButtonFormField<Categoria>(
-                initialValue: _catSelect,
-                decoration: const InputDecoration(
-                    labelText: 'Categoría', border: OutlineInputBorder()),
+                value: _catSelect,
+                decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
                 items: [
-                  const DropdownMenuItem<Categoria>(
-                      value: null, child: Text('Cualquiera')),
-                  ...categorias.map((cat) =>
-                      DropdownMenuItem(value: cat, child: Text(cat.nombre))),
+                  const DropdownMenuItem<Categoria>(value: null, child: Text('Todas')),
+                  ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
                 ],
                 onChanged: (cat) => setState(() => _catSelect = cat),
               ),
@@ -659,26 +582,14 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16)),
-                      onPressed: () {
-                        widget.onApply(null);
-                        Navigator.pop(context);
-                      },
+                      onPressed: () { widget.onApply(null); Navigator.pop(context); },
                       child: const Text('Limpiar'),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: FilledButton(
-                      style: FilledButton.styleFrom(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16)),
-                      onPressed: () {
-                        widget.onApply(_catSelect);
-                        Navigator.pop(context);
-                      },
+                      onPressed: () { widget.onApply(_catSelect); Navigator.pop(context); },
                       child: const Text('Aplicar'),
                     ),
                   ),

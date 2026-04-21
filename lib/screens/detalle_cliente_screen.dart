@@ -1,0 +1,461 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../models/cliente.dart';
+import '../models/abono.dart';
+import '../models/venta.dart';
+import '../services/firebase_service.dart';
+import '../services/auth_service.dart';
+
+class DetalleClienteScreen extends StatefulWidget {
+  final Cliente cliente;
+
+  const DetalleClienteScreen({super.key, required this.cliente});
+
+  @override
+  State<DetalleClienteScreen> createState() => _DetalleClienteScreenState();
+}
+
+class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
+  final FirebaseService _svc = FirebaseService();
+  final _moneyFmt = NumberFormat.simpleCurrency(locale: 'es_MX');
+  final _dateFmt = DateFormat('dd/MM/yyyy HH:mm');
+
+  // Cliente en tiempo real para que los números se actualicen tras un abono
+  late Stream<List<Cliente>> _clienteStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _clienteStream = _svc.getClientesStream();
+  }
+
+  Cliente _clienteActual(List<Cliente> todos) =>
+      todos.firstWhere((c) => c.id == widget.cliente.id,
+          orElse: () => widget.cliente);
+
+  void _mostrarModalAbono(Cliente cliente) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _ModalAbono(
+        cliente: cliente,
+        onRegistrar: (abono) async => await _svc.registrarAbono(abono),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return StreamBuilder<List<Cliente>>(
+      stream: _clienteStream,
+      builder: (ctx, snap) {
+        final cliente = snap.hasData ? _clienteActual(snap.data!) : widget.cliente;
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(cliente.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: cs.primaryContainer,
+            foregroundColor: cs.onPrimaryContainer,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Editar cliente',
+                onPressed: () => _mostrarFormularioEditar(cliente),
+              ),
+            ],
+          ),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Header con métricas ─────────────────────────────────────
+              _buildHeader(cliente, cs),
+              // ── Historial de abonos ─────────────────────────────────────
+              Expanded(child: _buildHistorialAbonos(cs)),
+            ],
+          ),
+          floatingActionButton: cliente.tieneDeuda
+              ? FloatingActionButton.extended(
+                  onPressed: () => _mostrarModalAbono(cliente),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Registrar Abono'),
+                  backgroundColor: cs.primary,
+                )
+              : null,
+        );
+      },
+    );
+  }
+
+  Widget _buildHeader(Cliente c, ColorScheme cs) {
+    final porcentajeUsado = c.limiteCredito > 0 ? c.saldoDeudor / c.limiteCredito : 0.0;
+    final colorDeuda = porcentajeUsado >= 0.9
+        ? Colors.red.shade600
+        : porcentajeUsado >= 0.6
+            ? Colors.orange.shade600
+            : cs.primary;
+
+    return Container(
+      color: cs.primaryContainer.withAlpha(70),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Info básica
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: cs.primary,
+                child: Text(c.nombre[0].toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 16),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (c.telefono.isNotEmpty)
+                  Row(children: [
+                    Icon(Icons.phone_outlined, size: 14, color: cs.outline),
+                    const SizedBox(width: 4),
+                    Text(c.telefono, style: TextStyle(color: cs.outline)),
+                  ]),
+                if (c.email != null && c.email!.isNotEmpty)
+                  Row(children: [
+                    Icon(Icons.email_outlined, size: 14, color: cs.outline),
+                    const SizedBox(width: 4),
+                    Text(c.email!, style: TextStyle(color: cs.outline)),
+                  ]),
+              ]),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Métricas de crédito
+          if (c.creditoBloqueado)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12)),
+              child: const Row(children: [
+                Icon(Icons.block, color: Colors.grey),
+                SizedBox(width: 8),
+                Text('Este cliente no tiene crédito asignado.',
+                    style: TextStyle(color: Colors.grey)),
+              ]),
+            )
+          else
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Deuda actual', style: TextStyle(fontSize: 12, color: cs.outline)),
+                    Text(_moneyFmt.format(c.saldoDeudor),
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold, color: colorDeuda)),
+                  ]),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    Text('Disponible', style: TextStyle(fontSize: 12, color: cs.outline)),
+                    Text(_moneyFmt.format(c.creditoDisponible),
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: c.creditoDisponible > 0 ? Colors.green.shade700 : Colors.red)),
+                  ]),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: porcentajeUsado.clamp(0.0, 1.0),
+                  minHeight: 10,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation(colorDeuda),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('\$0', style: TextStyle(fontSize: 10, color: cs.outline)),
+                Text(
+                  'Límite: ${_moneyFmt.format(c.limiteCredito)}',
+                  style: TextStyle(fontSize: 10, color: cs.outline),
+                ),
+              ]),
+            ]),
+          if (c.notas != null && c.notas!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withAlpha(80),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Row(children: [
+                Icon(Icons.sticky_note_2_outlined, size: 16, color: cs.outline),
+                const SizedBox(width: 8),
+                Expanded(child: Text(c.notas!, style: TextStyle(color: cs.outline, fontSize: 13))),
+              ]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistorialAbonos(ColorScheme cs) {
+    return StreamBuilder<List<Abono>>(
+      stream: _svc.getAbonosPorCliente(widget.cliente.id),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final abonos = snap.data ?? [];
+        if (abonos.isEmpty) {
+          return Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.receipt_long_outlined, size: 56, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text('Sin abonos registrados', style: TextStyle(color: Colors.grey.shade600)),
+            ]),
+          );
+        }
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('Historial de Abonos',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: abonos.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (_, i) => _buildAbonoTile(abonos[i], cs),
+            ),
+          ),
+        ]);
+      },
+    );
+  }
+
+  Widget _buildAbonoTile(Abono a, ColorScheme cs) {
+    final metodoLabel = switch (a.metodoPago) {
+      MetodoPago.efectivo => 'Efectivo',
+      MetodoPago.tarjeta => 'Tarjeta',
+      MetodoPago.transferencia => 'Transferencia',
+      MetodoPago.credito => 'Crédito',
+    };
+    final metodoColor = switch (a.metodoPago) {
+      MetodoPago.efectivo => Colors.green.shade700,
+      MetodoPago.tarjeta => Colors.blue.shade700,
+      MetodoPago.transferencia => Colors.purple.shade700,
+      MetodoPago.credito => Colors.orange.shade700,
+    };
+
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+            color: Colors.green.shade50, borderRadius: BorderRadius.circular(10)),
+        child: Icon(Icons.arrow_downward_rounded, color: Colors.green.shade700, size: 20),
+      ),
+      title: Text(_moneyFmt.format(a.monto),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 16)),
+      subtitle: Text(_dateFmt.format(a.fecha)),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+            color: metodoColor.withAlpha(20), borderRadius: BorderRadius.circular(20)),
+        child: Text(metodoLabel,
+            style: TextStyle(fontSize: 12, color: metodoColor, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  void _mostrarFormularioEditar(Cliente c) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Editar Cliente',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Text('Para editar el cliente, vuelve a la lista y usa la opción de edición.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 16),
+          FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Entendido')),
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Modal de Abono ────────────────────────────────────────────────────────────
+
+class _ModalAbono extends StatefulWidget {
+  final Cliente cliente;
+  final Future<void> Function(Abono) onRegistrar;
+
+  const _ModalAbono({required this.cliente, required this.onRegistrar});
+
+  @override
+  State<_ModalAbono> createState() => _ModalAbonoState();
+}
+
+class _ModalAbonoState extends State<_ModalAbono> {
+  final _formKey = GlobalKey<FormState>();
+  final _montoCtrl = TextEditingController();
+  final _notasCtrl = TextEditingController();
+  MetodoPago _metodoPago = MetodoPago.efectivo;
+  bool _guardando = false;
+
+  @override
+  void dispose() {
+    _montoCtrl.dispose();
+    _notasCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _registrar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _guardando = true);
+    try {
+      final abono = Abono(
+        id: '',
+        clienteId: widget.cliente.id,
+        monto: double.parse(_montoCtrl.text.trim()),
+        fecha: DateTime.now(),
+        metodoPago: _metodoPago,
+        cajeroId: AuthService().currentUser?.uid ?? 'unknown',
+        notas: _notasCtrl.text.trim().isEmpty ? null : _notasCtrl.text.trim(),
+      );
+      await widget.onRegistrar(abono);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Abono registrado correctamente'),
+              backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final moneyFmt = NumberFormat.simpleCurrency(locale: 'es_MX');
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Text('Registrar Abono',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  'Debe: ${moneyFmt.format(widget.cliente.saldoDeudor)}',
+                  style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _montoCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Monto del Abono (\$)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.attach_money),
+              ),
+              validator: (v) {
+                final n = double.tryParse(v ?? '');
+                if (n == null || n <= 0) return 'Ingresa un monto válido > 0';
+                if (n > widget.cliente.saldoDeudor) {
+                  return 'Supera la deuda (${moneyFmt.format(widget.cliente.saldoDeudor)})';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            // Selector de método de pago
+            Text('Método de pago', style: TextStyle(color: cs.outline, fontSize: 13)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                MetodoPago.efectivo,
+                MetodoPago.tarjeta,
+                MetodoPago.transferencia,
+              ].map((m) {
+                final label = switch (m) {
+                  MetodoPago.efectivo => 'Efectivo',
+                  MetodoPago.tarjeta => 'Tarjeta',
+                  MetodoPago.transferencia => 'Transferencia',
+                  _ => m.name,
+                };
+                return ChoiceChip(
+                  label: Text(label),
+                  selected: _metodoPago == m,
+                  onSelected: (_) => setState(() => _metodoPago = m),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _notasCtrl,
+              decoration: const InputDecoration(
+                  labelText: 'Notas (opcional)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _guardando ? null : _registrar,
+              icon: _guardando
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.check),
+              label: Text(_guardando ? 'Registrando...' : 'Confirmar Abono'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

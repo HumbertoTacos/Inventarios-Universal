@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/producto.dart';
 import '../models/venta.dart';
+import '../models/cliente.dart';
 import '../services/firebase_service.dart';
 import 'inventario_screen.dart';
 import 'barcode_scanner_screen.dart';
+import 'clientes_screen.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -19,7 +21,11 @@ class _VentasScreenState extends State<VentasScreen> {
   bool _procesando = false;
 
   final _costoEnvioCtrl = TextEditingController(text: '0');
-  bool _envioPagadoPorVendedor = true; // Por default lo paga Vendedor
+  bool _envioPagadoPorVendedor = true;
+
+  // Crédito / Método de pago
+  MetodoPago _metodoPago = MetodoPago.efectivo;
+  Cliente? _clienteSeleccionado;
 
   @override
   void dispose() {
@@ -155,10 +161,10 @@ class _VentasScreenState extends State<VentasScreen> {
       );
 
       try {
-        final productos = await _firebaseService.buscarPorCodigoBarras(codigo);
+        final p = await _firebaseService.buscarVariantePorSKU(codigo);
         if (mounted) Navigator.pop(context); // cerrar loading
 
-        if (productos.isEmpty) {
+        if (p == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -170,8 +176,6 @@ class _VentasScreenState extends State<VentasScreen> {
           return;
         }
 
-        // Si se encuentra, tomar el primero
-        final p = productos.first;
         if (mounted) {
           await _pedirCantidadYAgregar(p);
         }
@@ -197,18 +201,52 @@ class _VentasScreenState extends State<VentasScreen> {
     setState(() => _procesando = true);
 
     try {
+      final turno = await _firebaseService.getTurnoActivo();
+
+      // Validar caja abierta solo para pagos en efectivo
+      if (_metodoPago == MetodoPago.efectivo && turno == null) {
+        setState(() => _procesando = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Abre la caja antes de registrar ventas en efectivo.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Validar cliente si es crédito
+      if (_metodoPago == MetodoPago.credito && _clienteSeleccionado == null) {
+        setState(() => _procesando = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selecciona un cliente para ventas a crédito.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
       final nuevaVenta = Venta(
         id: '',
         fecha: DateTime.now(),
         items: List.from(_carrito),
         costoEnvio: double.tryParse(_costoEnvioCtrl.text.trim()) ?? 0.0,
         envioPagadoPorVendedor: _envioPagadoPorVendedor,
+        metodoPago: _metodoPago,
+        clienteId: _metodoPago == MetodoPago.credito ? _clienteSeleccionado?.id : null,
       );
 
-      await _firebaseService.registrarVenta(nuevaVenta);
+      await _firebaseService.registrarVenta(nuevaVenta, turnoCajaId: turno?.id);
 
       setState(() {
         _carrito.clear();
+        _clienteSeleccionado = null;
+        _metodoPago = MetodoPago.efectivo;
         _procesando = false;
       });
 
@@ -402,6 +440,13 @@ class _VentasScreenState extends State<VentasScreen> {
                       ],
                     ),
                     const Divider(height: 24),
+                    // Selector de método de pago
+                    _buildSelectorMetodoPago(),
+                    const SizedBox(height: 12),
+                    // Selector de cliente (solo si es crédito)
+                    if (_metodoPago == MetodoPago.credito)
+                      _buildSelectorCliente(),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -419,6 +464,114 @@ class _VentasScreenState extends State<VentasScreen> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Selector de Método de Pago ────────────────────────────────────────────
+
+  Widget _buildSelectorMetodoPago() {
+    final metodos = [
+      (MetodoPago.efectivo, 'Efectivo', Icons.payments_outlined),
+      (MetodoPago.tarjeta, 'Tarjeta', Icons.credit_card),
+      (MetodoPago.transferencia, 'Transferencia', Icons.swap_horiz),
+      (MetodoPago.credito, 'Crédito', Icons.person_outline),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Método de pago',
+            style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.outline,
+                fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: metodos.map((m) {
+              final (metodo, label, icon) = m;
+              final sel = _metodoPago == metodo;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  avatar: Icon(icon, size: 16),
+                  label: Text(label),
+                  selected: sel,
+                  onSelected: (_) => setState(() {
+                    _metodoPago = metodo;
+                    if (metodo != MetodoPago.credito) _clienteSeleccionado = null;
+                  }),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Selector de Cliente (solo crédito) ────────────────────────────────────
+
+  Widget _buildSelectorCliente() {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () async {
+        final c = await Navigator.push<Cliente>(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const ClientesScreen(modoSeleccion: true)),
+        );
+        if (c != null) setState(() => _clienteSeleccionado = c);
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(
+              color: _clienteSeleccionado != null
+                  ? cs.primary
+                  : cs.outline.withAlpha(80)),
+          borderRadius: BorderRadius.circular(12),
+          color: _clienteSeleccionado != null
+              ? cs.primaryContainer.withAlpha(60)
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _clienteSeleccionado != null
+                  ? Icons.person
+                  : Icons.person_add_alt_1_outlined,
+              color: _clienteSeleccionado != null ? cs.primary : cs.outline,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _clienteSeleccionado == null
+                  ? Text('Seleccionar cliente *',
+                      style: TextStyle(color: cs.outline))
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_clienteSeleccionado!.nombre,
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, color: cs.primary)),
+                        Text(
+                          'Deuda: \$${_clienteSeleccionado!.saldoDeudor.toStringAsFixed(2)} | '
+                          'Disponible: \$${_clienteSeleccionado!.creditoDisponible.toStringAsFixed(2)}',
+                          style: TextStyle(fontSize: 12, color: cs.outline),
+                        ),
+                      ],
+                    ),
+            ),
+            if (_clienteSeleccionado != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => setState(() => _clienteSeleccionado = null),
+              ),
           ],
         ),
       ),

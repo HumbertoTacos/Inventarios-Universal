@@ -3,6 +3,53 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+class PermisosEmpleado {
+  final bool puedeAjustarStock;
+  final bool puedeEditarProductos;
+  final bool puedeEliminarProductos;
+  final bool puedeVerEstadisticas;
+  final bool puedeVerHistorialVentas;
+  final bool puedeAbrirCerrarCaja;
+
+  const PermisosEmpleado({
+    this.puedeAjustarStock = true,
+    this.puedeEditarProductos = false,
+    this.puedeEliminarProductos = false,
+    this.puedeVerEstadisticas = false,
+    this.puedeVerHistorialVentas = true,
+    this.puedeAbrirCerrarCaja = true,
+  });
+
+  /// El dueño siempre tiene todos los permisos en true.
+  const PermisosEmpleado.dueno()
+      : puedeAjustarStock = true,
+        puedeEditarProductos = true,
+        puedeEliminarProductos = true,
+        puedeVerEstadisticas = true,
+        puedeVerHistorialVentas = true,
+        puedeAbrirCerrarCaja = true;
+
+  factory PermisosEmpleado.fromMap(Map<String, dynamic> map) {
+    return PermisosEmpleado(
+      puedeAjustarStock: map['puedeAjustarStock'] as bool? ?? true,
+      puedeEditarProductos: map['puedeEditarProductos'] as bool? ?? false,
+      puedeEliminarProductos: map['puedeEliminarProductos'] as bool? ?? false,
+      puedeVerEstadisticas: map['puedeVerEstadisticas'] as bool? ?? false,
+      puedeVerHistorialVentas: map['puedeVerHistorialVentas'] as bool? ?? true,
+      puedeAbrirCerrarCaja: map['puedeAbrirCerrarCaja'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'puedeAjustarStock': puedeAjustarStock,
+    'puedeEditarProductos': puedeEditarProductos,
+    'puedeEliminarProductos': puedeEliminarProductos,
+    'puedeVerEstadisticas': puedeVerEstadisticas,
+    'puedeVerHistorialVentas': puedeVerHistorialVentas,
+    'puedeAbrirCerrarCaja': puedeAbrirCerrarCaja,
+  };
+}
+
 class UserData {
   final String uid;
   final String nombre;
@@ -11,6 +58,7 @@ class UserData {
   final String negocioId;
   final String estatus;
   final String rol;
+  final PermisosEmpleado permisos;
 
   UserData({
     required this.uid,
@@ -20,6 +68,7 @@ class UserData {
     required this.negocioId,
     required this.estatus,
     required this.rol,
+    required this.permisos,
   });
 }
 
@@ -45,6 +94,14 @@ class AuthService {
       final doc = await _firestore.collection('usuarios').doc(user.uid).get();
       if (doc.exists) {
         final data = doc.data()!;
+        final rol = data['rol'] as String? ?? 'empleado';
+        final permisosMap = data['permisos'] as Map<String, dynamic>?;
+        final permisos = rol == 'dueño'
+            ? const PermisosEmpleado.dueno()
+            : permisosMap != null
+                ? PermisosEmpleado.fromMap(permisosMap)
+                : const PermisosEmpleado();
+
         currentUserData = UserData(
           uid: user.uid,
           nombre: data['nombre'] ?? '',
@@ -52,7 +109,8 @@ class AuthService {
           negocioNombre: data['negocioNombre'] ?? '',
           negocioId: data['negocioId'] ?? '',
           estatus: data['estatus'] ?? 'pendiente',
-          rol: data['rol'] ?? 'usuario',
+          rol: rol,
+          permisos: permisos,
         );
       } else {
         currentUserData = null;
@@ -132,7 +190,10 @@ class AuthService {
     UserCredential? credential;
     try {
       if (kIsWeb) {
-        credential = await _auth.signInWithPopup(GoogleAuthProvider());
+        // Usamos Redirect en lugar de Popup para evitar bloqueos de seguridad COOP de los navegadores
+        await _auth.signInWithRedirect(GoogleAuthProvider());
+        // En Web, el flujo se detiene aquí porque la página se recarga
+        return; 
       } else {
         credential = await _auth.signInWithProvider(GoogleAuthProvider());
       }
@@ -209,6 +270,17 @@ class AuthService {
     await _firestore.collection('usuarios').doc(empleadoUid).update({
       'estatus': 'despedido'
     });
+  }
+
+  /// Actualiza los permisos de un empleado en Firestore.
+  Future<void> actualizarPermisosEmpleado(String empleadoUid, PermisosEmpleado permisos) async {
+    await _firestore.collection('usuarios').doc(empleadoUid).update({
+      'permisos': permisos.toMap(),
+    });
+    // Si estamos editando los permisos del usuario actual, recargamos
+    if (_auth.currentUser?.uid == empleadoUid) {
+      await reloadUserData();
+    }
   }
 
   Future<void> logout() async {
