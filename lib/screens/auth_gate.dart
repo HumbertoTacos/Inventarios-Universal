@@ -45,19 +45,34 @@ class AuthGate extends StatelessWidget {
               return const CompletarRegistroGoogleScreen();
             }
 
+            // Separación estricta por Roles Normalizados
+            final rol = userData.rol; // Ya viene normalizado del AuthService
+            
+            if (rol == AuthService.rolAdmin) {
+              return const AdminDashboardScreen();
+            }
+
+            // Bloqueo por estatus (Inactivo / Despedido) para Dueños y Empleados
             if (userData.estatus == 'inactivo' || userData.estatus == 'despedido') {
               return const CuentaInactivaScreen();
             }
 
+            // Seguridad: Validar que el usuario esté APROBADO por el Admin
+            if (userData.estatus != 'aprobado') {
+              return const EsperaAprobacionScreen();
+            }
+
             // Dueño → acceso completo al inventario
-            if (userData.rol == 'dueño') return const InventarioScreen();
+            if (rol == AuthService.rolDueno) {
+              return const InventarioScreen();
+            }
 
             // Empleado → solo Punto de Venta (actúa como cajero)
-            if (userData.rol == 'empleado') return const VentasScreen();
+            if (rol == AuthService.rolEmpleado) {
+              return const VentasScreen();
+            }
 
-            // Administrador de plataforma
-            if (userData.rol == 'admin') return const AdminDashboardScreen();
-
+            // Fallback
             return const InventarioScreen();
           },
         );

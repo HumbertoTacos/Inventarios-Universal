@@ -50,11 +50,10 @@ class Venta {
   final double costoEnvioDevolucion;
   final bool devueltoAlInventario;
 
-  // Nuevos campos: Pago, Descuentos e Impuestos
+  // Nuevos campos: Pago y Descuentos
   final MetodoPago metodoPago;
   final TipoDescuento tipoDescuento;
   final double valorDescuento; // $50.0 o 10.0 (10%)
-  final double porcentajeImpuesto; // ej. 0.16 para 16%
 
   /// ID del cliente asociado. Requerido cuando metodoPago == credito.
   final String? clienteId;
@@ -62,8 +61,7 @@ class Venta {
   // Valores calculados que se guardan fijos en Firestore
   final double subtotal; // Suma de items.subtotal
   final double descuentoAplicado; // Monto descontado sobre el subtotal
-  final double impuestos; // (Subtotal - descuento)*porcImpuesto
-  final double total; // Subtotal - descuento + impuestos + envio (si aplica)
+  final double total; // Subtotal - descuento + envio (si aplica)
 
   Venta({
     required this.id,
@@ -77,28 +75,19 @@ class Venta {
     this.metodoPago = MetodoPago.efectivo,
     this.tipoDescuento = TipoDescuento.ninguno,
     this.valorDescuento = 0.0,
-    this.porcentajeImpuesto = 0.16,
     this.clienteId,
     double? subtotalInyectado,
     double? descuentoInyectado,
-    double? impuestosInyectado,
     double? totalInyectado,
   })  : subtotal = subtotalInyectado ?? _calcularSubtotal(items),
         descuentoAplicado = descuentoInyectado ??
             _calcularDescuento(
                 _calcularSubtotal(items), tipoDescuento, valorDescuento),
-        impuestos = impuestosInyectado ??
-            _calcularImpuestos(
-                _calcularSubtotal(items),
-                _calcularDescuento(
-                    _calcularSubtotal(items), tipoDescuento, valorDescuento),
-                porcentajeImpuesto),
         total = totalInyectado ??
             _calcularTotal(
                 _calcularSubtotal(items),
                 _calcularDescuento(
                     _calcularSubtotal(items), tipoDescuento, valorDescuento),
-                porcentajeImpuesto,
                 !envioPagadoPorVendedor ? costoEnvio : 0.0);
 
   static double _calcularSubtotal(List<VentaItem> items) {
@@ -115,17 +104,9 @@ class Venta {
     return 0.0;
   }
 
-  static double _calcularImpuestos(
-      double subtotal, double descuento, double porcentajeImpuesto) {
-    final baseGravable = subtotal - descuento;
-    return baseGravable > 0 ? baseGravable * porcentajeImpuesto : 0.0;
-  }
-
-  static double _calcularTotal(double subtotal, double descuento,
-      double porcentajeImpuesto, double costoEnvioCobrado) {
-    final baseGravable = subtotal - descuento;
-    final impuestos = baseGravable > 0 ? baseGravable * porcentajeImpuesto : 0.0;
-    return (baseGravable > 0 ? baseGravable : 0.0) + impuestos + costoEnvioCobrado;
+  static double _calcularTotal(double subtotal, double descuento, double costoEnvioCobrado) {
+    final saldoBajoCero = subtotal - descuento;
+    return (saldoBajoCero > 0 ? saldoBajoCero : 0.0) + costoEnvioCobrado;
   }
 
   Map<String, dynamic> toMap() {
@@ -140,10 +121,8 @@ class Venta {
       'metodoPago': metodoPago.name,
       'tipoDescuento': tipoDescuento.name,
       'valorDescuento': valorDescuento,
-      'porcentajeImpuesto': porcentajeImpuesto,
       'subtotal': subtotal,
       'descuentoAplicado': descuentoAplicado,
-      'impuestos': impuestos,
       'total': total,
       if (clienteId != null) 'clienteId': clienteId,
     };
@@ -172,10 +151,8 @@ class Venta {
           (e) => e.name == map['tipoDescuento'],
           orElse: () => TipoDescuento.ninguno),
       valorDescuento: (map['valorDescuento'] as num?)?.toDouble() ?? 0.0,
-      porcentajeImpuesto: (map['porcentajeImpuesto'] as num?)?.toDouble() ?? 0.16,
       subtotalInyectado: (map['subtotal'] as num?)?.toDouble(),
       descuentoInyectado: (map['descuentoAplicado'] as num?)?.toDouble(),
-      impuestosInyectado: (map['impuestos'] as num?)?.toDouble(),
       totalInyectado: (map['total'] as num?)?.toDouble(),
       clienteId: map['clienteId'] as String?,
     );

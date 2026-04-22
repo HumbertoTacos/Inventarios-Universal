@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
+import '../models/venta.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
@@ -14,6 +15,7 @@ import 'ventas_screen.dart';
 import 'mi_equipo_screen.dart';
 import 'clientes_screen.dart';
 import '../services/auth_service.dart';
+import 'auth_gate.dart';
 
 class InventarioScreen extends StatefulWidget {
   final bool modoSeleccion;
@@ -30,8 +32,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
 
   // Rol y permisos del usuario activo
-  String get _rol => AuthService().currentUserData?.rol ?? 'empleado';
-  bool get _esDueno => _rol == 'dueño';
+  String get _rol => AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
+  bool get _esDueno => _rol == AuthService.rolDueno;
 
   bool get _puedeAjustarStock    => _esDueno || (AuthService().currentUserData?.permisos.puedeAjustarStock ?? true);
   bool get _puedeEditarProductos => _esDueno || (AuthService().currentUserData?.permisos.puedeEditarProductos ?? false);
@@ -133,6 +135,26 @@ class _InventarioScreenState extends State<InventarioScreen> {
     }
   }
 
+  /// Actualización Optimista (UI) tras una venta
+  void _actualizarStockLocalmente(List<VentaItem> itemsVendidos) {
+    setState(() {
+      for (var item in itemsVendidos) {
+        // Buscar en la lista principal
+        final idx = _productos.indexWhere((p) => p.id == item.productoId);
+        if (idx != -1) {
+          final prod = _productos[idx];
+          // Restamos cantidad (Optimista)
+          _productos[idx] = prod.copyWith(cantidad: prod.cantidad - item.cantidad);
+        }
+        
+        // Buscar en resultado de búsqueda por si acaso
+        if (_searchResult != null && _searchResult!.id == item.productoId) {
+          _searchResult = _searchResult!.copyWith(cantidad: _searchResult!.cantidad - item.cantidad);
+        }
+      }
+    });
+  }
+
   // ── Búsqueda y Scanner ────────────────────────────────────────────────────
 
   Future<void> _ejecutarBusqueda(String query) async {
@@ -189,9 +211,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   ListTile(
                     leading: const Icon(Icons.point_of_sale),
                     title: const Text('Punto de Venta (Carrito)'),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const VentasScreen()));
+                      final result = await Navigator.push<List<VentaItem>>(
+                        context, 
+                        MaterialPageRoute(builder: (_) => const VentasScreen())
+                      );
+                      if (result != null && mounted) {
+                        _actualizarStockLocalmente(result);
+                      }
                     },
                   ),
                   if (_puedeVerHistorial)
@@ -244,6 +272,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
                       },
                     ),
                   ],
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
+                    onTap: () async {
+                      await AuthService().logout();
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AuthGate()),
+                          (route) => false,
+                        );
+                      }
+                    },
+                  ),
                 ],
               ),
             ),

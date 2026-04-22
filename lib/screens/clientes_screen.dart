@@ -23,8 +23,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
   bool _buscando = false;
   bool _enModoBusqueda = false;
 
-  String get _rol => AuthService().currentUserData?.rol ?? 'empleado';
-  bool get _esDueno => _rol == 'dueño';
+  // Rol y permisos del usuario activo
+  String get _rol => AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
+  bool get _esDueno => _rol == AuthService.rolDueno;
 
   void _limpiarBusqueda() {
     _searchCtrl.clear();
@@ -363,10 +364,10 @@ class _FormularioClienteState extends State<_FormularioCliente> {
               controller: _limiteCreditoCtrl,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
-                labelText: 'Límite de Crédito (\$)',
-                helperText: '0 = sin crédito. Usa un valor alto para crédito ilimitado.',
-                border: OutlineInputBorder(),
-              ),
+                  labelText: 'Límite de Crédito (\$)',
+                  helperText: '0 = sin crédito. Usa ≥ 100,000 para crédito "Ilimitado".',
+                  border: const OutlineInputBorder(),
+                ),
               validator: (v) {
                 final n = double.tryParse(v ?? '');
                 if (n == null || n < 0) return 'Ingresa un número válido ≥ 0';

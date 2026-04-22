@@ -104,8 +104,6 @@ class ImpresoraService {
             _filaTotal('Subtotal', moneyFmt.format(venta.subtotal)),
             if (venta.descuentoAplicado > 0)
               _filaTotal('Descuento', '-${moneyFmt.format(venta.descuentoAplicado)}'),
-            if (venta.impuestos > 0)
-              _filaTotal('IVA (${(venta.porcentajeImpuesto * 100).toInt()}%)', moneyFmt.format(venta.impuestos)),
             if (venta.costoEnvio > 0 && !venta.envioPagadoPorVendedor)
               _filaTotal('Envío', moneyFmt.format(venta.costoEnvio)),
             pw.SizedBox(height: 2),

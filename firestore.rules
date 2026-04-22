@@ -1,0 +1,157 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // FUNCIONES DE AYUDA (Helpers)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Obtiene el perfil del usuario autenticado desde la colección 'usuarios'
+    function getUserProfile() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    // Verifica si el usuario tiene rol de administrador de plataforma
+    function esAdmin() {
+      return request.auth != null && getUserProfile().rol == 'admin';
+    }
+
+    // Verifica que el usuario pertenece al negocio de la ruta actual
+    function perteneceANegocio(negocioId) {
+      return request.auth != null && getUserProfile().negocioId == negocioId;
+    }
+
+    // Verifica que el usuario pertenece al negocio Y tiene el rol indicado
+    function tieneRolEnNegocio(negocioId, rol) {
+      let perfil = getUserProfile();
+      return request.auth != null
+        && perfil.negocioId == negocioId
+        && perfil.rol == rol;
+    }
+
+    // Verifica que es dueño del negocio
+    function esDueno(negocioId) {
+      return tieneRolEnNegocio(negocioId, 'dueño');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // REGLA GLOBAL: DENEGAR TODO POR DEFECTO
+    // Ninguna sesión no autenticada puede hacer absolutamente nada.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLECCIÓN: usuarios
+    // Un usuario SOLO puede leer y editar su propio perfil.
+    // El admin puede leer todos los perfiles.
+    // NADIE puede leer el perfil de otro usuario (privacidad total entre inquilinos).
+    // ─────────────────────────────────────────────────────────────────────────
+    match /usuarios/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false; // Los perfiles no se eliminan desde el cliente
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLECCIÓN: pre_registro (Datos temporales hasta verificar email)
+    // Un usuario SOLO puede leer/escribir su propio documento temporal.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /pre_registro/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // COLECCIÓN: negocios (Raíz del inquilino)
+    // Solo el admin puede listar negocios.
+    // El dueño puede leer y actualizar los datos de SU negocio.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /negocios/{negocioId} {
+      allow read: if esAdmin() || perteneceANegocio(negocioId);
+      allow create: if request.auth != null; // Se crea en el flujo de registro
+      allow update: if esDueno(negocioId) || esAdmin();
+      allow delete: if esAdmin();
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: productos
+      // ─────────────────────────────────────────────────────────────────────
+      match /productos/{productoId} {
+        allow read: if perteneceANegocio(negocioId);
+        // Solo dueño puede crear/eliminar. Empleados pueden actualizar stock
+        // si tienen permiso (la lógica granular se maneja en el cliente, aquí
+        // permitimos update a todos los del negocio).
+        allow create, delete: if esDueno(negocioId);
+        allow update: if perteneceANegocio(negocioId);
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: categorias
+      // ─────────────────────────────────────────────────────────────────────
+      match /categorias/{categoriaId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow write: if esDueno(negocioId); // Solo el dueño gestiona categorías
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: ventas
+      // ─────────────────────────────────────────────────────────────────────
+      match /ventas/{ventaId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create: if perteneceANegocio(negocioId);
+        // Las cancelaciones y devoluciones son updates; solo dueño puede ejecutarlos
+        allow update: if esDueno(negocioId);
+        allow delete: if false; // Las ventas NUNCA se eliminan
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: clientes
+      // ─────────────────────────────────────────────────────────────────────
+      match /clientes/{clienteId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create, update: if perteneceANegocio(negocioId);
+        allow delete: if esDueno(negocioId); // Solo el dueño puede dar de baja clientes
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: abonos
+      // ─────────────────────────────────────────────────────────────────────
+      match /abonos/{abonoId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create: if perteneceANegocio(negocioId);
+        allow update, delete: if esDueno(negocioId); // Los abonos son inmutables por empleados
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: turnos_caja
+      // ─────────────────────────────────────────────────────────────────────
+      match /turnos_caja/{turnoId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create, update: if perteneceANegocio(negocioId);
+        allow delete: if false; // El historial de turnos es inmutable
+      }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: kardex (Movimientos de inventario)
+      // Solo lectura por miembros; escritura solo del backend vía Cloud Functions
+      // o del dueño para correcciones.
+      // ─────────────────────────────────────────────────────────────────────
+      match /kardex/{movimientoId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create: if perteneceANegocio(negocioId); // Se crea durante ventas/ajustes
+        allow update, delete: if false; // El Kardex es un log inmutable
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DASHBOARD DEL ADMIN (Si existiera una colección exclusiva del admin)
+    // Solo el admin de plataforma puede acceder.
+    // ─────────────────────────────────────────────────────────────────────────
+    match /admin_data/{document=**} {
+      allow read, write: if esAdmin();
+    }
+  }
+}

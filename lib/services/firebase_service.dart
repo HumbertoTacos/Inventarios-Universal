@@ -57,6 +57,7 @@ class FirebaseService {
   /// - Páginas siguientes: caché primero para reducir lecturas.
   Future<ProductosPaginadosResult> getProductosPaginados({int limite = 20, DocumentSnapshot? startAfter}) async {
     Query query = _productosRef
+        .where('activo', isEqualTo: true)
         .where('esBase', isEqualTo: true)
         .orderBy('nombre')
         .limit(limite);
@@ -95,7 +96,10 @@ class FirebaseService {
 
   /// Busca variante plana por código de barras de manera eficiente limitando la respuesta a 1
   Future<Producto?> buscarVariantePorSKU(String codigo) async {
-    final query = _productosRef.where('codigoBarras', isEqualTo: codigo).limit(1);
+    final query = _productosRef
+        .where('activo', isEqualTo: true)
+        .where('codigoBarras', isEqualTo: codigo)
+        .limit(1);
     
     try {
       final cacheSnap = await query.get(const GetOptions(source: Source.cache));
@@ -129,7 +133,7 @@ class FirebaseService {
 
   Future<void> eliminarProducto(String id) async {
     try {
-      await _productosRef.doc(id).delete();
+      await _productosRef.doc(id).update({'activo': false});
     } on FirebaseException catch (e) {
       throw Exception('Error al eliminar producto: ${e.message}');
     }
@@ -407,7 +411,6 @@ class FirebaseService {
           metodoPago: venta.metodoPago,
           tipoDescuento: venta.tipoDescuento,
           valorDescuento: venta.valorDescuento,
-          porcentajeImpuesto: venta.porcentajeImpuesto,
           clienteId: venta.clienteId,
         );
         transaction.set(docVenta, ventaParaGuardar.toMap());
@@ -723,6 +726,7 @@ class FirebaseService {
   /// Productos con stock por debajo del umbral de alerta.
   Future<List<Producto>> getProductosBajoStock({int umbral = 5}) async {
     final snap = await _productosRef
+        .where('activo', isEqualTo: true)
         .where('esBase', isEqualTo: true)
         .where('cantidad', isLessThanOrEqualTo: umbral)
         .orderBy('cantidad')

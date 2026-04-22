@@ -67,33 +67,88 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) {
           return AlertDialog(
-            title: const Text('Registrar Devolución'),
+            title: const Row(
+              children: [
+                Icon(Icons.assignment_return, color: Colors.orange),
+                SizedBox(width: 10),
+                Text('Procesar Devolución'),
+              ],
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Configura los detalles de la devolución:'),
-                  const SizedBox(height: 20),
-                  const Text('¿El producto está en buen estado Para reventa?', 
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  Row(
-                    children: [
-                      const Text('No (Merma)'),
-                      Switch(
-                        value: volverAVender,
-                        onChanged: (val) => setModalState(() => volverAVender = val),
-                      ),
-                      const Text('Sí (Restock)'),
-                    ],
-                  ),
+                  const Text('¿Cuál es el destino de los productos?', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
+                  
+                  // Opción Restock (Verde)
+                  GestureDetector(
+                    onTap: () => setModalState(() => volverAVender = true),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: volverAVender ? Colors.green.shade50 : Colors.transparent,
+                        border: Border.all(color: volverAVender ? Colors.green : Colors.grey.shade300, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.inventory_2, color: volverAVender ? Colors.green : Colors.grey),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Regresar a Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text('El producto se sumará al stock disponible.', style: TextStyle(fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Opción Merma (Rojo)
+                  GestureDetector(
+                    onTap: () => setModalState(() => volverAVender = false),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: !volverAVender ? Colors.red.shade50 : Colors.transparent,
+                        border: Border.all(color: !volverAVender ? Colors.red : Colors.grey.shade300, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: !volverAVender ? Colors.red : Colors.grey),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Registrar como Merma', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text('Producto dañado. NO se sumará al stock.', style: TextStyle(fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  const Text('Gastos adicionales', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
                   TextField(
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Costo envío de devolución (\$)',
-                      helperText: 'Si pagaste mensajería extra para el retorno',
+                      labelText: 'Costo envío de retorno (\$)',
+                      hintText: '0.00',
+                      prefixIcon: Icon(Icons.delivery_dining),
+                      helperText: 'Gastos de mensajería para recuperar el paquete',
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (val) => costoEnvioDev = double.tryParse(val) ?? 0.0,
@@ -105,7 +160,8 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Confirmar Devolución'),
+                style: FilledButton.styleFrom(backgroundColor: volverAVender ? Colors.green : Colors.red),
+                child: const Text('Finalizar Devolución'),
               ),
             ],
           );

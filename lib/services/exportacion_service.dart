@@ -30,7 +30,6 @@ class ExportacionService {
         'Productos',
         'Subtotal',
         'Descuento',
-        'IVA',
         'Total',
       ]
     ];
@@ -49,7 +48,6 @@ class ExportacionService {
         productos,
         _moneyFmt.format(v.subtotal),
         _moneyFmt.format(v.descuentoAplicado),
-        _moneyFmt.format(v.impuestos),
         _moneyFmt.format(v.total),
       ]);
     }
@@ -60,7 +58,7 @@ class ExportacionService {
         .fold(0.0, (sum, v) => sum + v.total);
     filas.addAll([
       [], // línea vacía
-      ['', '', '', '', 'TOTAL INGRESOS', '', '', '', _moneyFmt.format(totalVentas)],
+      ['', '', '', '', 'TOTAL INGRESOS', '', '', _moneyFmt.format(totalVentas)],
     ]);
 
     // ── Conversión a CSV ──────────────────────────────────────────────────

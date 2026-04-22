@@ -33,6 +33,12 @@ class Cliente {
   /// True si tiene deuda activa.
   bool get tieneDeuda => saldoDeudor > 0;
 
+  /// Retorna el texto del límite de crédito (numérico o "Ilimitado")
+  String get limiteCreditoTexto {
+    if (limiteCredito >= 100000) return 'Ilimitado';
+    return '\$${limiteCredito.toStringAsFixed(2)}';
+  }
+
   Map<String, dynamic> toMap() => {
         'nombre': nombre,
         'telefono': telefono,

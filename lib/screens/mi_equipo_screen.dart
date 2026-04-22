@@ -101,7 +101,7 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (AuthService().currentUserData?.rol != 'dueño') {
+    if (AuthService().currentUserData?.rol != AuthService.rolDueno) {
       return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver esta pantalla.')));
     }
 

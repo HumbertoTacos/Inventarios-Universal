@@ -182,7 +182,7 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('\$0', style: TextStyle(fontSize: 10, color: cs.outline)),
                 Text(
-                  'Límite: ${_moneyFmt.format(c.limiteCredito)}',
+                  'Límite: ${c.limiteCreditoTexto}',
                   style: TextStyle(fontSize: 10, color: cs.outline),
                 ),
               ]),

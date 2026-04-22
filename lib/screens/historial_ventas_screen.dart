@@ -25,11 +25,31 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
     _fechaFin = _fechaInicio.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
   }
 
-  void _cambiarSemana(int semanas) {
-    setState(() {
-      _fechaInicio = _fechaInicio.add(Duration(days: semanas * 7));
-      _fechaFin = _fechaInicio.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
-    });
+  Future<void> _seleccionarFecha() async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      initialDateRange: DateTimeRange(start: _fechaInicio, end: _fechaFin),
+      firstDate: DateTime(2023),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: Theme.of(context).colorScheme.primary,
+                  onPrimary: Theme.of(context).colorScheme.onPrimary,
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _fechaInicio = DateTime(picked.start.year, picked.start.month, picked.start.day);
+        _fechaFin = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+      });
+    }
   }
 
   @override
@@ -40,40 +60,36 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
       appBar: AppBar(
         title: const Text('Historial de Pedidos'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'Seleccionar Periodo',
+            onPressed: _seleccionarFecha,
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Selector de Semana
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_left),
-                  onPressed: () => _cambiarSemana(-1),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      const Text(
-                        'Semana del',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      Text(
-                        '${formatter.format(_fechaInicio)} - ${formatter.format(_fechaFin)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+          // Visualizador de Rango
+          GestureDetector(
+            onTap: _seleccionarFecha,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.date_range, size: 16, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${formatter.format(_fechaInicio)} - ${formatter.format(_fechaFin)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_right),
-                  onPressed: () => _cambiarSemana(1),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  const Icon(Icons.edit, size: 14, color: Colors.grey),
+                ],
+              ),
             ),
           ),
           

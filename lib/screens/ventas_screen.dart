@@ -7,6 +7,12 @@ import '../services/firebase_service.dart';
 import 'inventario_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'clientes_screen.dart';
+import '../services/auth_service.dart';
+import 'auth_gate.dart';
+import 'historial_ventas_screen.dart';
+import 'estadisticas_screen.dart';
+import 'mi_equipo_screen.dart';
+import 'gestion_categorias_screen.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -243,6 +249,8 @@ class _VentasScreenState extends State<VentasScreen> {
 
       await _firebaseService.registrarVenta(nuevaVenta, turnoCajaId: turno?.id);
 
+      final soldItems = List<VentaItem>.from(_carrito);
+      
       setState(() {
         _carrito.clear();
         _clienteSeleccionado = null;
@@ -257,6 +265,8 @@ class _VentasScreenState extends State<VentasScreen> {
             backgroundColor: Colors.green,
           ),
         );
+        // Devolvemos el carrito a la pantalla anterior para actualización optimista
+        Navigator.pop(context, soldItems);
       }
     } catch (e) {
       setState(() => _procesando = false);
@@ -300,6 +310,11 @@ class _VentasScreenState extends State<VentasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final userData = AuthService().currentUserData;
+    final bool esDueno = userData?.rol == AuthService.rolDueno;
+    final bool puedeVerHistorial = esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
+
     // PopScope maneja el botón back físico y el del AppBar (en Android 14+)
     return PopScope(
       canPop: _carrito.isEmpty,
@@ -311,6 +326,92 @@ class _VentasScreenState extends State<VentasScreen> {
         }
       },
       child: Scaffold(
+        drawer: Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              DrawerHeader(
+                decoration: BoxDecoration(color: colorScheme.primary),
+                child: const Text(
+                  'Inventarios Universal',
+                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.point_of_sale),
+                title: const Text('Punto de Venta'),
+                onTap: () => Navigator.pop(context),
+              ),
+              ListTile(
+                leading: const Icon(Icons.inventory_2_outlined),
+                title: const Text('Inventario'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const InventarioScreen()));
+                },
+              ),
+              if (puedeVerHistorial)
+                ListTile(
+                  leading: const Icon(Icons.history),
+                  title: const Text('Historial de Ventas'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialVentasScreen()));
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.people_outlined),
+                title: const Text('Clientes y Créditos'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
+                },
+              ),
+              if (esDueno) ...[
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.bar_chart),
+                  title: const Text('Estadísticas y Ganancias'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.category_outlined),
+                  title: const Text('Gestionar Categorías'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.people_alt_outlined),
+                  title: const Text('Mi Equipo'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MiEquipoScreen()));
+                  },
+                ),
+              ],
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  await AuthService().logout();
+                  if (context.mounted) {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AuthGate()),
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
         appBar: AppBar(
           title: const Text('Punto de Venta'),
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -561,8 +662,8 @@ class _VentasScreenState extends State<VentasScreen> {
                                 fontWeight: FontWeight.bold, color: cs.primary)),
                         Text(
                           'Deuda: \$${_clienteSeleccionado!.saldoDeudor.toStringAsFixed(2)} | '
-                          'Disponible: \$${_clienteSeleccionado!.creditoDisponible.toStringAsFixed(2)}',
-                          style: TextStyle(fontSize: 12, color: cs.outline),
+                          'Límite: ${_clienteSeleccionado!.limiteCreditoTexto}',
+                          style: TextStyle(fontSize: 12, color: cs.primary),
                         ),
                       ],
                     ),

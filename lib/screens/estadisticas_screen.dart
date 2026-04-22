@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/producto.dart';
 import '../models/dashboard_data.dart';
 import '../services/firebase_service.dart';
+import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
 
 class EstadisticasScreen extends StatefulWidget {
@@ -70,6 +71,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (AuthService().currentUserData?.rol != 'dueño') {
+      return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver estadísticas.')));
+    }
+
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 

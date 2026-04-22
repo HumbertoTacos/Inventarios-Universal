@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import '../models/categoria.dart';
 import '../services/firebase_service.dart';
+import '../services/auth_service.dart';
 
 class GestionCategoriasScreen extends StatelessWidget {
   const GestionCategoriasScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    if (AuthService().currentUserData?.rol != AuthService.rolDueno) {
+      return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede gestionar categorías.')));
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
     final firebaseService = FirebaseService();
 

@@ -27,6 +27,10 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (AuthService().currentUserData?.rol != 'admin') {
+      return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo administradores de plataforma.')));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Panel de Administrador'),

@@ -76,6 +76,11 @@ class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
   AuthService._internal();
+  
+  // Constantes de roles para evitar errores de tipeo o codificación
+  static const String rolDueno = 'dueño';
+  static const String rolEmpleado = 'empleado';
+  static const String rolAdmin = 'admin';
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -94,9 +99,14 @@ class AuthService {
       final doc = await _firestore.collection('usuarios').doc(user.uid).get();
       if (doc.exists) {
         final data = doc.data()!;
-        final rol = data['rol'] as String? ?? 'empleado';
+        // Normalización: quitamos espacios y pasamos a minúsculas para evitar errores de tipeo
+        final rawRol = data['rol'] as String? ?? rolEmpleado;
+        final rol = rawRol.trim().toLowerCase();
+
         final permisosMap = data['permisos'] as Map<String, dynamic>?;
-        final permisos = rol == 'dueño'
+        
+        // El dueño siempre tiene todos los permisos en su negocio
+        final permisos = (rol == rolDueno)
             ? const PermisosEmpleado.dueno()
             : permisosMap != null
                 ? PermisosEmpleado.fromMap(permisosMap)
@@ -109,7 +119,7 @@ class AuthService {
           negocioNombre: data['negocioNombre'] ?? '',
           negocioId: data['negocioId'] ?? '',
           estatus: data['estatus'] ?? 'pendiente',
-          rol: rol,
+          rol: rol, // Guardamos el rol normalizado
           permisos: permisos,
         );
       } else {
@@ -131,7 +141,8 @@ class AuthService {
     return String.fromCharCodes(Iterable.generate(6, (_) => chars.codeUnitAt(random.nextInt(chars.length))));
   }
 
-  Future<void> register({
+  /// Fase 1: Crea el usuario en Auth y guarda los datos en una colección temporal
+  Future<void> registerAuthOnly({
     required String nombre,
     required String email,
     required String password,
@@ -144,14 +155,37 @@ class AuthService {
     );
     final user = userCredential.user!;
 
+    // Guardar datos en colección temporal para no ensuciar la base de datos principal
+    await _firestore.collection('pre_registro').doc(user.uid).set({
+      'nombre': nombre,
+      'email': email,
+      'negocioNombre': negocioNombre,
+      'codigoInvitacion': codigoInvitacion,
+      'fechaRegistro': FieldValue.serverTimestamp(),
+    });
+
     if (!user.emailVerified) {
       await user.sendEmailVerification();
     }
-    
+  }
+
+  /// Fase 2: Mueve los datos de la colección temporal a las colecciones reales
+  Future<void> completarRegistroDesdeTemporal() async {
+    final user = _auth.currentUser;
+    if (user == null || !user.emailVerified) return;
+
+    final doc = await _firestore.collection('pre_registro').doc(user.uid).get();
+    if (!doc.exists) return; // Ya se completó o no existe
+
+    final data = doc.data()!;
+    final String nombre = data['nombre'] ?? '';
+    final String email = data['email'] ?? '';
+    final String? negocioNombre = data['negocioNombre'];
+    final String? codigoInvitacion = data['codigoInvitacion'];
+
     if (codigoInvitacion != null && codigoInvitacion.isNotEmpty) {
-      // Entra como empleado aprobado de inmediato
       final query = await _firestore.collection('negocios').where('codigoInvitacion', isEqualTo: codigoInvitacion).limit(1).get();
-      if (query.docs.isEmpty) throw Exception('El código de invitación no existe o ya expiró');
+      if (query.docs.isEmpty) throw Exception('El código de invitación ya no es válido');
       
       final negocioDoc = query.docs.first;
       await _firestore.collection('usuarios').doc(user.uid).set({
@@ -160,10 +194,9 @@ class AuthService {
         'negocioNombre': negocioDoc['nombre'],
         'negocioId': negocioDoc.id,
         'estatus': 'aprobado',
-        'rol': 'empleado',
+        'rol': rolEmpleado,
       });
     } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
-      // Crea el negocio como dueño
       final negocioRef = _firestore.collection('negocios').doc();
       await negocioRef.set({
         'nombre': negocioNombre,
@@ -177,12 +210,12 @@ class AuthService {
         'negocioNombre': negocioNombre,
         'negocioId': negocioRef.id,
         'estatus': 'pendiente',
-        'rol': 'dueño',
+        'rol': rolDueno,
       });
-    } else {
-      throw Exception('Falta el nombre del negocio o un código de invitación');
     }
 
+    // Limpieza
+    await _firestore.collection('pre_registro').doc(user.uid).delete();
     await reloadUserData();
   }
 

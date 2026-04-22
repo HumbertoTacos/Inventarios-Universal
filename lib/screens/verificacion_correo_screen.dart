@@ -14,12 +14,30 @@ class _VerificacionCorreoScreenState extends State<VerificacionCorreoScreen> {
   bool _isSending = false;
 
   Future<void> _checkEmailVerified() async {
-    await FirebaseAuth.instance.currentUser?.reload();
+    final user = FirebaseAuth.instance.currentUser;
+    await user?.reload();
+    
     if (FirebaseAuth.instance.currentUser?.emailVerified ?? false) {
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AuthGate())
-        );
+        setState(() => _isSending = true); // Usamos el loader
+        try {
+          // Fase Final: Mover de pre_registro a colecciones reales
+          await AuthService().completarRegistroDesdeTemporal();
+          
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const AuthGate())
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error al finalizar registro: $e'), backgroundColor: Colors.red),
+            );
+          }
+        } finally {
+          if (mounted) setState(() => _isSending = false);
+        }
       }
     } else {
       if (mounted) {

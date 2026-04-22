@@ -20,6 +20,7 @@ class Producto {
   final double precio;
   final String descripcion;
   final String? codigoBarras;
+  final bool activo; // Campo para Soft Delete
 
   Producto({
     required this.id,
@@ -34,6 +35,7 @@ class Producto {
     this.esBase = true,
     this.grupoId,
     this.variantesResumen = const [],
+    this.activo = true,
   });
 
   /// Crea un [Producto] a partir de un documento de Firestore.
@@ -76,6 +78,7 @@ class Producto {
               ?.map((item) => item as Map<String, dynamic>)
               .toList() ??
           const [],
+      activo: map['activo'] as bool? ?? true, // Retrocompatibilidad: si no existe, es true
     );
   }
 
@@ -92,6 +95,7 @@ class Producto {
         'esBase': esBase,
         if (grupoId != null) 'grupoId': grupoId,
         'variantesResumen': variantesResumen,
+        'activo': activo,
       };
 
   /// Resumen de todos los atributos para mostrar en la UI (ej: "Queen · Rojo").
@@ -112,6 +116,7 @@ class Producto {
     bool? esBase,
     String? grupoId,
     List<Map<String, dynamic>>? variantesResumen,
+    bool? activo,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -126,6 +131,7 @@ class Producto {
       esBase: esBase ?? this.esBase,
       grupoId: grupoId ?? this.grupoId,
       variantesResumen: variantesResumen ?? List.from(this.variantesResumen),
+      activo: activo ?? this.activo,
     );
   }
 
@@ -133,5 +139,5 @@ class Producto {
   String toString() =>
       'Producto(id: $id, nombre: $nombre, cat: $categoria, '
       'atributos: $atributos, cant: $cantidad, '
-      'costoPromedio: \$$costoPromedio, precio: \$$precio)';
+      'costoPromedio: \$$costoPromedio, precio: \$$precio, activo: $activo)';
 }
