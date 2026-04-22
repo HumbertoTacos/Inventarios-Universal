@@ -96,186 +96,191 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
           final categorias = snapshot.data ?? [];
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Nombre ──
-                  TextFormField(
-                    controller: _nombreCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre del producto *',
-                      prefixIcon: Icon(Icons.inventory_2_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.words,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Categoría ──
-                  DropdownButtonFormField<Categoria>(
-                    initialValue: _categoriaSeleccionada,
-                    decoration: const InputDecoration(
-                      labelText: 'Categoría *',
-                      prefixIcon: Icon(Icons.category_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    items: categorias
-                        .map((cat) => DropdownMenuItem(
-                              value: cat,
-                              child: Text(cat.nombre),
-                            ))
-                        .toList(),
-                    onChanged: _alCambiarCategoria,
-                    validator: (v) =>
-                        v == null ? 'Selecciona una categoría' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Atributos dinámicos ──
-                  if (_categoriaSeleccionada != null)
-                    ..._buildAtributoFields(_categoriaSeleccionada!),
-
-                  // ── Cantidad ──
-                  TextFormField(
-                    controller: _cantidadCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Cantidad *',
-                      prefixIcon: Icon(Icons.numbers),
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Requerido';
-                      if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Costo y Precio ──
-                  Row(
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _costoCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Costo *',
-                            prefixText: '\$ ',
-                            prefixIcon: Icon(Icons.money_off),
-                            border: OutlineInputBorder(),
+                      // ── Nombre ──
+                      TextFormField(
+                        controller: _nombreCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Nombre del producto *',
+                          prefixIcon: Icon(Icons.inventory_2_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Ingresa un nombre' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Categoría ──
+                      DropdownButtonFormField<Categoria>(
+                        initialValue: _categoriaSeleccionada,
+                        decoration: const InputDecoration(
+                          labelText: 'Categoría *',
+                          prefixIcon: Icon(Icons.category_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: categorias
+                            .map((cat) => DropdownMenuItem(
+                                  value: cat,
+                                  child: Text(cat.nombre),
+                                ))
+                            .toList(),
+                        onChanged: _alCambiarCategoria,
+                        validator: (v) =>
+                            v == null ? 'Selecciona una categoría' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Atributos dinámicos ──
+                      if (_categoriaSeleccionada != null)
+                        ..._buildAtributoFields(_categoriaSeleccionada!),
+
+                      // ── Cantidad ──
+                      TextFormField(
+                        controller: _cantidadCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad *',
+                          prefixIcon: Icon(Icons.numbers),
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Requerido';
+                          if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Costo y Precio ──
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _costoCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Costo *',
+                                prefixText: '\$ ',
+                                prefixIcon: Icon(Icons.money_off),
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d+\.?\d{0,2}')),
+                              ],
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Requerido';
+                                if ((double.tryParse(v.trim()) ?? -1) < 0) {
+                                  return 'Inválido';
+                                }
+                                return null;
+                              },
+                            ),
                           ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d+\.?\d{0,2}')),
-                          ],
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Requerido';
-                            if ((double.tryParse(v.trim()) ?? -1) < 0) {
-                              return 'Inválido';
-                            }
-                            return null;
-                          },
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _precioCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Precio venta *',
+                                prefixText: '\$ ',
+                                prefixIcon: Icon(Icons.sell),
+                                border: OutlineInputBorder(),
+                              ),
+                              keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                    RegExp(r'^\d+\.?\d{0,2}')),
+                              ],
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Requerido';
+                                final n = double.tryParse(v.trim());
+                                if (n == null || n < 0) return 'Inválido';
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Código de barras ──
+                      TextFormField(
+                        controller: _codigoBarrasCtrl,
+                        readOnly: true,
+                        decoration: InputDecoration(
+                          labelText: 'Código de barras (opcional)',
+                          prefixIcon: const Icon(Icons.qr_code),
+                          border: const OutlineInputBorder(),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_codigoBarrasCtrl.text.isNotEmpty)
+                                IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () =>
+                                      setState(() => _codigoBarrasCtrl.clear()),
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.camera_alt),
+                                tooltip: 'Escanear con cámara',
+                                onPressed: _escanearCodigoBarras,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _precioCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Precio venta *',
-                            prefixText: '\$ ',
-                            prefixIcon: Icon(Icons.sell),
-                            border: OutlineInputBorder(),
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true),
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d+\.?\d{0,2}')),
-                          ],
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Requerido';
-                            final n = double.tryParse(v.trim());
-                            if (n == null || n < 0) return 'Inválido';
-                            return null;
-                          },
+                      const SizedBox(height: 16),
+
+                      // ── Descripción ──
+                      TextFormField(
+                        controller: _descripcionCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Descripción (opcional)',
+                          prefixIcon: Icon(Icons.description_outlined),
+                          border: OutlineInputBorder(),
+                          alignLabelWithHint: true,
+                        ),
+                        maxLines: 3,
+                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ── Guardar ──
+                      FilledButton.icon(
+                        onPressed: _guardando ? null : _guardarProducto,
+                        icon: _guardando
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(_guardando ? 'Guardando...' : 'Guardar producto'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          textStyle: const TextStyle(fontSize: 16),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-
-                  // ── Código de barras ──
-                  TextFormField(
-                    controller: _codigoBarrasCtrl,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Código de barras (opcional)',
-                      prefixIcon: const Icon(Icons.qr_code),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_codigoBarrasCtrl.text.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () =>
-                                  setState(() => _codigoBarrasCtrl.clear()),
-                            ),
-                          IconButton(
-                            icon: const Icon(Icons.camera_alt),
-                            tooltip: 'Escanear con cámara',
-                            onPressed: _escanearCodigoBarras,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // ── Descripción ──
-                  TextFormField(
-                    controller: _descripcionCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Descripción (opcional)',
-                      prefixIcon: Icon(Icons.description_outlined),
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 28),
-
-                  // ── Guardar ──
-                  FilledButton.icon(
-                    onPressed: _guardando ? null : _guardarProducto,
-                    icon: _guardando
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_guardando ? 'Guardando...' : 'Guardar producto'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      textStyle: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );

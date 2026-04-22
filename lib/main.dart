@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
 
@@ -17,19 +18,204 @@ void main() async {
   runApp(const MiInventarioApp());
 }
 
+/// Paleta de colores centralizada para todo el sistema.
+/// Índigo comercial + grises limpios + superficie #F8F9FA.
+class AppColors {
+  AppColors._();
+
+  // Primario: Índigo profundo — confianza y tecnología
+  static const Color primary       = Color(0xFF3730A3); // indigo-700
+  static const Color primaryLight  = Color(0xFF818CF8); // indigo-400
+  static const Color primaryDark   = Color(0xFF1E1B4B); // indigo-950
+
+  // Secundario / acento positivo
+  static const Color secondary     = Color(0xFF059669); // emerald-600
+  static const Color secondaryLight= Color(0xFF6EE7B7); // emerald-300
+
+  // Fondo y superficie
+  static const Color background    = Color(0xFFF8F9FA); // gris ultra-suave
+  static const Color surface       = Color(0xFFFFFFFF); // blanco puro para cards
+  static const Color surfaceVariant= Color(0xFFF1F5F9); // slate-100
+
+  // Estados
+  static const Color error         = Color(0xFFDC2626); // red-600
+  static const Color warning       = Color(0xFFF59E0B); // amber-500
+  static const Color success       = Color(0xFF16A34A); // green-600
+
+  // Texto
+  static const Color onPrimary     = Color(0xFFFFFFFF);
+  static const Color textPrimary   = Color(0xFF0F172A); // slate-900
+  static const Color textSecondary = Color(0xFF64748B); // slate-500
+  static const Color outline       = Color(0xFFCBD5E1); // slate-300
+}
+
 class MiInventarioApp extends StatelessWidget {
   const MiInventarioApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = GoogleFonts.outfitTextTheme();
+
     return MaterialApp(
       title: 'Inventarios Universal',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-        useMaterial3: true,
-      ),
+      theme: _buildTheme(textTheme),
       home: const AuthGate(),
+    );
+  }
+
+  ThemeData _buildTheme(TextTheme baseTextTheme) {
+    final cs = ColorScheme.light(
+      primary:         AppColors.primary,
+      onPrimary:       AppColors.onPrimary,
+      primaryContainer:const Color(0xFFE0E7FF), // indigo-100
+      onPrimaryContainer: AppColors.primaryDark,
+      secondary:       AppColors.secondary,
+      onSecondary:     Colors.white,
+      secondaryContainer: const Color(0xFFD1FAE5), // emerald-100
+      surface:         AppColors.surface,
+      onSurface:       AppColors.textPrimary,
+      surfaceContainerHighest: AppColors.surfaceVariant,
+      outline:         AppColors.outline,
+      error:           AppColors.error,
+      onError:         Colors.white,
+    );
+
+    return ThemeData(
+      useMaterial3:   true,
+      colorScheme:    cs,
+      scaffoldBackgroundColor: AppColors.background,
+      textTheme:      baseTextTheme,
+
+      // ── AppBar ────────────────────────────────────────────────────────────
+      appBarTheme: AppBarTheme(
+        backgroundColor:  AppColors.surface,
+        foregroundColor:  AppColors.textPrimary,
+        elevation:        0,
+        scrolledUnderElevation: 1,
+        surfaceTintColor: Colors.transparent,
+        shadowColor:      AppColors.outline.withAlpha(128),
+        centerTitle:      false,
+        titleTextStyle: GoogleFonts.outfit(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      ),
+
+      // ── Cards ─────────────────────────────────────────────────────────────
+      cardTheme: CardThemeData(
+        color:     AppColors.surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.outline, width: 1),
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+      ),
+
+      // ── Inputs ────────────────────────────────────────────────────────────
+      inputDecorationTheme: InputDecorationTheme(
+        filled:      true,
+        fillColor:   AppColors.surfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        labelStyle: GoogleFonts.outfit(color: AppColors.textSecondary),
+        hintStyle:  GoogleFonts.outfit(color: AppColors.textSecondary),
+        floatingLabelStyle: GoogleFonts.outfit(color: AppColors.primary, fontWeight: FontWeight.w600),
+        prefixIconColor: AppColors.textSecondary,
+        suffixIconColor: AppColors.textSecondary,
+      ),
+
+      // ── Botones Rellenos ──────────────────────────────────────────────────
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          minimumSize:     const Size(double.infinity, 52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+          elevation: 0,
+        ),
+      ),
+
+      // ── ElevatedButton ────────────────────────────────────────────────────
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          minimumSize:    const Size(double.infinity, 52),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+          elevation: 0,
+        ),
+      ),
+
+      // ── OutlinedButton ────────────────────────────────────────────────────
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          minimumSize:    const Size(double.infinity, 52),
+          side:           const BorderSide(color: AppColors.outline, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+        ),
+      ),
+
+      // ── TextButton ────────────────────────────────────────────────────────
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w500),
+        ),
+      ),
+
+      // ── Chips ─────────────────────────────────────────────────────────────
+      chipTheme: ChipThemeData(
+        backgroundColor:  AppColors.surfaceVariant,
+        selectedColor:    AppColors.primary.withAlpha(26),
+        side: const BorderSide(color: AppColors.outline),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        labelStyle: GoogleFonts.outfit(fontSize: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+
+      // ── Divider ───────────────────────────────────────────────────────────
+      dividerTheme: const DividerThemeData(
+        color: AppColors.outline,
+        thickness: 1,
+        space: 1,
+      ),
+
+      // ── ListTile ──────────────────────────────────────────────────────────
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      ),
+
+      // ── SnackBar ──────────────────────────────────────────────────────────
+      snackBarTheme: SnackBarThemeData(
+        behavior:    SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: AppColors.textPrimary,
+        contentTextStyle: GoogleFonts.outfit(color: Colors.white),
+      ),
     );
   }
 }

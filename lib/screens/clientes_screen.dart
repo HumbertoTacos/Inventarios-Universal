@@ -111,18 +111,23 @@ class _ClientesScreenState extends State<ClientesScreen> {
           ),
         ),
       ),
-      body: _enModoBusqueda
-          ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
-          : StreamBuilder<List<Cliente>>(
-              stream: _svc.getClientesStream(),
-              builder: (ctx, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final clientes = snap.data ?? [];
-                return _buildListaClientes(clientes);
-              },
-            ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: _enModoBusqueda
+              ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
+              : StreamBuilder<List<Cliente>>(
+                  stream: _svc.getClientesStream(),
+                  builder: (ctx, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final clientes = snap.data ?? [];
+                    return _buildListaClientes(clientes);
+                  },
+                ),
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _mostrarFormularioAgregar(),
         icon: const Icon(Icons.person_add_alt_1),
@@ -195,14 +200,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
       }
     }
 
-    return Card(
-      elevation: tieneDeuda ? 2 : 1,
-      color: cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: tieneDeuda
-            ? BorderSide(color: deudaColor.withAlpha(80), width: 1)
-            : BorderSide.none,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: tieneDeuda
+            ? Border.all(color: deudaColor.withAlpha(80), width: 1)
+            : Border.all(color: cs.outline.withAlpha(20)),
+        boxShadow: [
+          BoxShadow(
+            color: (tieneDeuda ? deudaColor : Colors.black).withAlpha(tieneDeuda ? 15 : 5),
+            blurRadius: 10,
+            offset: const Offset(0, 4)
+          ),
+        ],
       ),
       child: ListTile(
         onTap: () => _abrirDetalleOSeleccionar(c),

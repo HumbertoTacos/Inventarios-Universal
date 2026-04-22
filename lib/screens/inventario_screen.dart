@@ -350,33 +350,44 @@ class _InventarioScreenState extends State<InventarioScreen> {
   }
 
   Widget _buildBody() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-
-    if (_isSearching) {
-      if (_searchResult == null) return _buildEstadoVacio('No encontrado', 'No hay productos con ese código.');
-      return ListView(
-        padding: const EdgeInsets.all(12),
-        children: [_buildProductoCard(_searchResult!)],
+    Widget content;
+    if (_isLoading) {
+      content = const Center(child: CircularProgressIndicator());
+    } else if (_isSearching) {
+      if (_searchResult == null) {
+        content = _buildEstadoVacio('No encontrado', 'No hay productos con ese código.');
+      } else {
+        content = ListView(
+          padding: const EdgeInsets.all(12),
+          children: [_buildProductoCard(_searchResult!)],
+        );
+      }
+    } else if (_productos.isEmpty) {
+      content = _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
+    } else {
+      content = RefreshIndicator(
+        onRefresh: _fetchInitial,
+        child: ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: _productos.length + (_hasMoreData ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == _productos.length) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+            return _buildProductoCard(_productos[index]);
+          },
+        ),
       );
     }
 
-    if (_productos.isEmpty) return _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
-
-    return RefreshIndicator(
-      onRefresh: _fetchInitial,
-      child: ListView.builder(
-        controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemCount: _productos.length + (_hasMoreData ? 1 : 0),
-        itemBuilder: (context, index) {
-          if (index == _productos.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          return _buildProductoCard(_productos[index]);
-        },
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: content,
       ),
     );
   }
@@ -400,18 +411,30 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   Widget _buildProductoCard(Producto producto) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 1,
+    final inStock = producto.cantidad > 0;
+    
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline.withAlpha(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(5),
+            blurRadius: 10,
+            offset: const Offset(0, 4)
+          ),
+        ],
+      ),
       child: ListTile(
         onTap: () => widget.modoSeleccion
             ? Navigator.pop(context, producto)
             : _abrirMenuAcciones(producto),
         leading: CircleAvatar(
-          backgroundColor: colorScheme.secondaryContainer,
+          backgroundColor: inStock ? colorScheme.secondaryContainer : Colors.red.shade50,
           child: Text(producto.nombre[0].toUpperCase(),
-              style: TextStyle(color: colorScheme.onSecondaryContainer, fontWeight: FontWeight.bold)),
+              style: TextStyle(color: inStock ? colorScheme.onSecondaryContainer : Colors.red.shade700, fontWeight: FontWeight.bold)),
         ),
         title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${producto.categoria} • ${producto.atributoVisual}'),
@@ -420,9 +443,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text('\$${producto.precio.toStringAsFixed(2)}',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
             Text('Stock: ${producto.cantidad}',
-                style: TextStyle(fontSize: 12, color: producto.cantidad > 0 ? Colors.green : Colors.red)),
+                style: TextStyle(fontSize: 12, fontWeight: inStock ? FontWeight.normal : FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
           ],
         ),
       ),

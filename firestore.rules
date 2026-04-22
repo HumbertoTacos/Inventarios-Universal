@@ -50,9 +50,16 @@ service cloud.firestore {
     // NADIE puede leer el perfil de otro usuario (privacidad total entre inquilinos).
     // ─────────────────────────────────────────────────────────────────────────
     match /usuarios/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow read: if request.auth != null && (
+        request.auth.uid == uid || 
+        esAdmin() || 
+        (getUserProfile().rol == 'dueño' && getUserProfile().negocioId == resource.data.negocioId)
+      );
       allow create: if request.auth != null && request.auth.uid == uid;
-      allow update: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && (
+        request.auth.uid == uid || 
+        (getUserProfile().rol == 'dueño' && getUserProfile().negocioId == resource.data.negocioId)
+      );
       allow delete: if false; // Los perfiles no se eliminan desde el cliente
     }
 

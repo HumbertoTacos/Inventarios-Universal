@@ -30,7 +30,7 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
       context: context,
       initialDateRange: DateTimeRange(start: _fechaInicio, end: _fechaFin),
       firstDate: DateTime(2023),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)), // Extendido para evitar errores de aserción
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -68,8 +68,11 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
           // Visualizador de Rango
           GestureDetector(
             onTap: _seleccionarFecha,
@@ -125,6 +128,8 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           ),
         ],
       ),
+    ),
+    ),
     );
   }
 
@@ -150,11 +155,25 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
         statusText = 'Completada';
     }
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: statusColor.withAlpha(26),
-        child: Icon(statusIcon, color: statusColor),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).colorScheme.outline.withAlpha(20)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withAlpha(26),
+          child: Icon(statusIcon, color: statusColor),
+        ),
       title: Text(
         'Venta: ${venta.id.substring(0, 8).toUpperCase()}',
         style: const TextStyle(fontWeight: FontWeight.bold),
@@ -212,6 +231,7 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           ),
         );
       },
+    ),
     );
   }
 }

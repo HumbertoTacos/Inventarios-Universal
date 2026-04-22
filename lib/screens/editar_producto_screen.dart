@@ -99,129 +99,133 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
       ),
       body: _guardando
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Información no editable (como recordatorio)
-                    Card(
-                      elevation: 0,
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      margin: const EdgeInsets.only(bottom: 24),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Categoría: ${widget.producto.categoria}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Información no editable (como recordatorio)
+                        Card(
+                          elevation: 0,
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          margin: const EdgeInsets.only(bottom: 24),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Categoría: ${widget.producto.categoria}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                ...widget.producto.atributos.entries.map(
+                                  (e) => Text('${e.key}: ${e.value}'),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Estos valores estructurales no se pueden editar. Elimina el producto y crea uno nuevo si necesitas cambiar su categoría.',
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.5),
+                                ),
+                              ],
                             ),
-                            ...widget.producto.atributos.entries.map(
-                              (e) => Text('${e.key}: ${e.value}'),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Estos valores estructurales no se pueden editar. Elimina el producto y crea uno nuevo si necesitas cambiar su categoría.',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12, height: 1.5),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
 
-
-                    // Nombre
-                    TextFormField(
-                      controller: _nombreCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Nombre del producto *',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.inventory),
-                      ),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Costo Modificable
-                    TextFormField(
-                      controller: _costoCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Costo base de compra (Unitario) *',
-                        prefixText: '\$ ',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.attach_money),
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Requerido';
-                        if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Precio Moficable
-                    TextFormField(
-                      controller: _precioCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Precio de venta al público *',
-                        prefixText: '\$ ',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.sell),
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Requerido';
-                        if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Código de Barras
-                    TextFormField(
-                      controller: _codigoBarrasCtrl,
-                      decoration: InputDecoration(
-                        labelText: 'Código de barras',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: const Icon(Icons.qr_code),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.camera_alt),
-                          onPressed: _escanearCodigo,
-                          tooltip: 'Escanear con la cámara',
+                        // Nombre
+                        TextFormField(
+                          controller: _nombreCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre del producto *',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.inventory),
+                          ),
+                          validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                    // Descripción
-                    TextFormField(
-                      controller: _descripcionCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Descripción adicional (opcional)',
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 4,
-                    ),
-                    const SizedBox(height: 32),
+                        // Costo Modificable
+                        TextFormField(
+                          controller: _costoCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Costo base de compra (Unitario) *',
+                            prefixText: '\$ ',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.attach_money),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Requerido';
+                            if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
 
-                    FilledButton.icon(
-                      icon: const Icon(Icons.save),
-                      label: const Text('Guardar Cambios', style: TextStyle(fontSize: 16)),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: _guardarCambios,
+                        // Precio Moficable
+                        TextFormField(
+                          controller: _precioCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Precio de venta al público *',
+                            prefixText: '\$ ',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.sell),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Requerido';
+                            if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Código de Barras
+                        TextFormField(
+                          controller: _codigoBarrasCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Código de barras',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.qr_code),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.camera_alt),
+                              onPressed: _escanearCodigo,
+                              tooltip: 'Escanear con la cámara',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Descripción
+                        TextFormField(
+                          controller: _descripcionCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Descripción adicional (opcional)',
+                            alignLabelWithHint: true,
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 4,
+                        ),
+                        const SizedBox(height: 32),
+
+                        FilledButton.icon(
+                          icon: const Icon(Icons.save),
+                          label: const Text('Guardar Cambios', style: TextStyle(fontSize: 16)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _guardarCambios,
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

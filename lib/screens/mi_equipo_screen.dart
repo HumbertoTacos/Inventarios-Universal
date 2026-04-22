@@ -115,30 +115,41 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
         foregroundColor: cs.onPrimaryContainer,
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          // ── Código de Invitación ─────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [cs.primaryContainer, cs.secondaryContainer],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            width: double.infinity,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.group_add_outlined, color: cs.onPrimaryContainer),
-                    const SizedBox(width: 8),
-                    Text('Código de Invitación',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
-                  ],
-                ),
-                const SizedBox(height: 12),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              // ── Código de Invitación ─────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [cs.primaryContainer, cs.primary.withAlpha(20)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: cs.primary.withAlpha(50)),
+                    boxShadow: [
+                      BoxShadow(color: cs.primary.withAlpha(15), blurRadius: 24, offset: const Offset(0, 8)),
+                    ],
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  width: double.infinity,
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.badge_outlined, color: cs.onPrimaryContainer),
+                          const SizedBox(width: 8),
+                          Text('Código para emplear',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                 _isLoadingCodigo
                     ? const CircularProgressIndicator()
                     : SelectableText(
@@ -150,22 +161,23 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
                             color: cs.primary),
                       ),
                 const SizedBox(height: 4),
-                Text('Comparte este código con tus empleados para que puedan unirse.',
-                    style: TextStyle(fontSize: 12, color: cs.onPrimaryContainer.withAlpha(160)),
-                    textAlign: TextAlign.center),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Regenerar Código'),
-                  onPressed: _isLoadingCodigo ? null : _regenerarCodigo,
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: cs.primary,
-                      side: BorderSide(color: cs.primary)),
+                        Text('Comparte este código con tus empleados para que se puedan unir temporalmente.',
+                            style: TextStyle(fontSize: 13, color: cs.onPrimaryContainer.withAlpha(180)),
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Regenerar Código'),
+                          onPressed: _isLoadingCodigo ? null : _regenerarCodigo,
+                          style: FilledButton.styleFrom(
+                              backgroundColor: cs.primary,
+                              foregroundColor: cs.onPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
-            ),
-          ),
-          // ── Lista de Empleados ───────────────────────────────────────────
+              // ── Lista de Empleados ───────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Row(children: [
@@ -276,6 +288,8 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
             ),
           ),
         ],
+      ),
+      ),
       ),
     );
   }

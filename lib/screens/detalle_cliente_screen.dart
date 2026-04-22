@@ -69,14 +69,19 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
               ),
             ],
           ),
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Header con métricas ─────────────────────────────────────
-              _buildHeader(cliente, cs),
-              // ── Historial de abonos ─────────────────────────────────────
-              Expanded(child: _buildHistorialAbonos(cs)),
-            ],
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── Header con métricas ─────────────────────────────────────
+                  _buildHeader(cliente, cs),
+                  // ── Historial de abonos ─────────────────────────────────────
+                  Expanded(child: _buildHistorialAbonos(cs)),
+                ],
+              ),
+            ),
           ),
           floatingActionButton: cliente.tieneDeuda
               ? FloatingActionButton.extended(
@@ -100,36 +105,65 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
             : cs.primary;
 
     return Container(
-      color: cs.primaryContainer.withAlpha(70),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(32)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Info básica
           Row(
             children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: cs.primary,
-                child: Text(c.nombre[0].toUpperCase(),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: cs.primary.withValues(alpha: 0.2), width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 32,
+                  backgroundColor: cs.primary,
+                  child: Text(c.nombre[0].toUpperCase(),
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                ),
               ),
-              const SizedBox(width: 16),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (c.telefono.isNotEmpty)
-                  Row(children: [
-                    Icon(Icons.phone_outlined, size: 14, color: cs.outline),
-                    const SizedBox(width: 4),
-                    Text(c.telefono, style: TextStyle(color: cs.outline)),
-                  ]),
-                if (c.email != null && c.email!.isNotEmpty)
-                  Row(children: [
-                    Icon(Icons.email_outlined, size: 14, color: cs.outline),
-                    const SizedBox(width: 4),
-                    Text(c.email!, style: TextStyle(color: cs.outline)),
-                  ]),
-              ]),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(c.nombre, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    if (c.telefono.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(children: [
+                          Icon(Icons.phone_outlined, size: 14, color: cs.outline),
+                          const SizedBox(width: 4),
+                          Text(c.telefono, style: TextStyle(color: cs.outline)),
+                        ]),
+                      ),
+                    if (c.email != null && c.email!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(children: [
+                          Icon(Icons.email_outlined, size: 14, color: cs.outline),
+                          const SizedBox(width: 4),
+                          Text(c.email!, style: TextStyle(color: cs.outline)),
+                        ]),
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -153,19 +187,28 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Deuda actual', style: TextStyle(fontSize: 12, color: cs.outline)),
+                    Text('Deuda actual', style: TextStyle(fontSize: 13, color: cs.outline, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
                     Text(_moneyFmt.format(c.saldoDeudor),
                         style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.bold, color: colorDeuda)),
+                            fontSize: 28, fontWeight: FontWeight.bold, color: colorDeuda)),
                   ]),
-                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text('Disponible', style: TextStyle(fontSize: 12, color: cs.outline)),
-                    Text(_moneyFmt.format(c.creditoDisponible),
-                        style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: c.creditoDisponible > 0 ? Colors.green.shade700 : Colors.red)),
-                  ]),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: (c.creditoDisponible > 0 ? Colors.green : Colors.red).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text('Disponible', style: TextStyle(fontSize: 11, color: cs.outline, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text(_moneyFmt.format(c.creditoDisponible),
+                          style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: c.creditoDisponible > 0 ? Colors.green.shade800 : Colors.red.shade800)),
+                    ]),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

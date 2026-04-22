@@ -208,61 +208,74 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
       ),
       body: _procesando
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCabeceraEstado(venta),
-                  const SizedBox(height: 24),
-                  const Text('Productos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Card(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: venta.items.length,
-                      separatorBuilder: (ctx, idx) => const Divider(height: 1),
-                      itemBuilder: (ctx, idx) {
-                        final item = venta.items[idx];
-                        return ListTile(
-                          title: Text(item.nombre),
-                          subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
-                          trailing: Text(
-                            '\$${item.subtotal.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildResumenFinanciero(venta),
-                  const SizedBox(height: 32),
-                  if (esEditable) ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _confirmarCancelacion,
-                            icon: const Icon(Icons.cancel, color: Colors.red),
-                            label: const Text('Cancelar Venta', style: TextStyle(color: Colors.red)),
-                            style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-                          ),
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCabeceraEstado(venta),
+                      const SizedBox(height: 24),
+                      const Text('Productos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4)),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: _mostrarModalDevolucion,
-                            style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
-                            icon: const Icon(Icons.assignment_return),
-                            label: const Text('Devolución'),
-                          ),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: venta.items.length,
+                          separatorBuilder: (ctx, idx) => const Divider(height: 1),
+                          itemBuilder: (ctx, idx) {
+                            final item = venta.items[idx];
+                            return ListTile(
+                              title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
+                              trailing: Text(
+                                '\$${item.subtotal.toStringAsFixed(2)}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildResumenFinanciero(venta),
+                      const SizedBox(height: 32),
+                      if (esEditable) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _confirmarCancelacion,
+                                icon: const Icon(Icons.cancel, color: Colors.red),
+                                label: const Text('Cancelar Venta', style: TextStyle(color: Colors.red)),
+                                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: _mostrarModalDevolucion,
+                                style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+                                icon: const Icon(Icons.assignment_return),
+                                label: const Text('Devolución'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
     );
@@ -287,11 +300,11 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withAlpha(15),
+        border: Border.all(color: color.withAlpha(100), width: 1.5),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [

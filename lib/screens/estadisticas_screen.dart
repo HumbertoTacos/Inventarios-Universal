@@ -115,9 +115,12 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           ),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => setState(() => _cargar()),
-        child: SingleChildScrollView(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: RefreshIndicator(
+            onRefresh: () async => setState(() => _cargar()),
+            child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: FutureBuilder<DashboardData>(
@@ -186,6 +189,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           ),
         ),
       ),
+      ),
+      ),
     );
   }
 
@@ -220,12 +225,13 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     return Container(
       decoration: BoxDecoration(
         color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: cs.outline.withAlpha(20)),
         boxShadow: [
-          BoxShadow(color: color.withAlpha(30), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 16, offset: const Offset(0, 4)),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -234,7 +240,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(color: color.withAlpha(25), borderRadius: BorderRadius.circular(8)),
                 child: Icon(icon, color: color, size: 18),
               ),
@@ -243,10 +249,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 11, color: cs.outline)),
+              Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500)),
               Text(valor,
                   style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold, color: color),
+                      fontSize: 20, fontWeight: FontWeight.bold, color: color, letterSpacing: -0.5),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),
             ],

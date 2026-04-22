@@ -428,144 +428,149 @@ class _VentasScreenState extends State<VentasScreen> {
             ),
           ],
         ),
-        body: Column(
-          children: [
-            // Lista del carrito
-            Expanded(
-              child: _carrito.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
-                          const SizedBox(height: 16),
-                          Text('Carrito Vacío',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
-                          const SizedBox(height: 8),
-                          Text('Escanea o busca un producto para agregar',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500)),
-                        ],
-                      ),
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: _carrito.length,
-                      separatorBuilder: (ctx, idx) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final item = _carrito[index];
-                        return ListTile(
-                          title: Text(item.nombre),
-                          subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
-                          trailing: Row(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              children: [
+                // Lista del carrito
+                Expanded(
+                  child: _carrito.isEmpty
+                      ? Center(
+                          child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                '\$${item.subtotal.toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => setState(() => _carrito.removeAt(index)),
-                              ),
+                              Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
+                              const SizedBox(height: 16),
+                              Text('Carrito Vacío',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
+                              const SizedBox(height: 8),
+                              Text('Escanea o busca un producto para agregar',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500)),
                             ],
                           ),
-                        );
-                      },
-                    ),
-            ),
-            // Panel de resumen (Footer)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        Text(
-                          '\$${_totalVenta.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: _costoEnvioCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                            decoration: const InputDecoration(labelText: 'Envío (\$)', isDense: true, border: OutlineInputBorder()),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Paga el envío:', style: TextStyle(fontSize: 12)),
-                              Row(
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: _carrito.length,
+                          separatorBuilder: (ctx, idx) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final item = _carrito[index];
+                            return ListTile(
+                              title: Text(item.nombre),
+                              subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  ChoiceChip(
-                                    label: const Text('Vendedor'),
-                                    selected: _envioPagadoPorVendedor,
-                                    onSelected: (v) => setState(() => _envioPagadoPorVendedor = true),
-                                    visualDensity: VisualDensity.compact,
+                                  Text(
+                                    '\$${item.subtotal.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   ),
-                                  const SizedBox(width: 8),
-                                  ChoiceChip(
-                                    label: const Text('Cliente'),
-                                    selected: !_envioPagadoPorVendedor,
-                                    onSelected: (v) => setState(() => _envioPagadoPorVendedor = false),
-                                    visualDensity: VisualDensity.compact,
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => setState(() => _carrito.removeAt(index)),
                                   ),
                                 ],
                               ),
-                            ],
+                            );
+                          },
+                        ),
+                ),
+                // Panel de resumen (Footer)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
+                  ),
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                            Text(
+                              '\$${_totalVenta.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: _costoEnvioCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                                decoration: const InputDecoration(labelText: 'Envío (\$)', isDense: true, border: OutlineInputBorder()),
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Paga el envío:', style: TextStyle(fontSize: 12)),
+                                  Row(
+                                    children: [
+                                      ChoiceChip(
+                                        label: const Text('Vendedor'),
+                                        selected: _envioPagadoPorVendedor,
+                                        onSelected: (v) => setState(() => _envioPagadoPorVendedor = true),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ChoiceChip(
+                                        label: const Text('Cliente'),
+                                        selected: !_envioPagadoPorVendedor,
+                                        onSelected: (v) => setState(() => _envioPagadoPorVendedor = false),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        // Selector de método de pago
+                        _buildSelectorMetodoPago(),
+                        const SizedBox(height: 12),
+                        // Selector de cliente (solo si es crédito)
+                        if (_metodoPago == MetodoPago.credito)
+                          _buildSelectorCliente(),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                            onPressed: (_carrito.isEmpty || _procesando) ? null : _confirmarVenta,
+                            icon: _procesando
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.check_circle_outline),
+                            label: Text(_procesando ? 'Procesando...' : 'Confirmar Venta', style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                       ],
                     ),
-                    const Divider(height: 24),
-                    // Selector de método de pago
-                    _buildSelectorMetodoPago(),
-                    const SizedBox(height: 12),
-                    // Selector de cliente (solo si es crédito)
-                    if (_metodoPago == MetodoPago.credito)
-                      _buildSelectorCliente(),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        onPressed: (_carrito.isEmpty || _procesando) ? null : _confirmarVenta,
-                        icon: _procesando
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Icon(Icons.check_circle_outline),
-                        label: Text(_procesando ? 'Procesando...' : 'Confirmar Venta', style: const TextStyle(fontSize: 16)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
