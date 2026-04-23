@@ -363,15 +363,27 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.receipt_long_outlined,
-                  size: 56,
-                  color: Colors.grey.shade400,
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withAlpha(20),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.receipt_long_outlined,
+                    size: 80,
+                    color: cs.primary.withAlpha(150),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Sin abonos registrados',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: cs.onSurface),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sin abonos registrados',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  'Los pagos realizados aparecerán aquí',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
                 ),
               ],
             ),

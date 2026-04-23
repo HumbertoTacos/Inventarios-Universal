@@ -651,43 +651,60 @@ class _VentasScreenState extends State<VentasScreen> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey.shade400),
-                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.shopping_cart_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
+                              ),
+                              const SizedBox(height: 24),
                               Text('Carrito Vacío',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
                               const SizedBox(height: 8),
                               Text('Escanea o busca un producto para agregar',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade500)),
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
                             ],
                           ),
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           itemCount: _carrito.length,
-                          separatorBuilder: (ctx, idx) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final item = _carrito[index];
-                            return ListTile(
-                              title: Text(item.nombre),
-                              subtitle: Text('${item.cantidad.formatoInventario} x \$${item.precioUnitario.toStringAsFixed(2)}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '\$${item.subtotal.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Card(
+                                elevation: 0,
+                                margin: EdgeInsets.zero,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(76), // 0.3 opacity
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  subtitle: Text('${item.cantidad.formatoInventario} x \$${item.precioUnitario.toStringAsFixed(2)}'),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '\$${item.subtotal.toStringAsFixed(2)}',
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.primary),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                        onPressed: () => _editarCantidadItem(index),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                        onPressed: () => setState(() => _carrito.removeAt(index)),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                                    onPressed: () => _editarCantidadItem(index),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                    onPressed: () => setState(() => _carrito.removeAt(index)),
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
+                                ),
                               ),
                             );
                           },
@@ -708,12 +725,19 @@ class _VentasScreenState extends State<VentasScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                            Text(
-                              '\$${_totalVenta.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary,
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              transitionBuilder: (Widget child, Animation<double> animation) {
+                                return ScaleTransition(scale: animation, child: child);
+                              },
+                              child: Text(
+                                '\$${_totalVenta.toStringAsFixed(2)}',
+                                key: ValueKey<double>(_totalVenta),
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                             ),
                           ],
@@ -833,15 +857,30 @@ class _VentasScreenState extends State<VentasScreen> {
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
-                          child: FilledButton.icon(
-                            style: FilledButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: AnimatedSize(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              onPressed: (_carrito.isEmpty || _procesando) ? null : _confirmarVenta,
+                              icon: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: _procesando
+                                    ? const SizedBox(key: ValueKey('loading'), width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const Icon(Icons.check_circle_outline, key: ValueKey('check')),
+                              ),
+                              label: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Text(
+                                  _procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}',
+                                  key: ValueKey<bool>(_procesando),
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ),
-                            onPressed: (_carrito.isEmpty || _procesando) ? null : _confirmarVenta,
-                            icon: _procesando
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Icon(Icons.check_circle_outline),
-                            label: Text(_procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                       ],

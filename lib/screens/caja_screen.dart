@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/turno_caja.dart';
 import '../services/firebase_service.dart';
 import '../services/impresion_service.dart';
+import '../widgets/app_drawer.dart';
 
 class CajaScreen extends StatefulWidget {
   const CajaScreen({super.key});
@@ -201,10 +202,13 @@ class _CajaScreenState extends State<CajaScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
+      drawer: const AppDrawer(currentRoute: 'caja'),
       appBar: AppBar(title: const Text('Arqueo de Caja')),
       body: Center(
         child: ConstrainedBox(

@@ -168,10 +168,24 @@ class _ClientesScreenState extends State<ClientesScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.people_outline, size: 72, color: Colors.grey.shade400),
-            const SizedBox(height: 12),
-            Text(_enModoBusqueda ? 'Sin resultados' : 'Sin clientes registrados',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withAlpha(20),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.people_outline, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              _enModoBusqueda ? 'Sin resultados' : 'Sin clientes registrados',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _enModoBusqueda ? 'Intenta buscar con otro término' : 'Agrega tu primer cliente',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
+            ),
           ],
         ),
       );
@@ -224,21 +238,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
       }
     }
 
-    return Container(
+    if (!tieneDeuda && !bloqueado) {
+      cardColor = cs.surfaceContainerHighest.withAlpha(76); // 0.3 opacity
+    }
+
+    return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: cardColor,
+      elevation: 0,
+      color: cardColor,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: tieneDeuda
-            ? Border.all(color: deudaColor.withAlpha(80), width: 1)
-            : Border.all(color: cs.outline.withAlpha(20)),
-        boxShadow: [
-          BoxShadow(
-            color: (tieneDeuda ? deudaColor : Colors.black).withAlpha(tieneDeuda ? 15 : 5),
-            blurRadius: 10,
-            offset: const Offset(0, 4)
-          ),
-        ],
+        side: tieneDeuda 
+          ? BorderSide(color: deudaColor.withAlpha(80), width: 1)
+          : BorderSide.none,
       ),
       child: ListTile(
         onTap: () => _abrirDetalleOSeleccionar(c),

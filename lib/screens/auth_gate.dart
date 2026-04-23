@@ -82,9 +82,9 @@ class AuthGate extends StatelessWidget {
               return const EsperaAprobacionScreen();
             }
 
-            // Dueño → acceso completo al inventario
+            // Dueño → acceso completo (inicia en Ventas por preferencia de flujo)
             if (rol == AuthService.rolDueno) {
-              return const InventarioScreen();
+              return const VentasScreen();
             }
 
             // Empleado → solo Punto de Venta (actúa como cajero)
@@ -93,7 +93,7 @@ class AuthGate extends StatelessWidget {
             }
 
             // Fallback
-            return const InventarioScreen();
+            return const VentasScreen();
           },
         );
       },

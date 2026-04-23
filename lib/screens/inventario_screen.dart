@@ -305,11 +305,22 @@ class _InventarioScreenState extends State<InventarioScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade400),
-          const SizedBox(height: 16),
-          Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600)),
-          Text(subtitulo, style: TextStyle(color: Colors.grey.shade500)),
-          if (_isSearching) TextButton(onPressed: () { _searchCtrl.clear(); _fetchInitial(); }, child: const Text('Ver todo')),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withAlpha(20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.inventory_2_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
+          ),
+          const SizedBox(height: 24),
+          Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
+          const SizedBox(height: 8),
+          Text(subtitulo, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
+          if (_isSearching) ...[
+            const SizedBox(height: 16),
+            TextButton(onPressed: () { _searchCtrl.clear(); _fetchInitial(); }, child: const Text('Ver todo')),
+          ],
         ],
       ),
     );
@@ -319,20 +330,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final inStock = producto.cantidad > 0;
     
-    return Container(
+    return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withAlpha(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(5),
-            blurRadius: 10,
-            offset: const Offset(0, 4)
-          ),
-        ],
-      ),
+      elevation: 0,
+      color: colorScheme.surfaceContainerHighest.withAlpha(76), // 0.3 opacity
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         onTap: () => widget.modoSeleccion
             ? Navigator.pop(context, producto)
