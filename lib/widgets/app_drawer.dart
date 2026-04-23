@@ -192,12 +192,18 @@ class _AppDrawerState extends State<AppDrawer> {
           CircleAvatar(
             radius: 35,
             backgroundColor: Colors.white,
-            backgroundImage: _negocio?.logoUrl != null
-                ? NetworkImage(_negocio!.logoUrl!)
-                : null,
-            child: _negocio?.logoUrl == null
-                ? Icon(Icons.storefront, size: 35, color: colorScheme.primary)
-                : null,
+            child: ClipOval(
+              child: _negocio?.logoUrl != null && _negocio!.logoUrl!.isNotEmpty
+                ? Image.network(
+                    _negocio!.logoUrl!,
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => 
+                        Icon(Icons.storefront, size: 35, color: colorScheme.primary),
+                  )
+                : Icon(Icons.storefront, size: 35, color: colorScheme.primary),
+            ),
           ),
           const SizedBox(height: 16),
           Text(

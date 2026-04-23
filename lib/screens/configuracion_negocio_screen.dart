@@ -56,19 +56,29 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
   }
 
   Future<void> _seleccionarImagen() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 800,
-      maxHeight: 800,
-      imageQuality: 85,
-    );
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
 
-    if (image != null) {
-      final bytes = await image.readAsBytes();
-      setState(() {
-        _previewBytes = bytes;
-      });
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        if (mounted) {
+          setState(() {
+            _previewBytes = bytes;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al seleccionar imagen: $e')),
+        );
+      }
     }
   }
 
@@ -98,9 +108,10 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Configuración guardada'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Configuración guardada correctamente'), backgroundColor: Colors.green),
         );
-        Navigator.pop(context);
+        // Quitamos Navigator.pop(context) porque el Drawer usa pushReplacement 
+        // y pop() podría cerrar la app o dejarla en negro.
       }
     } catch (e) {
       if (mounted) {
@@ -148,9 +159,17 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(20),
                         child: _previewBytes != null
-                          ? Image.memory(_previewBytes!, fit: BoxFit.contain)
-                          : (_logoUrl != null
-                              ? Image.network(_logoUrl!, fit: BoxFit.contain)
+                          ? Image.memory(
+                              _previewBytes!, 
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 50, color: Colors.red),
+                            )
+                          : (_logoUrl != null && _logoUrl!.isNotEmpty
+                              ? Image.network(
+                                  _logoUrl!, 
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image, size: 50, color: Colors.orange),
+                                )
                               : const Icon(Icons.add_a_photo_outlined, size: 50, color: Colors.blue)),
                       ),
                     ),

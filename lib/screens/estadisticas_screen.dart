@@ -536,15 +536,35 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   }
 
   Widget _buildError(String msg) {
+    bool isIndexError = msg.contains('index') || msg.contains('failed-precondition');
+
     return Container(
-      height: 200,
+      constraints: const BoxConstraints(minHeight: 150),
       alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          Icon(
+            isIndexError ? Icons.settings_suggest : Icons.error_outline,
+            color: isIndexError ? Colors.orange : Colors.red,
+            size: 32,
+          ),
           const SizedBox(height: 8),
-          Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red)),
+          Text(
+            isIndexError ? 'Falta un índice en Firebase' : 'Error:',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isIndexError 
+              ? 'Por favor, copia el link del error en la consola y ábrelo en una pestaña nueva.'
+              : msg,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
       ),
     );

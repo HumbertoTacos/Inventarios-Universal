@@ -800,8 +800,9 @@ class FirebaseService {
 
     // [FinOps] Optimización: Obtenemos agregaciones globales del servidor en una sola lectura
     final aggQuery = _ventasRef
+        .where('estado', isEqualTo: 'completada')
         .where('fecha', isGreaterThanOrEqualTo: inicioStr)
-        .where('estado', isEqualTo: 'completada');
+        .orderBy('fecha');
     
     final aggregateSnapshot = await aggQuery.aggregate(sum('total'), count()).get();
     final double serverTotalIngresos = (aggregateSnapshot.getSum('total') ?? 0).toDouble();
