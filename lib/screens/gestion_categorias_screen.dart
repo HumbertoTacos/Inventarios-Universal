@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_drawer.dart';
 
 class GestionCategoriasScreen extends StatelessWidget {
   const GestionCategoriasScreen({super.key});
@@ -16,6 +17,7 @@ class GestionCategoriasScreen extends StatelessWidget {
     final firebaseService = FirebaseService();
 
     return Scaffold(
+      drawer: const AppDrawer(currentRoute: 'categorias'),
       appBar: AppBar(
         title: const Text(
           'Gestionar Categorías',
@@ -24,6 +26,12 @@ class GestionCategoriasScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: colorScheme.primaryContainer,
         foregroundColor: colorScheme.onPrimaryContainer,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         elevation: 0,
       ),
       body: StreamBuilder<List<Categoria>>(

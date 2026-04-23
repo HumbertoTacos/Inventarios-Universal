@@ -3,6 +3,7 @@ class BitacoraLog {
   final DateTime fecha;
   final String usuarioId;
   final String nombreUsuario;
+  final String negocioId;
   final String modulo; // 'CAJA', 'INVENTARIO', 'VENTAS', 'CREDITOS', 'NEGOCIO'
   final String descripcion;
 
@@ -11,6 +12,7 @@ class BitacoraLog {
     required this.fecha,
     required this.usuarioId,
     required this.nombreUsuario,
+    required this.negocioId,
     required this.modulo,
     required this.descripcion,
   });
@@ -20,6 +22,7 @@ class BitacoraLog {
       'fecha': fecha.toIso8601String(),
       'usuarioId': usuarioId,
       'nombreUsuario': nombreUsuario,
+      'negocioId': negocioId,
       'modulo': modulo,
       'descripcion': descripcion,
     };
@@ -31,6 +34,7 @@ class BitacoraLog {
       fecha: DateTime.parse(map['fecha']),
       usuarioId: map['usuarioId'] ?? 'desconocido',
       nombreUsuario: map['nombreUsuario'] ?? 'Usuario',
+      negocioId: map['negocioId'] ?? '',
       modulo: map['modulo'] ?? 'GENERAL',
       descripcion: map['descripcion'] ?? '',
     );

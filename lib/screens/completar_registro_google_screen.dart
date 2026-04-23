@@ -6,10 +6,12 @@ class CompletarRegistroGoogleScreen extends StatefulWidget {
   const CompletarRegistroGoogleScreen({super.key});
 
   @override
-  State<CompletarRegistroGoogleScreen> createState() => _CompletarRegistroGoogleScreenState();
+  State<CompletarRegistroGoogleScreen> createState() =>
+      _CompletarRegistroGoogleScreenState();
 }
 
-class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleScreen> {
+class _CompletarRegistroGoogleScreenState
+    extends State<CompletarRegistroGoogleScreen> {
   final _negocioController = TextEditingController();
   final _codigoController = TextEditingController();
   bool _isCreatingBusiness = true;
@@ -18,22 +20,26 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
   void _completar() async {
     if (_negocioController.text.trim().isEmpty) return;
     setState(() => _isLoading = true);
-    
+
     try {
       await AuthService().completarRegistroGoogle(
-        negocioNombre: _isCreatingBusiness ? _negocioController.text.trim() : null,
-        codigoInvitacion: !_isCreatingBusiness ? _codigoController.text.trim() : null,
+        negocioNombre: _isCreatingBusiness
+            ? _negocioController.text.trim()
+            : null,
+        codigoInvitacion: !_isCreatingBusiness
+            ? _codigoController.text.trim()
+            : null,
       );
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AuthGate())
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: (_) => const AuthGate()));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -64,18 +70,23 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
               const SizedBox(height: 24),
               SwitchListTile(
                 title: Text(
-                  _isCreatingBusiness ? 'Soy Dueño (Crear Negocio)' : 'Soy Empleado (Tengo Código)',
+                  _isCreatingBusiness
+                      ? 'Soy Dueño (Crear Negocio)'
+                      : 'Soy Empleado (Tengo Código)',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 value: _isCreatingBusiness,
-                activeColor: Colors.blue,
+                activeThumbColor: Colors.blue,
                 inactiveThumbColor: Colors.orange,
                 inactiveTrackColor: Colors.orange.withOpacity(0.3),
                 onChanged: (val) {
                   setState(() {
                     _isCreatingBusiness = val;
-                    if (val) _codigoController.clear();
-                    else _negocioController.clear();
+                    if (val) {
+                      _codigoController.clear();
+                    } else {
+                      _negocioController.clear();
+                    }
                   });
                 },
               ),
@@ -83,12 +94,18 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
               if (_isCreatingBusiness)
                 TextField(
                   controller: _negocioController,
-                  decoration: const InputDecoration(labelText: 'Nombre de tu Negocio', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre de tu Negocio',
+                    border: OutlineInputBorder(),
+                  ),
                 )
               else
                 TextField(
                   controller: _codigoController,
-                  decoration: const InputDecoration(labelText: 'Código de Invitación (6 letras)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(
+                    labelText: 'Código de Invitación (6 letras)',
+                    border: OutlineInputBorder(),
+                  ),
                   textCapitalization: TextCapitalization.characters,
                 ),
               const SizedBox(height: 24),
@@ -99,7 +116,10 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
                         minimumSize: const Size(double.infinity, 50),
                       ),
                       onPressed: _completar,
-                      child: const Text('Completar y enviar solicitud', style: TextStyle(fontSize: 16)),
+                      child: const Text(
+                        'Completar y enviar solicitud',
+                        style: TextStyle(fontSize: 16),
+                      ),
                     ),
               const SizedBox(height: 16),
               TextButton(
@@ -107,12 +127,15 @@ class _CompletarRegistroGoogleScreenState extends State<CompletarRegistroGoogleS
                   await AuthService().logout();
                   if (context.mounted) {
                     Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const AuthGate())
+                      MaterialPageRoute(builder: (_) => const AuthGate()),
                     );
                   }
                 },
-                child: const Text('Cancelar e iniciar con otra cuenta', style: TextStyle(color: Colors.red)),
-              )
+                child: const Text(
+                  'Cancelar e iniciar con otra cuenta',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
             ],
           ),
         ),

@@ -5,6 +5,7 @@ import '../services/firebase_service.dart';
 import '../services/impresora_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_venta_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
   const HistorialVentasScreen({super.key});
@@ -60,6 +61,12 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
       appBar: AppBar(
         title: const Text('Historial de Pedidos'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month_outlined),
@@ -68,6 +75,7 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           ),
         ],
       ),
+      drawer: const AppDrawer(currentRoute: 'historial'),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),

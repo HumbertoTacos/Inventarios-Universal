@@ -338,6 +338,7 @@ class FirebaseService {
       'fecha': DateTime.now().toIso8601String(),
       'usuarioId': _currentUserId,
       'nombreUsuario': user?.nombre ?? 'Desconocido',
+      'negocioId': _negocioId,
       'modulo': modulo,
       'descripcion': descripcion,
     };

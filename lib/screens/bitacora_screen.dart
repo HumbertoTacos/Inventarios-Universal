@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
+import '../services/auth_service.dart';
 import '../models/bitacora_log.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import '../widgets/app_drawer.dart';
 
 class BitacoraScreen extends StatefulWidget {
   const BitacoraScreen({super.key});
@@ -87,7 +89,10 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    Query query = _bitacoraRef.orderBy('fecha', descending: true);
+    final negocioId = AuthService().currentNegocioId;
+    Query query = _bitacoraRef
+        .where('negocioId', isEqualTo: negocioId)
+        .orderBy('fecha', descending: true);
 
     if (_rangoSeleccionado != null) {
       // Ajustamos el fin para incluir todo el último día (23:59:59)
@@ -100,8 +105,15 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
     }
 
     return Scaffold(
+      drawer: const AppDrawer(currentRoute: 'bitacora'),
       appBar: AppBar(
         title: const Text('Bitácora de Movimientos'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           StreamBuilder<QuerySnapshot>(
             stream: query.snapshots(),

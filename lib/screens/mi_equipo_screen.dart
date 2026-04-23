@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_drawer.dart';
 
 class MiEquipoScreen extends StatefulWidget {
   const MiEquipoScreen({super.key});
@@ -109,10 +110,17 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
     final currentNegocioId = AuthService().currentNegocioId;
 
     return Scaffold(
+      drawer: const AppDrawer(currentRoute: 'equipo'),
       appBar: AppBar(
         title: const Text('Mi Equipo', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: cs.primaryContainer,
         foregroundColor: cs.onPrimaryContainer,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         elevation: 0,
       ),
       body: Center(

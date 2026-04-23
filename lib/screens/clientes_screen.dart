@@ -4,6 +4,7 @@ import '../models/cliente.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_cliente_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class ClientesScreen extends StatefulWidget {
   /// Si true, la pantalla actúa como selector y retorna un [Cliente] al cerrar.
@@ -81,11 +82,20 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
+      drawer: widget.modoSeleccion ? null : const AppDrawer(currentRoute: 'clientes'),
       appBar: AppBar(
         title: Text(widget.modoSeleccion ? 'Seleccionar Cliente' : 'Clientes',
             style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: cs.primaryContainer,
         foregroundColor: cs.onPrimaryContainer,
+        leading: widget.modoSeleccion 
+            ? null 
+            : Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              ),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(72),

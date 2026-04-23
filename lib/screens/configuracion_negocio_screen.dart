@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/negocio.dart';
 import '../services/firebase_service.dart';
+import '../widgets/app_drawer.dart';
 
 class ConfiguracionNegocioScreen extends StatefulWidget {
   const ConfiguracionNegocioScreen({super.key});
@@ -115,7 +116,16 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Identidad del Negocio')),
+      drawer: const AppDrawer(currentRoute: 'configuracion'),
+      appBar: AppBar(
+        title: const Text('Identidad del Negocio'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(

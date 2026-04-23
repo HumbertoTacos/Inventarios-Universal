@@ -7,6 +7,7 @@ import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
 import '../utils/formatters.dart';
+import '../widgets/app_drawer.dart';
 
 class EstadisticasScreen extends StatefulWidget {
   const EstadisticasScreen({super.key});
@@ -81,10 +82,17 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
     return Scaffold(
       backgroundColor: cs.surfaceContainerLowest,
+      drawer: const AppDrawer(currentRoute: 'estadisticas'),
       appBar: AppBar(
         title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: cs.primaryContainer,
         foregroundColor: cs.onPrimaryContainer,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         elevation: 0,
         actions: [
           // Botón de exportación CSV

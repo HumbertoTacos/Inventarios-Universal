@@ -18,6 +18,7 @@ import '../services/impresion_service.dart';
 import '../models/negocio.dart';
 import 'configuracion_negocio_screen.dart';
 import 'bitacora_screen.dart';
+import '../widgets/app_drawer.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -567,108 +568,7 @@ class _VentasScreenState extends State<VentasScreen> {
         }
       },
       child: Scaffold(
-        drawer: Drawer(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              DrawerHeader(
-                decoration: BoxDecoration(color: colorScheme.primary),
-                child: const Text(
-                  'Inventarios Universal',
-                  style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.point_of_sale),
-                title: const Text('Punto de Venta'),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(Icons.inventory_2_outlined),
-                title: const Text('Inventario'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const InventarioScreen()));
-                },
-              ),
-              if (puedeVerHistorial)
-                ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Historial de Ventas'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const HistorialVentasScreen()));
-                  },
-                ),
-              ListTile(
-                leading: const Icon(Icons.people_outlined),
-                title: const Text('Clientes y Créditos'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ClientesScreen()));
-                },
-              ),
-              if (esDueno) ...[
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.bar_chart),
-                  title: const Text('Estadísticas y Ganancias'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasScreen()));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.category_outlined),
-                  title: const Text('Gestionar Categorías'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GestionCategoriasScreen()));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.people_alt_outlined),
-                  title: const Text('Mi Equipo'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const MiEquipoScreen()));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.manage_search_outlined),
-                  title: const Text('Bitácora de Movimientos'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BitacoraScreen()));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.settings_outlined),
-                  title: const Text('Configuración del Negocio'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracionNegocioScreen()));
-                  },
-                ),
-              ],
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
-                onTap: () async {
-                  await AuthService().logout();
-                  if (context.mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AuthGate()),
-                      (route) => false,
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
+        drawer: const AppDrawer(currentRoute: 'ventas'),
         appBar: AppBar(
           title: const Text('Punto de Venta'),
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
