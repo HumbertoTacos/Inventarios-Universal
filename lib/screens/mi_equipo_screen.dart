@@ -192,7 +192,7 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
               stream: FirebaseFirestore.instance
                   .collection('usuarios')
                   .where('negocioId', isEqualTo: currentNegocioId)
-                  .where('rol', isNotEqualTo: 'dueño')
+                  .where('rol', isNotEqualTo: AuthService.rolDueno)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -204,7 +204,7 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
 
                 final docs = (snapshot.data?.docs ?? []).where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
-                  return data['rol'] == 'empleado' || data['rol'] == 'usuario';
+                  return data['rol'] == AuthService.rolEmpleado || data['rol'] == 'usuario';
                 }).toList();
 
                 if (docs.isEmpty) {

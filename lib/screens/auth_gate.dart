@@ -39,6 +39,26 @@ class AuthGate extends StatelessWidget {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
 
+            if (snapshot.hasError) {
+              return Scaffold(
+                body: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text('Error al cargar datos: ${snapshot.error}'),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => AuthService().logout(),
+                        child: const Text('Cerrar Sesión'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             final userData = AuthService().currentUserData;
             
             if (userData == null) {

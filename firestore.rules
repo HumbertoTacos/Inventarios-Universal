@@ -58,6 +58,7 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid;
       allow update: if request.auth != null && (
         request.auth.uid == uid || 
+        esAdmin() || 
         (getUserProfile().rol == 'dueño' && getUserProfile().negocioId == resource.data.negocioId)
       );
       allow delete: if false; // Los perfiles no se eliminan desde el cliente

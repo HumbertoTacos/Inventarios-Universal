@@ -71,7 +71,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (AuthService().currentUserData?.rol != 'dueño') {
+    if (AuthService().currentUserData?.rol != AuthService.rolDueno) {
       return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver estadísticas.')));
     }
 

@@ -257,7 +257,7 @@ class AuthService {
         'negocioNombre': negocioDoc['nombre'],
         'negocioId': negocioDoc.id,
         'estatus': 'aprobado',
-        'rol': 'empleado',
+        'rol': rolEmpleado,
       });
     } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
       final negocioRef = _firestore.collection('negocios').doc();
@@ -273,7 +273,7 @@ class AuthService {
         'negocioNombre': negocioNombre,
         'negocioId': negocioRef.id,
         'estatus': 'pendiente',
-        'rol': 'dueño',
+        'rol': rolDueno,
       });
     } else {
       throw Exception('Falta el nombre del negocio o un código de invitación');
