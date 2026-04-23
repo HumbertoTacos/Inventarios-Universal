@@ -16,6 +16,8 @@ import 'mi_equipo_screen.dart';
 import 'clientes_screen.dart';
 import '../services/auth_service.dart';
 import 'auth_gate.dart';
+import '../utils/formatters.dart';
+import '../services/impresion_service.dart';
 
 class InventarioScreen extends StatefulWidget {
   final bool modoSeleccion;
@@ -444,7 +446,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
           children: [
             Text('\$${producto.precio.toStringAsFixed(2)}',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
-            Text('Stock: ${producto.cantidad}',
+            Text('Stock: ${producto.cantidad.formatoInventario}',
                 style: TextStyle(fontSize: 12, fontWeight: inStock ? FontWeight.normal : FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
           ],
         ),
@@ -483,14 +485,14 @@ class _InventarioScreenState extends State<InventarioScreen> {
         title: Text('Stock: ${producto.nombre}'),
         content: TextField(
           controller: ctrl, 
-          keyboardType: TextInputType.number, 
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*'))],
-          decoration: const InputDecoration(labelText: 'Cantidad a ajustar (ej. -5 o 10)')
+          keyboardType: const TextInputType.numberWithOptions(decimal: true), 
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
+          decoration: const InputDecoration(labelText: 'Cantidad a ajustar (ej. -0.5 o 10)')
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
           FilledButton(onPressed: () async {
-            final val = int.tryParse(ctrl.text) ?? 0;
+            final val = double.tryParse(ctrl.text) ?? 0.0;
             if (val == 0) return;
             await _firebaseService.ajustarInventario(producto.id, val, 'Ajuste manual rápido');
             if (mounted) { Navigator.pop(ctx); _fetchInitial(); }
@@ -532,7 +534,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     child: Text(producto.nombre[0].toUpperCase(),
                         style: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.bold))),
                 title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('\$${producto.precio.toStringAsFixed(2)} • Stock: ${producto.cantidad}'),
+                subtitle: Text('\$${producto.precio.toStringAsFixed(2)} • Stock: ${producto.cantidad.formatoInventario}'),
               ),
               const Divider(),
               if (_puedeAjustarStock)
@@ -557,6 +559,23 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
                   title: const Text('Eliminar Producto', style: TextStyle(color: Colors.red)),
                   onTap: () { Navigator.pop(context); _confirmarEliminacion(producto); },
+                ),
+              if (producto.codigoBarras != null && producto.codigoBarras!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.print_outlined),
+                  title: const Text('Imprimir Etiqueta'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      await ImpresionService.imprimirEtiquetaProducto(producto);
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
                 ),
             ],
           ),

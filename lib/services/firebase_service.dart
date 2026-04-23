@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
@@ -8,6 +10,7 @@ import '../models/movimiento_inventario.dart';
 import '../models/dashboard_data.dart';
 import '../models/cliente.dart';
 import '../models/abono.dart';
+import '../models/negocio.dart';
 
 import 'auth_service.dart';
 
@@ -46,6 +49,12 @@ class FirebaseService {
 
   CollectionReference get _abonosRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('abonos');
+
+  DocumentReference get _negocioDataRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId);
+
+  Reference get _storageRef =>
+      FirebaseStorage.instance.ref().child('negocios').child(_negocioId);
 
   String get _currentUserId => AuthService().currentUser?.uid ?? 'unknown';
 
@@ -139,8 +148,14 @@ class FirebaseService {
     }
   }
 
+  Future<Producto?> getProducto(String id) async {
+    final doc = await _productosRef.doc(id).get();
+    if (!doc.exists) return null;
+    return Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+  }
+
   /// Método para reabastecer inventario recalculando el Costo Promedio Ponderado y registrando Kardex
-  Future<void> reabastecerProducto(String productoId, int cantidadNueva, double costoCompraNuevo) async {
+  Future<void> reabastecerProducto(String productoId, double cantidadNueva, double costoCompraNuevo) async {
     final docRef = _productosRef.doc(productoId);
     
     try {
@@ -152,7 +167,7 @@ class FirebaseService {
         
         final data = snapshot.data() as Map<String, dynamic>;
         
-        final stockViejo = (data['cantidad'] as num?)?.toInt() ?? 0;
+        final stockViejo = (data['cantidad'] as num?)?.toDouble() ?? 0.0;
         final costoViejo = (data['costo_promedio'] as num? ?? data['costo'] as num?)?.toDouble() ?? 0.0;
         
         final valorViejo = stockViejo * costoViejo;
@@ -190,7 +205,7 @@ class FirebaseService {
   }
 
   /// Realiza un ajuste manual del inventario registrando el Kardex.
-  Future<void> ajustarInventario(String productoId, int cantidad, String motivo) async {
+  Future<void> ajustarInventario(String productoId, double cantidad, String motivo) async {
     final docRef = _productosRef.doc(productoId);
 
     try {
@@ -198,7 +213,7 @@ class FirebaseService {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) throw Exception("El producto no existe");
 
-        final currentStock = (snapshot.get('cantidad') as num).toInt();
+        final currentStock = (snapshot.get('cantidad') as num).toDouble();
         final nuevoStock = currentStock + cantidad;
 
         transaction.update(docRef, {'cantidad': nuevoStock});
@@ -339,6 +354,34 @@ class FirebaseService {
     return TurnoCaja.fromMap(
         snapshot.docs.first.data() as Map<String, dynamic>,
         snapshot.docs.first.id);
+  }
+
+  /// Registra un gasto o retiro de efectivo del turno actual
+  Future<void> registrarRetiroCaja(String turnoId, double monto, String concepto) async {
+    try {
+      final docRef = _turnosCajaRef.doc(turnoId);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) throw Exception('Turno no encontrado');
+        
+        final data = snapshot.data() as Map<String, dynamic>;
+        final retirosActuales = (data['retirosEfectivo'] as num?)?.toDouble() ?? 0.0;
+        final historial = (data['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
+        
+        historial.add({
+          'monto': monto,
+          'concepto': concepto,
+          'hora': DateTime.now().toIso8601String(),
+        });
+
+        transaction.update(docRef, {
+          'retirosEfectivo': retirosActuales + monto,
+          'historialRetiros': historial,
+        });
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar retiro: ${e.message}');
+    }
   }
 
   // ── Ventas ────────────────────────────────────────────────────────────────
@@ -517,6 +560,33 @@ class FirebaseService {
           );
           transaction.set(kardexDoc, mov.toMap());
         }
+
+        // 3. Reversión financiera (Bug Fix QA)
+        if (venta.metodoPago == MetodoPago.efectivo) {
+          // Buscamos el turno abierto de forma atómica si es posible, 
+          // o usamos una lectura previa si no. Aquí buscaremos el activo.
+          final turnosQuery = await _turnosCajaRef
+              .where('estado', isEqualTo: EstadoTurno.abierto.name)
+              .limit(1)
+              .get();
+          
+          if (turnosQuery.docs.isNotEmpty) {
+            final turnoDoc = turnosQuery.docs.first;
+            final ventasEfectivoActual = (turnoDoc.get('ventasEfectivo') as num?)?.toDouble() ?? 0.0;
+            transaction.update(turnoDoc.reference, {
+              'ventasEfectivo': ventasEfectivoActual - venta.total,
+            });
+          }
+        } else if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
+          final refCliente = _clientesRef.doc(venta.clienteId!);
+          final snapCliente = await transaction.get(refCliente);
+          if (snapCliente.exists) {
+            final saldoActual = (snapCliente.get('saldoDeudor') as num?)?.toDouble() ?? 0.0;
+            transaction.update(refCliente, {
+              'saldoDeudor': (saldoActual - venta.total).clamp(0.0, double.infinity),
+            });
+          }
+        }
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al cancelar venta: ${e.message}');
@@ -567,6 +637,31 @@ class FirebaseService {
               usuarioId: _currentUserId,
             );
             transaction.set(kardexDoc, mov.toMap());
+          }
+        }
+
+        // 3. Reversión financiera (Bug Fix QA)
+        if (venta.metodoPago == MetodoPago.efectivo) {
+          final turnosQuery = await _turnosCajaRef
+              .where('estado', isEqualTo: EstadoTurno.abierto.name)
+              .limit(1)
+              .get();
+          
+          if (turnosQuery.docs.isNotEmpty) {
+            final turnoDoc = turnosQuery.docs.first;
+            final ventasEfectivoActual = (turnoDoc.get('ventasEfectivo') as num?)?.toDouble() ?? 0.0;
+            transaction.update(turnoDoc.reference, {
+              'ventasEfectivo': ventasEfectivoActual - venta.total,
+            });
+          }
+        } else if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
+          final refCliente = _clientesRef.doc(venta.clienteId!);
+          final snapCliente = await transaction.get(refCliente);
+          if (snapCliente.exists) {
+            final saldoActual = (snapCliente.get('saldoDeudor') as num?)?.toDouble() ?? 0.0;
+            transaction.update(refCliente, {
+              'saldoDeudor': (saldoActual - venta.total).clamp(0.0, double.infinity),
+            });
           }
         }
       });
@@ -644,7 +739,7 @@ class FirebaseService {
     final fmt = DateFormat('MM/dd');
     final ingresosPorDia = <String, double>{};
     final costosPorDia = <String, double>{};
-    final contadores = <String, int>{};
+    final contadores = <String, double>{};
     final nombres = <String, String>{};
     final ingresosProd = <String, double>{};
 
@@ -849,5 +944,25 @@ class FirebaseService {
         .map((snap) => snap.docs
             .map((d) => Abono.fromMap(d.data() as Map<String, dynamic>, d.id))
             .toList());
+  }
+
+  // ── Datos del Negocio ────────────────────────────────────────────────────
+
+  Future<Negocio> getDatosNegocio() async {
+    final doc = await _negocioDataRef.get();
+    if (doc.exists) {
+      return Negocio.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    }
+    return Negocio(id: _negocioId, nombre: 'Mi Negocio');
+  }
+
+  Future<void> actualizarDatosNegocio(Negocio negocio) async {
+    await _negocioDataRef.set(negocio.toMap(), SetOptions(merge: true));
+  }
+
+  Future<String> subirLogoNegocio(Uint8List imageBytes) async {
+    final ref = _storageRef.child('logo.jpg');
+    final uploadTask = await ref.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
+    return await uploadTask.ref.getDownloadURL();
   }
 }

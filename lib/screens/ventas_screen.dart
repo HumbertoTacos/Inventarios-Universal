@@ -13,6 +13,10 @@ import 'historial_ventas_screen.dart';
 import 'estadisticas_screen.dart';
 import 'mi_equipo_screen.dart';
 import 'gestion_categorias_screen.dart';
+import '../utils/formatters.dart';
+import '../services/impresion_service.dart';
+import '../models/negocio.dart';
+import 'configuracion_negocio_screen.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -24,7 +28,11 @@ class VentasScreen extends StatefulWidget {
 class _VentasScreenState extends State<VentasScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final List<VentaItem> _carrito = [];
+  final Map<String, Producto> _cacheProductos = {};
   bool _procesando = false;
+
+  final _barcodeFocusNode = FocusNode();
+  final _barcodeCtrl = TextEditingController();
 
   final _costoEnvioCtrl = TextEditingController(text: '0');
   bool _envioPagadoPorVendedor = true;
@@ -36,6 +44,8 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void dispose() {
     _costoEnvioCtrl.dispose();
+    _barcodeFocusNode.dispose();
+    _barcodeCtrl.dispose();
     super.dispose();
   }
 
@@ -51,7 +61,7 @@ class _VentasScreenState extends State<VentasScreen> {
     if (!mounted) return; // Fix para context across async gaps warning
     final TextEditingController ctrl = TextEditingController(text: '1');
     
-    final int? cantidad = await showDialog<int>(
+    final double? cantidad = await showDialog<double>(
       context: context,
       builder: (ctx) {
         return AlertDialog(
@@ -59,12 +69,12 @@ class _VentasScreenState extends State<VentasScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Stock disponible: ${producto.cantidad}'),
+              Text('Stock disponible: ${producto.cantidad.formatoInventario}'),
               const SizedBox(height: 16),
               TextField(
                 controller: ctrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
                 autofocus: true,
                 decoration: const InputDecoration(
                   labelText: 'Cantidad a vender',
@@ -80,7 +90,7 @@ class _VentasScreenState extends State<VentasScreen> {
             ),
             FilledButton(
               onPressed: () {
-                final c = int.tryParse(ctrl.text) ?? 0;
+                final c = double.tryParse(ctrl.text) ?? 0.0;
                 if (c > 0) {
                   Navigator.pop(ctx, c);
                 }
@@ -93,49 +103,71 @@ class _VentasScreenState extends State<VentasScreen> {
     );
 
     if (cantidad != null && cantidad > 0) {
-      if (cantidad > producto.cantidad) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No hay suficiente stock para esa cantidad.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
       setState(() {
+        _cacheProductos[producto.id] = producto;
         final existingIndex = _carrito.indexWhere((i) => i.productoId == producto.id);
         if (existingIndex >= 0) {
-          // Si ya existe en el carrito, verificamos si sumando no pasamos del stock
-          final nuevaCant = _carrito[existingIndex].cantidad + cantidad;
-          if (nuevaCant > producto.cantidad) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('No hay suficiente stock al sumar el carrito.'),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
           final oldItem = _carrito[existingIndex];
+          final nuevaCant = oldItem.cantidad + cantidad;
+          
+          // Lógica de Mayoreo
+          double precioFinal = producto.precio;
+          if (producto.cantidadMayoreo != null && 
+              producto.precioMayoreo != null && 
+              nuevaCant >= producto.cantidadMayoreo!) {
+            precioFinal = producto.precioMayoreo!;
+          }
+
           _carrito[existingIndex] = VentaItem(
             productoId: oldItem.productoId,
             nombre: oldItem.nombre,
             costoUnitario: oldItem.costoUnitario,
-            precioUnitario: oldItem.precioUnitario,
+            precioUnitario: precioFinal,
             cantidad: nuevaCant,
           );
         } else {
+          // Lógica de Mayoreo (inicial)
+          double precioFinal = producto.precio;
+          if (producto.cantidadMayoreo != null && 
+              producto.precioMayoreo != null && 
+              cantidad >= producto.cantidadMayoreo!) {
+            precioFinal = producto.precioMayoreo!;
+          }
+
           _carrito.add(VentaItem(
             productoId: producto.id,
             nombre: producto.nombre,
             costoUnitario: producto.costoPromedio,
-            precioUnitario: producto.precio,
+            precioUnitario: precioFinal,
             cantidad: cantidad,
           ));
         }
+        _barcodeCtrl.clear();
+        _barcodeFocusNode.requestFocus();
       });
+    }
+  }
+
+  Future<void> _procesarCodigoEscaneado(String code) async {
+    if (code.isEmpty) return;
+    
+    // Mostrar feedback visual de carga si es necesario, o buscar directo
+    try {
+      final p = await _firebaseService.buscarVariantePorSKU(code);
+      if (p != null) {
+        // En modo scanner laser (rápido), asumimos cantidad 1 o pedimos según config.
+        // Como es papelería, mejor pedir cantidad por si es hule/listón,
+        // pero podemos optimizar si es pieza única.
+        await _pedirCantidadYAgregar(p);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Código no encontrado'), backgroundColor: Colors.orange),
+        );
+        _barcodeCtrl.clear();
+        _barcodeFocusNode.requestFocus();
+      }
+    } catch (e) {
+      debugPrint('Error scanner: $e');
     }
   }
 
@@ -237,6 +269,46 @@ class _VentasScreenState extends State<VentasScreen> {
         return;
       }
 
+      // --- VALIDACIÓN DE STOCK NEGATIVO (BUG FIX QA) ---
+      List<String> productosEnNegativo = [];
+      for (var item in _carrito) {
+        final prod = await _firebaseService.getProducto(item.productoId);
+        if (prod != null && item.cantidad > prod.cantidad) {
+          productosEnNegativo.add(prod.nombre);
+        }
+      }
+
+      if (productosEnNegativo.isNotEmpty) {
+        if (!mounted) return;
+        final continuar = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Advertencia de Inventario'),
+            content: Text(
+              'El inventario de los siguientes productos quedará en negativo:\n\n'
+              '${productosEnNegativo.join(', ')}\n\n'
+              '¿Deseas continuar con la venta?'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Continuar'),
+              ),
+            ],
+          ),
+        );
+
+        if (continuar != true) {
+          setState(() => _procesando = false);
+          return;
+        }
+      }
+      // --- FIN VALIDACIÓN ---
+
       final nuevaVenta = Venta(
         id: '',
         fecha: DateTime.now(),
@@ -265,6 +337,15 @@ class _VentasScreenState extends State<VentasScreen> {
             backgroundColor: Colors.green,
           ),
         );
+
+        // Imprimir Ticket automáticamente
+        try {
+          final negocio = await _firebaseService.getDatosNegocio();
+          await ImpresionService.imprimirTicketVenta(nuevaVenta, negocio);
+        } catch (e) {
+          debugPrint('Error al imprimir ticket: $e');
+        }
+
         // Devolvemos el carrito a la pantalla anterior para actualización optimista
         Navigator.pop(context, soldItems);
       }
@@ -393,6 +474,14 @@ class _VentasScreenState extends State<VentasScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const MiEquipoScreen()));
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Configuración del Negocio'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfiguracionNegocioScreen()));
+                  },
+                ),
               ],
               const Divider(),
               ListTile(
@@ -433,6 +522,27 @@ class _VentasScreenState extends State<VentasScreen> {
             constraints: const BoxConstraints(maxWidth: 800),
             child: Column(
               children: [
+                // Input para escáner láser
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: TextField(
+                    controller: _barcodeCtrl,
+                    focusNode: _barcodeFocusNode,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Escanear producto o ingresar código...',
+                      prefixIcon: const Icon(Icons.qr_code_scanner),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () { _barcodeCtrl.clear(); _barcodeFocusNode.requestFocus(); },
+                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    ),
+                    onSubmitted: _procesarCodigoEscaneado,
+                  ),
+                ),
                 // Lista del carrito
                 Expanded(
                   child: _carrito.isEmpty
@@ -458,7 +568,7 @@ class _VentasScreenState extends State<VentasScreen> {
                             final item = _carrito[index];
                             return ListTile(
                               title: Text(item.nombre),
-                              subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
+                              subtitle: Text('${item.cantidad.formatoInventario} x \$${item.precioUnitario.toStringAsFixed(2)}'),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [

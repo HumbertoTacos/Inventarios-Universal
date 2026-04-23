@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../models/producto.dart';
 import '../services/firebase_service.dart';
 import 'barcode_scanner_screen.dart';
+import '../services/impresion_service.dart';
 
 class EditarProductoScreen extends StatefulWidget {
   final Producto producto;
@@ -22,6 +23,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   late final TextEditingController _precioCtrl;
   late final TextEditingController _descripcionCtrl;
   late final TextEditingController _codigoBarrasCtrl;
+  late final TextEditingController _cantMayoreoCtrl;
+  late final TextEditingController _precioMayoreoCtrl;
 
   bool _guardando = false;
 
@@ -33,6 +36,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _precioCtrl = TextEditingController(text: widget.producto.precio.toStringAsFixed(2));
     _descripcionCtrl = TextEditingController(text: widget.producto.descripcion);
     _codigoBarrasCtrl = TextEditingController(text: widget.producto.codigoBarras ?? '');
+    _cantMayoreoCtrl = TextEditingController(text: widget.producto.cantidadMayoreo?.toString() ?? '');
+    _precioMayoreoCtrl = TextEditingController(text: widget.producto.precioMayoreo?.toString() ?? '');
   }
 
   @override
@@ -42,6 +47,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _precioCtrl.dispose();
     _descripcionCtrl.dispose();
     _codigoBarrasCtrl.dispose();
+    _cantMayoreoCtrl.dispose();
+    _precioMayoreoCtrl.dispose();
     super.dispose();
   }
 
@@ -57,6 +64,12 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     }
   }
 
+  void _generarCodigoInterno() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    final code = timestamp.substring(timestamp.length - 10);
+    setState(() => _codigoBarrasCtrl.text = '750$code');
+  }
+
   Future<void> _guardarCambios() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -69,6 +82,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         precio: double.parse(_precioCtrl.text.trim()),
         descripcion: _descripcionCtrl.text.trim(),
         codigoBarras: _codigoBarrasCtrl.text.trim().isNotEmpty ? _codigoBarrasCtrl.text.trim() : null,
+        cantidadMayoreo: int.tryParse(_cantMayoreoCtrl.text),
+        precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
       );
 
       await _firebaseService.actualizarProducto(productoEditado);
@@ -96,6 +111,24 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
       appBar: AppBar(
         title: const Text('Editar Producto'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+        actions: [
+          if (widget.producto.codigoBarras != null && widget.producto.codigoBarras!.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.print_outlined),
+              tooltip: 'Imprimir Etiqueta',
+              onPressed: () async {
+                try {
+                  await ImpresionService.imprimirEtiquetaProducto(widget.producto);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+            ),
+        ],
       ),
       body: _guardando
           ? const Center(child: CircularProgressIndicator())
@@ -185,6 +218,37 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                           },
                         ),
                         const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _cantMayoreoCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Cant. Mayoreo',
+                                  prefixIcon: Icon(Icons.shopping_basket_outlined),
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _precioMayoreoCtrl,
+                                decoration: const InputDecoration(
+                                  labelText: 'Precio Mayoreo',
+                                  prefixText: '\$ ',
+                                  prefixIcon: Icon(Icons.discount_outlined),
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
 
                         // Código de Barras
                         TextFormField(
@@ -193,10 +257,20 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                             labelText: 'Código de barras',
                             border: const OutlineInputBorder(),
                             prefixIcon: const Icon(Icons.qr_code),
-                            suffixIcon: IconButton(
-                              icon: const Icon(Icons.camera_alt),
-                              onPressed: _escanearCodigo,
-                              tooltip: 'Escanear con la cámara',
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.auto_fix_high),
+                                  onPressed: _generarCodigoInterno,
+                                  tooltip: 'Autogenerar código',
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.camera_alt),
+                                  onPressed: _escanearCodigo,
+                                  tooltip: 'Escanear con la cámara',
+                                ),
+                              ],
                             ),
                           ),
                         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/turno_caja.dart';
 import '../services/firebase_service.dart';
+import '../services/impresion_service.dart';
 
 class CajaScreen extends StatefulWidget {
   const CajaScreen({Key? key}) : super(key: key);
@@ -13,6 +14,7 @@ class _CajaScreenState extends State<CajaScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   TurnoCaja? _turnoActivo;
   bool _isLoading = true;
+  bool _isCerrando = false;
 
   final TextEditingController _fondoInicialController = TextEditingController();
   final TextEditingController _efectivoContadoController = TextEditingController();
@@ -69,18 +71,99 @@ class _CajaScreenState extends State<CajaScreen> {
 
     setState(() => _isLoading = true);
     try {
+      final turnoParaImprimir = _turnoActivo!; // Clonamos referencia antes de borrarla
       await _firebaseService.cerrarTurnoCaja(_turnoActivo!.id, efectivoContado);
       await _cargarTurnoActivo();
       _efectivoContadoController.clear();
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Caja cerrada (Arqueo completado)')),
       );
+
+      // Preguntar si desea imprimir Corte Z
+      if (mounted) {
+        _preguntarImprimirCorteZ(turnoParaImprimir.copyWith(efectivoContado: efectivoContado, fechaCierre: DateTime.now()));
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _mostrarDialogoRetiro() async {
+    if (_turnoActivo == null) return;
+    
+    final montoCtrl = TextEditingController();
+    final conceptoCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Registrar Gasto o Retiro'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: montoCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Monto (\$)', prefixIcon: Icon(Icons.money)),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: conceptoCtrl,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(labelText: 'Concepto (ej. Pago de agua)', prefixIcon: Icon(Icons.notes)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () async {
+              final monto = double.tryParse(montoCtrl.text) ?? 0.0;
+              final concepto = conceptoCtrl.text.trim();
+              if (monto <= 0 || concepto.isEmpty) return;
+              
+              Navigator.pop(ctx);
+              setState(() => _isLoading = true);
+              try {
+                await _firebaseService.registrarRetiroCaja(_turnoActivo!.id, monto, concepto);
+                await _cargarTurnoActivo();
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Retiro registrado')));
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                setState(() => _isLoading = false);
+              }
+            }, 
+            child: const Text('Confirmar Retiro')
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _preguntarImprimirCorteZ(TurnoCaja turno) async {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Caja Cerrada'),
+        content: const Text('¿Deseas imprimir el comprobante de Corte Z para administración?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('No, gracias')),
+          FilledButton.icon(
+            icon: const Icon(Icons.print),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final negocio = await _firebaseService.getDatosNegocio();
+              ImpresionService.imprimirCorteZ(turno, negocio);
+            }, 
+            label: const Text('Imprimir Ticket')
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -177,12 +260,32 @@ class _CajaScreenState extends State<CajaScreen> {
           
           _buildInfoRow('Fondo Inicial:', turno.fondoInicial),
           _buildInfoRow('Ventas en Efectivo:', turno.ventasEfectivo),
+          _buildInfoRow('Retiros/Gastos:', -turno.retirosEfectivo),
           const Divider(),
           _buildInfoRow(
             'Total Esperado en Caja:', 
             turno.totalEsperadoEfectivo,
             isBold: true
           ),
+          
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _mostrarDialogoRetiro,
+            icon: const Icon(Icons.remove_circle_outline, color: Colors.orange),
+            label: const Text('REGISTRAR GASTO/RETIRO', style: TextStyle(color: Colors.orange)),
+          ),
+
+          if (turno.historialRetiros.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            const Text('Historial de Retiros:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ...turno.historialRetiros.reversed.map((h) => ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(h['concepto'] ?? 'Sin concepto'),
+              subtitle: Text(h['hora'] != null ? h['hora'].toString().substring(11, 16) : ''),
+              trailing: Text('-\$${(h['monto'] as num?)?.toDouble().toStringAsFixed(2)}', style: const TextStyle(color: Colors.red)),
+            )),
+          ],
           
           const SizedBox(height: 40),
           const Text(

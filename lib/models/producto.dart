@@ -15,12 +15,14 @@ class Producto {
   /// ej: [{"id": "abc", "atributos": "Azul Matrimonial", "stock": 5}]
   final List<Map<String, dynamic>> variantesResumen;
 
-  final int cantidad; // Cantidad total del padre si agrupa, o la específica de la variante
+  final double cantidad; // Cantidad total del padre si agrupa, o la específica de la variante
   final double costoPromedio;
   final double precio;
   final String descripcion;
   final String? codigoBarras;
   final bool activo; // Campo para Soft Delete
+  final int? cantidadMayoreo;
+  final double? precioMayoreo;
 
   Producto({
     required this.id,
@@ -36,6 +38,8 @@ class Producto {
     this.grupoId,
     this.variantesResumen = const [],
     this.activo = true,
+    this.cantidadMayoreo,
+    this.precioMayoreo,
   });
 
   /// Crea un [Producto] a partir de un documento de Firestore.
@@ -65,7 +69,7 @@ class Producto {
       nombre: map['nombre'] as String? ?? '',
       categoria: map['categoria'] as String? ?? '',
       atributos: atributos,
-      cantidad: (map['cantidad'] as num?)?.toInt() ?? 0,
+      cantidad: (map['cantidad'] as num?)?.toDouble() ?? 0.0,
       costoPromedio:
           (map['costo_promedio'] as num? ?? map['costo'] as num?)?.toDouble() ??
               0.0,
@@ -78,7 +82,9 @@ class Producto {
               ?.map((item) => item as Map<String, dynamic>)
               .toList() ??
           const [],
-      activo: map['activo'] as bool? ?? true, // Retrocompatibilidad: si no existe, es true
+      activo: map['activo'] as bool? ?? true,
+      cantidadMayoreo: (map['cantidadMayoreo'] as num?)?.toInt(),
+      precioMayoreo: (map['precioMayoreo'] as num?)?.toDouble(),
     );
   }
 
@@ -96,6 +102,8 @@ class Producto {
         if (grupoId != null) 'grupoId': grupoId,
         'variantesResumen': variantesResumen,
         'activo': activo,
+        'cantidadMayoreo': cantidadMayoreo,
+        'precioMayoreo': precioMayoreo,
       };
 
   /// Resumen de todos los atributos para mostrar en la UI (ej: "Queen · Rojo").
@@ -108,7 +116,7 @@ class Producto {
     String? nombre,
     String? categoria,
     Map<String, String>? atributos,
-    int? cantidad,
+    double? cantidad,
     double? costoPromedio,
     double? precio,
     String? descripcion,
@@ -117,6 +125,8 @@ class Producto {
     String? grupoId,
     List<Map<String, dynamic>>? variantesResumen,
     bool? activo,
+    int? cantidadMayoreo,
+    double? precioMayoreo,
   }) {
     return Producto(
       id: id ?? this.id,
@@ -132,6 +142,8 @@ class Producto {
       grupoId: grupoId ?? this.grupoId,
       variantesResumen: variantesResumen ?? List.from(this.variantesResumen),
       activo: activo ?? this.activo,
+      cantidadMayoreo: cantidadMayoreo ?? this.cantidadMayoreo,
+      precioMayoreo: precioMayoreo ?? this.precioMayoreo,
     );
   }
 

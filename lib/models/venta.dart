@@ -6,7 +6,7 @@ class VentaItem {
   final String nombre;
   final double costoUnitario;
   final double precioUnitario;
-  final int cantidad;
+  final double cantidad;
 
   double get subtotal => precioUnitario * cantidad;
 
@@ -35,7 +35,7 @@ class VentaItem {
       nombre: map['nombre'] as String? ?? '',
       costoUnitario: (map['costoUnitario'] as num?)?.toDouble() ?? 0.0,
       precioUnitario: (map['precioUnitario'] as num?)?.toDouble() ?? 0.0,
-      cantidad: (map['cantidad'] as num?)?.toInt() ?? 0,
+      cantidad: (map['cantidad'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

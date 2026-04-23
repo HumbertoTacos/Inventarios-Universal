@@ -6,6 +6,7 @@ import '../models/dashboard_data.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
+import '../utils/formatters.dart';
 
 class EstadisticasScreen extends StatefulWidget {
   const EstadisticasScreen({super.key});
@@ -437,7 +438,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                         child: Text(p.nombre,
                             style: const TextStyle(fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis)),
-                    Text('${p.cantidadVendida} uds',
+                    Text('${p.cantidadVendida.formatoInventario} uds',
                         style: TextStyle(fontSize: 12, color: cs.outline)),
                     const SizedBox(width: 8),
                     Text(moneyFmt.format(p.ingresoGenerado),
@@ -513,7 +514,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                   decoration: BoxDecoration(
                       color: color.withAlpha(20), borderRadius: BorderRadius.circular(20)),
                   child: Text(
-                    agotado ? 'AGOTADO' : '${p.cantidad} uds',
+                    agotado ? 'AGOTADO' : '${p.cantidad.formatoInventario} uds',
                     style: TextStyle(
                         color: color, fontWeight: FontWeight.bold, fontSize: 12),
                   ),

@@ -4,8 +4,8 @@ class MovimientoInventario {
   final String id;
   final String productoId;
   final TipoMovimiento tipoMovimiento;
-  final int cantidadAlterada; // Positiva para sumas, negativa para restas
-  final int stockResultante;
+  final double cantidadAlterada; // Positiva para sumas, negativa para restas
+  final double stockResultante;
   final String motivo; // Ej. "Merma", "Venta", "Devolución"
   final DateTime fecha;
   final String usuarioId;
@@ -41,8 +41,8 @@ class MovimientoInventario {
         (e) => e.name == map['tipoMovimiento'],
         orElse: () => TipoMovimiento.ajuste,
       ),
-      cantidadAlterada: (map['cantidadAlterada'] as num?)?.toInt() ?? 0,
-      stockResultante: (map['stockResultante'] as num?)?.toInt() ?? 0,
+      cantidadAlterada: (map['cantidadAlterada'] as num?)?.toDouble() ?? 0.0,
+      stockResultante: (map['stockResultante'] as num?)?.toDouble() ?? 0.0,
       motivo: map['motivo'] as String? ?? '',
       fecha: map['fecha'] != null ? DateTime.parse(map['fecha']) : DateTime.now(),
       usuarioId: map['usuarioId'] as String? ?? '',

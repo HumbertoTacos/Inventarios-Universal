@@ -23,6 +23,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   final _precioCtrl = TextEditingController();
   final _descripcionCtrl = TextEditingController();
   final _codigoBarrasCtrl = TextEditingController();
+  final _cantMayoreoCtrl = TextEditingController();
+  final _precioMayoreoCtrl = TextEditingController();
 
   bool _guardando = false;
   Categoria? _categoriaSeleccionada;
@@ -40,6 +42,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     _precioCtrl.dispose();
     _descripcionCtrl.dispose();
     _codigoBarrasCtrl.dispose();
+    _cantMayoreoCtrl.dispose();
+    _precioMayoreoCtrl.dispose();
     for (final c in _atributoCtrl.values) {
       c.dispose();
     }
@@ -152,11 +156,11 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                           prefixIcon: Icon(Icons.numbers),
                           border: OutlineInputBorder(),
                         ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Requerido';
-                          if ((int.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
+                          if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
                           return null;
                         },
                       ),
@@ -217,6 +221,41 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                       ),
                       const SizedBox(height: 16),
 
+                      // ── Mayoreo ──
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _cantMayoreoCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Cant. Mayoreo',
+                                prefixIcon: Icon(Icons.shopping_basket_outlined),
+                                border: OutlineInputBorder(),
+                                hintText: 'Ej. 12',
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _precioMayoreoCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Precio Mayoreo',
+                                prefixText: '\$ ',
+                                prefixIcon: Icon(Icons.discount_outlined),
+                                border: OutlineInputBorder(),
+                                hintText: 'Ej. 10.00',
+                              ),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
                       // ── Código de barras ──
                       TextFormField(
                         controller: _codigoBarrasCtrl,
@@ -234,6 +273,11 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                                   onPressed: () =>
                                       setState(() => _codigoBarrasCtrl.clear()),
                                 ),
+                              IconButton(
+                                icon: const Icon(Icons.auto_fix_high),
+                                tooltip: 'Autogenerar código',
+                                onPressed: _generarCodigoInterno,
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.camera_alt),
                                 tooltip: 'Escanear con cámara',
@@ -348,6 +392,13 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     }
   }
 
+  void _generarCodigoInterno() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+    // Tomamos los últimos 10 dígitos para un código limpio
+    final code = timestamp.substring(timestamp.length - 10);
+    setState(() => _codigoBarrasCtrl.text = '750$code'); // Prefijo interno ficticio
+  }
+
   // ── Guardar producto ──────────────────────────────────────────────────────
 
   Future<void> _guardarProducto() async {
@@ -367,13 +418,15 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       nombre: _nombreCtrl.text.trim(),
       categoria: _categoriaSeleccionada!.nombre,
       atributos: Map<String, String>.from(_atributos),
-      cantidad: int.parse(_cantidadCtrl.text.trim()),
+      cantidad: double.parse(_cantidadCtrl.text.trim()),
       costoPromedio: double.parse(_costoCtrl.text.trim()),
       precio: double.parse(_precioCtrl.text.trim()),
       descripcion: _descripcionCtrl.text.trim(),
       codigoBarras: _codigoBarrasCtrl.text.trim().isNotEmpty
           ? _codigoBarrasCtrl.text.trim()
           : null,
+      cantidadMayoreo: int.tryParse(_cantMayoreoCtrl.text),
+      precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
     );
 
     try {

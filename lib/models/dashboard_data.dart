@@ -2,7 +2,7 @@
 class TopProducto {
   final String productoId;
   final String nombre;
-  final int cantidadVendida;
+  final double cantidadVendida;
   final double ingresoGenerado;
 
   const TopProducto({
