@@ -8,6 +8,7 @@ import 'package:csv/csv.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/app_drawer.dart';
 
 class BitacoraScreen extends StatefulWidget {
@@ -158,43 +159,41 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
           }).toList();
 
           if (logs.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.manage_search, size: 64, color: colorScheme.outline.withAlpha(100)),
-                  const SizedBox(height: 16),
-                  const Text('No se encontraron movimientos', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
+            return const PremiumEmptyState(
+              icon: Icons.manage_search,
+              title: 'Bitácora Vacía',
+              subtitle: 'No se encontraron movimientos en el periodo seleccionado.',
             );
           }
 
-          return ListView.separated(
+          return ListView.builder(
+            padding: const EdgeInsets.all(8),
             itemCount: logs.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final log = logs[index];
-              return ListTile(
-                leading: _getIconForModulo(log.modulo),
-                title: Text(log.descripcion, style: const TextStyle(fontSize: 14)),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Row(
-                    children: [
-                      Text(log.nombreUsuario, style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 12)),
-                      const SizedBox(width: 8),
-                      Text(DateFormat('dd/MM HH:mm').format(log.fecha), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                    ],
+              return PremiumCard(
+                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: ListTile(
+                  leading: _getIconForModulo(log.modulo),
+                  title: Text(log.descripcion, style: const TextStyle(fontSize: 14)),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Row(
+                      children: [
+                        Text(log.nombreUsuario, style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 12)),
+                        const SizedBox(width: 8),
+                        Text(DateFormat('dd/MM HH:mm').format(log.fecha), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
                   ),
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer.withAlpha(100),
-                    borderRadius: BorderRadius.circular(12),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer.withAlpha(100),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(log.modulo, style: TextStyle(fontSize: 10, color: colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold)),
                   ),
-                  child: Text(log.modulo, style: TextStyle(fontSize: 10, color: colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold)),
                 ),
               );
             },

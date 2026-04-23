@@ -19,6 +19,7 @@ import 'auth_gate.dart';
 import '../utils/formatters.dart';
 import '../services/impresion_service.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 
 class InventarioScreen extends StatefulWidget {
   final bool modoSeleccion;
@@ -301,28 +302,19 @@ class _InventarioScreenState extends State<InventarioScreen> {
   // ── Widgets de Estado y Cards ─────────────────────────────────────────────
 
   Widget _buildEstadoVacio(String titulo, String subtitulo) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withAlpha(20),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.inventory_2_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
-          ),
-          const SizedBox(height: 24),
-          Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
-          const SizedBox(height: 8),
-          Text(subtitulo, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
-          if (_isSearching) ...[
-            const SizedBox(height: 16),
-            TextButton(onPressed: () { _searchCtrl.clear(); _fetchInitial(); }, child: const Text('Ver todo')),
-          ],
-        ],
-      ),
+    return PremiumEmptyState(
+      icon: Icons.inventory_2_outlined,
+      title: titulo,
+      subtitle: subtitulo,
+      action: _isSearching
+          ? TextButton(
+              onPressed: () {
+                _searchCtrl.clear();
+                _fetchInitial();
+              },
+              child: const Text('Ver todo el inventario'),
+            )
+          : null,
     );
   }
 
@@ -330,15 +322,12 @@ class _InventarioScreenState extends State<InventarioScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final inStock = producto.cantidad > 0;
     
-    return Card(
+    return PremiumCard(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      elevation: 0,
-      color: colorScheme.surfaceContainerHighest.withAlpha(76), // 0.3 opacity
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onTap: () => widget.modoSeleccion
+          ? Navigator.pop(context, producto)
+          : _abrirMenuAcciones(producto),
       child: ListTile(
-        onTap: () => widget.modoSeleccion
-            ? Navigator.pop(context, producto)
-            : _abrirMenuAcciones(producto),
         leading: CircleAvatar(
           backgroundColor: inStock ? colorScheme.secondaryContainer : Colors.red.shade50,
           child: Text(producto.nombre[0].toUpperCase(),

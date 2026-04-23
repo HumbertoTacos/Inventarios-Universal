@@ -5,6 +5,7 @@ import '../services/firebase_service.dart';
 import '../services/impresion_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_venta_screen.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/app_drawer.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
@@ -118,8 +119,10 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
                 final ventas = snapshot.data ?? [];
 
                 if (ventas.isEmpty) {
-                  return const Center(
-                    child: Text('No hay pedidos en esta semana.'),
+                  return const PremiumEmptyState(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Sin Ventas',
+                    subtitle: 'No hay pedidos en el periodo seleccionado.',
                   );
                 }
 
@@ -163,20 +166,8 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
         statusText = 'Completada';
     }
 
-    return Container(
+    return PremiumCard(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).colorScheme.outline.withAlpha(20)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(5),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: statusColor.withAlpha(26),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
+
 
 class DetalleVentaScreen extends StatefulWidget {
   final Venta venta;
@@ -220,29 +222,27 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
                       const SizedBox(height: 24),
                       const Text('Productos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 16, offset: const Offset(0, 4)),
-                          ],
-                        ),
-                        child: ListView.separated(
+                      PremiumCard(
+                        color: Theme.of(context).colorScheme.surface,
+                        padding: EdgeInsets.zero,
+                        child: ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: venta.items.length,
-                          separatorBuilder: (ctx, idx) => const Divider(height: 1),
                           itemBuilder: (ctx, idx) {
                             final item = venta.items[idx];
-                            return ListTile(
-                              title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
-                              trailing: Text(
-                                '\$${item.subtotal.toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
+                            return Column(
+                              children: [
+                                ListTile(
+                                  title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  subtitle: Text('${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'),
+                                  trailing: Text(
+                                    '\$${item.subtotal.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                  ),
+                                ),
+                                if (idx < venta.items.length - 1) const Divider(height: 1),
+                              ],
                             );
                           },
                         ),

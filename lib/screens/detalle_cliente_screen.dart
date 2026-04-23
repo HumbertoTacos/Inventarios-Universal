@@ -5,6 +5,8 @@ import '../models/abono.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
+
 
 class DetalleClienteScreen extends StatefulWidget {
   final Cliente cliente;
@@ -359,34 +361,10 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
         }
         final abonos = snap.data ?? [];
         if (abonos.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: cs.primary.withAlpha(20),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.receipt_long_outlined,
-                    size: 80,
-                    color: cs.primary.withAlpha(150),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Sin abonos registrados',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: cs.onSurface),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Los pagos realizados aparecerán aquí',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
+          return const PremiumEmptyState(
+            icon: Icons.receipt_long_outlined,
+            title: 'Sin abonos registrados',
+            subtitle: 'Los pagos realizados aparecerán aquí',
           );
         }
         return Column(
@@ -402,11 +380,12 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
               ),
             ),
             Expanded(
-              child: ListView.separated(
+              child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: abonos.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) => _buildAbonoTile(abonos[i], cs),
+                itemBuilder: (_, i) => PremiumCard(
+                  child: _buildAbonoTile(abonos[i], cs),
+                ),
               ),
             ),
           ],

@@ -20,6 +20,8 @@ import 'configuracion_negocio_screen.dart';
 import 'bitacora_screen.dart';
 import 'caja_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
+import 'package:animated_flip_counter/animated_flip_counter.dart'; // [UI Polish]
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -647,26 +649,10 @@ class _VentasScreenState extends State<VentasScreen> {
                 // Lista del carrito
                 Expanded(
                   child: _carrito.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(24),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withAlpha(20),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(Icons.shopping_cart_outlined, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
-                              ),
-                              const SizedBox(height: 24),
-                              Text('Carrito Vacío',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
-                              const SizedBox(height: 8),
-                              Text('Escanea o busca un producto para agregar',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600)),
-                            ],
-                          ),
+                      ? const PremiumEmptyState(
+                          icon: Icons.shopping_basket_outlined,
+                          title: 'Carrito Vacío',
+                          subtitle: 'Escanea o busca un producto para agregar al inventario.',
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -675,11 +661,9 @@ class _VentasScreenState extends State<VentasScreen> {
                             final item = _carrito[index];
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Card(
-                                elevation: 0,
+                              child: PremiumCard(
                                 margin: EdgeInsets.zero,
-                                color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(76), // 0.3 opacity
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                padding: const EdgeInsets.symmetric(vertical: 4),
                                 child: ListTile(
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                   title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -725,19 +709,18 @@ class _VentasScreenState extends State<VentasScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 300),
-                              transitionBuilder: (Widget child, Animation<double> animation) {
-                                return ScaleTransition(scale: animation, child: child);
-                              },
-                              child: Text(
-                                '\$${_totalVenta.toStringAsFixed(2)}',
-                                key: ValueKey<double>(_totalVenta),
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                            AnimatedFlipCounter(
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.elasticOut,
+                              value: _totalVenta,
+                              prefix: "\$",
+                              fractionDigits: 2,
+                              thousandSeparator: ",",
+                              textStyle: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary,
+                                letterSpacing: -1,
                               ),
                             ),
                           ],

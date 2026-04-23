@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/turno_caja.dart';
 import '../services/firebase_service.dart';
 import '../services/impresion_service.dart';
+import '../services/impresion_service.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/app_drawer.dart';
 
 class CajaScreen extends StatefulWidget {
@@ -225,28 +227,14 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Widget _buildAbrirCaja() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.lock_outline,
-          size: 80,
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'La caja está cerrada',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Inicia un nuevo turno para registrar ventas en efectivo.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 48),
+    return SingleChildScrollView(
+      child: PremiumEmptyState(
+        icon: Icons.lock_outline,
+        title: 'La caja está cerrada',
+        subtitle: 'Inicia un nuevo turno para registrar ventas en efectivo.',
+        action: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
         TextField(
           controller: _fondoInicialController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -272,7 +260,9 @@ class _CajaScreenState extends State<CajaScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
@@ -282,13 +272,10 @@ class _CajaScreenState extends State<CajaScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
+          PremiumCard(
             padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
-            ),
+            color: Colors.green.withValues(alpha: 0.1),
+            borderRadius: 24,
             child: const Column(
               children: [
                 Icon(Icons.lock_open_rounded, size: 48, color: Colors.green),

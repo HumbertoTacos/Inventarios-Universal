@@ -6,6 +6,7 @@ import '../models/dashboard_data.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../utils/formatters.dart';
 import '../widgets/app_drawer.dart';
 
@@ -231,15 +232,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   Widget _buildKpiCard(String label, String valor, IconData icon, Color color,
       ColorScheme cs) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: cs.outline.withAlpha(20)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 16, offset: const Offset(0, 4)),
-        ],
-      ),
+    return PremiumCard(
+      color: cs.surface,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,11 +267,12 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   Widget _buildGrafico(DashboardData data, ColorScheme cs) {
     if (data.ingresosPorDia.isEmpty) {
-      return Container(
-        height: 160,
-        decoration: BoxDecoration(
-            color: cs.surface, borderRadius: BorderRadius.circular(16)),
-        child: const Center(child: Text('Sin datos para el período seleccionado')),
+      return PremiumCard(
+        color: cs.surface,
+        child: const SizedBox(
+          height: 160,
+          child: Center(child: Text('Sin datos para el período seleccionado')),
+        ),
       );
     }
 
@@ -311,12 +306,12 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       ));
     }
 
-    return Container(
-      height: 220,
-      decoration: BoxDecoration(
-          color: cs.surface, borderRadius: BorderRadius.circular(16)),
+    return PremiumCard(
+      color: cs.surface,
       padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
-      child: Column(
+      child: SizedBox(
+        height: 220,
+        child: Column(
         children: [
           // Leyenda
           Row(
@@ -380,6 +375,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -395,20 +391,20 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   Widget _buildTopProductos(DashboardData data, ColorScheme cs, TextTheme tt) {
     if (data.topProductos.isEmpty) {
-      return Container(
-        height: 80,
-        decoration: BoxDecoration(
-            color: cs.surface, borderRadius: BorderRadius.circular(16)),
-        child: const Center(child: Text('Sin ventas en el período seleccionado')),
+      return PremiumCard(
+        color: cs.surface,
+        child: const SizedBox(
+          height: 80,
+          child: Center(child: Text('Sin ventas en el período seleccionado')),
+        ),
       );
     }
 
     final maxCant = data.topProductos.first.cantidadVendida.toDouble();
     final moneyFmt = NumberFormat.simpleCurrency(locale: 'es_MX');
 
-    return Container(
-      decoration:
-          BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(16)),
+    return PremiumCard(
+      color: cs.surface,
       padding: const EdgeInsets.all(16),
       child: Column(
         children: data.topProductos.asMap().entries.map((e) {
@@ -495,9 +491,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             ),
           );
         }
-        return Container(
-          decoration: BoxDecoration(
-              color: cs.surface, borderRadius: BorderRadius.circular(16)),
+        return PremiumCard(
+          color: cs.surface,
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/app_drawer.dart';
+
 
 class MiEquipoScreen extends StatefulWidget {
   const MiEquipoScreen({super.key});
@@ -216,13 +218,10 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
                 }).toList();
 
                 if (docs.isEmpty) {
-                  return Center(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.people_outline, size: 64, color: Colors.grey.shade400),
-                      const SizedBox(height: 8),
-                      Text('No tienes empleados registrados.',
-                          style: TextStyle(color: Colors.grey.shade500)),
-                    ]),
+                  return const PremiumEmptyState(
+                    icon: Icons.people_outline,
+                    title: 'Sin Empleados',
+                    subtitle: 'No tienes empleados registrados.',
                   );
                 }
 
@@ -252,10 +251,8 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
                       permisos.puedeAbrirCerrarCaja,
                     ].where((v) => v).length;
 
-                    return Card(
-                      elevation: isActivo ? 1 : 0,
+                    return PremiumCard(
                       color: isActivo ? null : Colors.grey.shade100,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         onTap: isActivo
                             ? () => _abrirPanelPermisos(uid, nombre, email, data)

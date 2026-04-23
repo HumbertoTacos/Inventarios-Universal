@@ -5,6 +5,7 @@ import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_cliente_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/premium_widgets.dart'; // [UI Polish]
 
 class ClientesScreen extends StatefulWidget {
   /// Si true, la pantalla actúa como selector y retorna un [Cliente] al cerrar.
@@ -164,30 +165,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
     if (loading) return const Center(child: CircularProgressIndicator());
 
     if (clientes.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withAlpha(20),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.people_outline, size: 80, color: Theme.of(context).colorScheme.primary.withAlpha(150)),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _enModoBusqueda ? 'Sin resultados' : 'Sin clientes registrados',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _enModoBusqueda ? 'Intenta buscar con otro término' : 'Agrega tu primer cliente',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
-            ),
-          ],
-        ),
+      return PremiumEmptyState(
+        icon: Icons.people_outline,
+        title: _enModoBusqueda ? 'Sin resultados' : 'Sin clientes registrados',
+        subtitle: _enModoBusqueda ? 'Intenta buscar con otro término' : 'Agrega tu primer cliente para gestionar sus créditos.',
       );
     }
 
@@ -242,18 +223,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
       cardColor = cs.surfaceContainerHighest.withAlpha(76); // 0.3 opacity
     }
 
-    return Card(
+    return PremiumCard(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      elevation: 0,
       color: cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: tieneDeuda 
-          ? BorderSide(color: deudaColor.withAlpha(80), width: 1)
-          : BorderSide.none,
-      ),
+      onTap: () => _abrirDetalleOSeleccionar(c),
       child: ListTile(
-        onTap: () => _abrirDetalleOSeleccionar(c),
         leading: CircleAvatar(
           backgroundColor: tieneDeuda ? deudaColor.withAlpha(30) : cs.secondaryContainer,
           child: Text(c.nombre[0].toUpperCase(),
