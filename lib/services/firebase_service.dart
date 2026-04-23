@@ -158,6 +158,20 @@ class FirebaseService {
     }
   }
 
+  /// [FinOps] Optimización N+1: Obtiene múltiples productos en una sola consulta por lotes.
+  Future<List<Producto>> getProductosPorLote(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    // Dividimos en lotes de 30 (límite de Firestore para whereIn)
+    List<Producto> results = [];
+    for (var i = 0; i < ids.length; i += 30) {
+      final end = (i + 30) > ids.length ? ids.length : i + 30;
+      final chunk = ids.sublist(i, end);
+      final snap = await _productosRef.where(FieldPath.documentId, whereIn: chunk).get();
+      results.addAll(snap.docs.map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id)));
+    }
+    return results;
+  }
+
   Future<Producto?> getProducto(String id) async {
     final doc = await _productosRef.doc(id).get();
     if (!doc.exists) return null;
@@ -748,6 +762,7 @@ class FirebaseService {
         .where('fecha', isGreaterThanOrEqualTo: inicio.toIso8601String())
         .where('fecha', isLessThanOrEqualTo: fin.toIso8601String())
         .orderBy('fecha', descending: true)
+        .limit(50)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) {
               return Venta.fromMap(
@@ -782,6 +797,15 @@ class FirebaseService {
     final inicio = DateTime(ahora.year, ahora.month, ahora.day)
         .subtract(Duration(days: dias - 1));
     final inicioStr = inicio.toIso8601String();
+
+    // [FinOps] Optimización: Obtenemos agregaciones globales del servidor en una sola lectura
+    final aggQuery = _ventasRef
+        .where('fecha', isGreaterThanOrEqualTo: inicioStr)
+        .where('estado', isEqualTo: 'completada');
+    
+    final aggregateSnapshot = await aggQuery.aggregate(sum('total'), count()).get();
+    final double serverTotalIngresos = (aggregateSnapshot.getSum('total') ?? 0).toDouble();
+    final int serverTotalVentas = aggregateSnapshot.count ?? 0;
 
     final snapshot = await _ventasRef
         .where('fecha', isGreaterThanOrEqualTo: inicioStr)

@@ -18,7 +18,18 @@ class _CompletarRegistroGoogleScreenState
   bool _isLoading = false;
 
   void _completar() async {
-    if (_negocioController.text.trim().isEmpty) return;
+    final negocio = _negocioController.text.trim();
+    final codigo = _codigoController.text.trim();
+
+    if (_isCreatingBusiness && negocio.isEmpty) {
+      _msg('Ingresa el nombre de tu negocio.');
+      return;
+    }
+    if (!_isCreatingBusiness && codigo.isEmpty) {
+      _msg('Ingresa el código de invitación.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -37,13 +48,21 @@ class _CompletarRegistroGoogleScreenState
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+        _msg('Error: ${e.toString()}');
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _msg(String m, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(m),
+        backgroundColor: isError ? Colors.red.shade800 : Colors.green.shade800,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override

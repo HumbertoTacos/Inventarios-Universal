@@ -68,7 +68,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
         clienteInicial: editar,
         onGuardar: (c) async {
           if (editar == null) {
-            await _svc.agregarCliente(c);
+            final id = await _svc.agregarCliente(c);
+            if (widget.modoSeleccion && mounted) {
+              final nuevo = Cliente(
+                id: id,
+                nombre: c.nombre,
+                telefono: c.telefono,
+                email: c.email,
+                notas: c.notas,
+                saldoDeudor: c.saldoDeudor,
+                limiteCredito: c.limiteCredito,
+                fechaRegistro: DateTime.now(),
+              );
+              Navigator.pop(context); // Cierra modal
+              Navigator.pop(context, nuevo); // Devuelve cliente a ventas
+            }
           } else {
             await _svc.actualizarCliente(c);
           }

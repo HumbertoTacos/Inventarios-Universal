@@ -92,7 +92,8 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
     final negocioId = AuthService().currentNegocioId;
     Query query = _bitacoraRef
         .where('negocioId', isEqualTo: negocioId)
-        .orderBy('fecha', descending: true);
+        .orderBy('fecha', descending: true)
+        .limit(50);
 
     if (_rangoSeleccionado != null) {
       // Ajustamos el fin para incluir todo el último día (23:59:59)

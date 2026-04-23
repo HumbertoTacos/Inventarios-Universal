@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
-import '../services/impresora_service.dart';
+import '../services/impresion_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_venta_screen.dart';
 import '../widgets/app_drawer.dart';
@@ -207,28 +207,24 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
             ],
           ),
           const SizedBox(width: 4),
-          // Botón de imprimir ticket
-          if (venta.estado == 'completada')
-            IconButton(
-              icon: const Icon(Icons.receipt_long_outlined),
-              tooltip: 'Imprimir ticket',
-              color: Colors.blueGrey,
-              onPressed: () async {
-                try {
-                  final negocio = AuthService().currentUserData?.negocioNombre ?? 'Mi Negocio';
-                  await ImpresoraService.imprimirTicket(
-                    venta: venta,
-                    negocioNombre: negocio,
+          // Botón de imprimir ticket (Fallo de hardware / Red de seguridad)
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'Reimprimir Ticket',
+            color: Colors.blue,
+            onPressed: () async {
+              try {
+                final negocio = await _firebaseService.getDatosNegocio();
+                await ImpresionService.imprimirTicketVenta(venta, negocio);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error al reimprimir: $e'), backgroundColor: Colors.red),
                   );
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error al imprimir: $e'), backgroundColor: Colors.red),
-                    );
-                  }
                 }
-              },
-            ),
+              }
+            },
+          ),
         ],
       ),
       onTap: () {

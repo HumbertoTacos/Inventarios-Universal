@@ -11,6 +11,7 @@ import '../screens/mi_equipo_screen.dart';
 import '../screens/bitacora_screen.dart';
 import '../screens/configuracion_negocio_screen.dart';
 import '../screens/auth_gate.dart';
+import '../screens/caja_screen.dart';
 import '../models/negocio.dart';
 
 class AppDrawer extends StatefulWidget {
@@ -86,6 +87,12 @@ class _AppDrawerState extends State<AppDrawer> {
                   title: 'Punto de Venta',
                   routeName: 'ventas',
                   screen: const VentasScreen(),
+                ),
+                _buildMenuItem(
+                  icon: Icons.point_of_sale_outlined,
+                  title: 'Caja y Turnos',
+                  routeName: 'caja',
+                  screen: const CajaScreen(),
                 ),
                 if (puedeVerHistorial)
                   _buildMenuItem(

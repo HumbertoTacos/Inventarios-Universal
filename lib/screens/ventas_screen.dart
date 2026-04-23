@@ -18,6 +18,7 @@ import '../services/impresion_service.dart';
 import '../models/negocio.dart';
 import 'configuracion_negocio_screen.dart';
 import 'bitacora_screen.dart';
+import 'caja_screen.dart';
 import '../widgets/app_drawer.dart';
 
 class VentasScreen extends StatefulWidget {
@@ -405,9 +406,14 @@ class _VentasScreenState extends State<VentasScreen> {
         setState(() => _procesando = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Abre la caja antes de registrar ventas en efectivo.'),
+            SnackBar(
+              content: const Text('Abre la caja antes de registrar ventas en efectivo.'),
               backgroundColor: Colors.orange,
+              action: SnackBarAction(
+                label: 'ABRIR CAJA',
+                textColor: Colors.white,
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CajaScreen())),
+              ),
             ),
           );
         }
@@ -428,10 +434,16 @@ class _VentasScreenState extends State<VentasScreen> {
         return;
       }
 
-      // --- VALIDACIÓN DE STOCK NEGATIVO (BUG FIX QA) ---
+      // --- ARQUITECTURA OPTIMIZADA: VALIDACIÓN DE STOCK (FINOPS - EVITA N+1) ---
       List<String> productosEnNegativo = [];
+      final idsCarrito = _carrito.map((i) => i.productoId).toSet().toList();
+      
+      // Consultamos los productos en un solo bloque (máximo 10 por whereIn en Lite, pero Flutter/Firestore soporta 30+)
+      final listaProdsFresh = await _firebaseService.getProductosPorLote(idsCarrito);
+      final mapFresh = {for (var p in listaProdsFresh) p.id: p};
+
       for (var item in _carrito) {
-        final prod = await _firebaseService.getProducto(item.productoId);
+        final prod = mapFresh[item.productoId];
         if (prod != null && item.cantidad > prod.cantidad) {
           productosEnNegativo.add(prod.nombre);
         }
@@ -557,9 +569,15 @@ class _VentasScreenState extends State<VentasScreen> {
     final bool esDueno = userData?.rol == AuthService.rolDueno;
     final bool puedeVerHistorial = esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
 
-    // PopScope maneja el botón back físico y el del AppBar (en Android 14+)
-    return PopScope(
-      canPop: _carrito.isEmpty,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.f12): () => _confirmarVenta(),
+        const SingleActivator(LogicalKeyboardKey.f10): () => _buscarProducto(),
+        const SingleActivator(LogicalKeyboardKey.f8): () => setState(() => _metodoPago = MetodoPago.efectivo),
+        const SingleActivator(LogicalKeyboardKey.f7): () => setState(() => _metodoPago = MetodoPago.tarjeta),
+      },
+      child: PopScope(
+        canPop: _carrito.isEmpty,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final mustLeave = await _intentarSalir();
@@ -573,6 +591,21 @@ class _VentasScreenState extends State<VentasScreen> {
           title: const Text('Punto de Venta'),
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
           actions: [
+            FutureBuilder(
+              future: _firebaseService.getTurnoActivo(),
+              builder: (context, snapshot) {
+                final bool estaAbierta = snapshot.hasData && snapshot.data != null;
+                return Badge(
+                  backgroundColor: estaAbierta ? Colors.green : Colors.red,
+                  label: Text(estaAbierta ? 'ON' : 'OFF', style: const TextStyle(fontSize: 8)),
+                  child: IconButton(
+                    icon: const Icon(Icons.account_balance_wallet_outlined),
+                    tooltip: 'Caja y Turnos',
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CajaScreen())),
+                  ),
+                );
+              }
+            ),
             IconButton(
               icon: const Icon(Icons.qr_code_scanner),
               tooltip: 'Escanear producto',
@@ -580,7 +613,7 @@ class _VentasScreenState extends State<VentasScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.search),
-              tooltip: 'Buscar en catálogo',
+              tooltip: 'Catálogo (F10)',
               onPressed: _buscarProducto,
             ),
           ],
@@ -808,7 +841,7 @@ class _VentasScreenState extends State<VentasScreen> {
                             icon: _procesando
                                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                 : const Icon(Icons.check_circle_outline),
-                            label: Text(_procesando ? 'Procesando...' : 'Confirmar Venta', style: const TextStyle(fontSize: 16)),
+                            label: Text(_procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                       ],
@@ -820,6 +853,7 @@ class _VentasScreenState extends State<VentasScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -827,8 +861,8 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Widget _buildSelectorMetodoPago() {
     final metodos = [
-      (MetodoPago.efectivo, 'Efectivo', Icons.payments_outlined),
-      (MetodoPago.tarjeta, 'Tarjeta', Icons.credit_card),
+      (MetodoPago.efectivo, 'Efectivo (F8)', Icons.payments_outlined),
+      (MetodoPago.tarjeta, 'Tarjeta (F7)', Icons.credit_card),
       (MetodoPago.transferencia, 'Transferencia', Icons.swap_horiz),
       (MetodoPago.credito, 'Crédito', Icons.person_outline),
     ];

@@ -29,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = _emailController.text.trim();
     final pass  = _passwordController.text;
     if (email.isEmpty || pass.isEmpty) {
-      _showError('Por favor, ingresa tu correo y contraseña.');
+      _msg('Por favor, ingresa tu correo y contraseña.');
       return;
     }
     setState(() => _isLoading = true);
@@ -41,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      if (mounted) _showError('Credenciales incorrectas. Intenta de nuevo.');
+      if (mounted) _msg('Credenciales incorrectas. Intenta de nuevo.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -57,14 +57,21 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } catch (e) {
-      if (mounted) _showError('Error con Google: $e');
+      if (mounted) _msg('Error con Google: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _msg(String m, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(m, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? Colors.red.shade800 : Colors.green.shade800,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
