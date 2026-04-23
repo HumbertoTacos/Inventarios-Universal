@@ -25,8 +25,10 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   final _codigoBarrasCtrl = TextEditingController();
   final _cantMayoreoCtrl = TextEditingController();
   final _precioMayoreoCtrl = TextEditingController();
+  final _precioPromocionCtrl = TextEditingController();
 
   bool _guardando = false;
+  bool _enPromocion = false;
   Categoria? _categoriaSeleccionada;
 
   // Valores dinámicos por atributo: nombre → valor elegido/escrito
@@ -44,6 +46,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     _codigoBarrasCtrl.dispose();
     _cantMayoreoCtrl.dispose();
     _precioMayoreoCtrl.dispose();
+    _precioPromocionCtrl.dispose();
     for (final c in _atributoCtrl.values) {
       c.dispose();
     }
@@ -256,6 +259,52 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                       ),
                       const SizedBox(height: 16),
 
+                      // ── Promociones ──
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorScheme.primaryContainer),
+                        ),
+                        child: Column(
+                          children: [
+                            SwitchListTile(
+                              title: const Text('Activar Promoción (Oferta)', style: TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: const Text('Muestra un precio especial tachado'),
+                              value: _enPromocion,
+                              onChanged: (v) => setState(() => _enPromocion = v),
+                            ),
+                            if (_enPromocion)
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: TextFormField(
+                                  controller: _precioPromocionCtrl,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Precio de Promoción *',
+                                    prefixText: '\$ ',
+                                    prefixIcon: Icon(Icons.star_outline),
+                                    border: OutlineInputBorder(),
+                                    hintText: 'Debe ser menor al precio regular',
+                                  ),
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                                  validator: (v) {
+                                    if (!_enPromocion) return null;
+                                    if (v == null || v.trim().isEmpty) return 'Requerido';
+                                    final n = double.tryParse(v.trim());
+                                    if (n == null || n <= 0) return 'Inválido';
+                                    final precioReg = double.tryParse(_precioCtrl.text);
+                                    if (precioReg != null && n >= precioReg) return 'Debe ser menor al precio normal';
+                                    return null;
+                                  },
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
                       // ── Código de barras ──
                       TextFormField(
                         controller: _codigoBarrasCtrl,
@@ -427,6 +476,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
           : null,
       cantidadMayoreo: int.tryParse(_cantMayoreoCtrl.text),
       precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
+      enPromocion: _enPromocion,
+      precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
     );
 
     try {

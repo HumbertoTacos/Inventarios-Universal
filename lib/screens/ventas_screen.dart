@@ -17,6 +17,7 @@ import '../utils/formatters.dart';
 import '../services/impresion_service.dart';
 import '../models/negocio.dart';
 import 'configuracion_negocio_screen.dart';
+import 'bitacora_screen.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -41,18 +42,37 @@ class _VentasScreenState extends State<VentasScreen> {
   MetodoPago _metodoPago = MetodoPago.efectivo;
   Cliente? _clienteSeleccionado;
 
+  // Descuentos Globales
+  TipoDescuento _tipoDescuento = TipoDescuento.ninguno;
+  final _valorDescuentoCtrl = TextEditingController(text: '0');
+  bool _descuentoAutorizado = false;
+
   @override
   void dispose() {
     _costoEnvioCtrl.dispose();
     _barcodeFocusNode.dispose();
     _barcodeCtrl.dispose();
+    _valorDescuentoCtrl.dispose();
     super.dispose();
   }
 
+  double get _subtotalVenta => _carrito.fold(0, (sum, item) => sum + item.subtotal);
+
+  double get _montoDescuento {
+    if (_tipoDescuento == TipoDescuento.fijo) {
+      double val = double.tryParse(_valorDescuentoCtrl.text) ?? 0.0;
+      return val > _subtotalVenta ? _subtotalVenta : val;
+    } else if (_tipoDescuento == TipoDescuento.porcentaje) {
+      double porc = double.tryParse(_valorDescuentoCtrl.text) ?? 0.0;
+      return (_subtotalVenta * (porc / 100)).clamp(0.0, _subtotalVenta);
+    }
+    return 0.0;
+  }
+
   double get _totalVenta {
-    double base = _carrito.fold(0, (sum, item) => sum + item.subtotal);
     double envio = double.tryParse(_costoEnvioCtrl.text.trim()) ?? 0.0;
-    return base + (!_envioPagadoPorVendedor ? envio : 0.0);
+    double total = (_subtotalVenta - _montoDescuento) + (!_envioPagadoPorVendedor ? envio : 0.0);
+    return total.clamp(0.0, double.infinity);
   }
 
   // ── Agregar al carrito ──────────────────────────────────────────────────
@@ -110,13 +130,7 @@ class _VentasScreenState extends State<VentasScreen> {
           final oldItem = _carrito[existingIndex];
           final nuevaCant = oldItem.cantidad + cantidad;
           
-          // Lógica de Mayoreo
-          double precioFinal = producto.precio;
-          if (producto.cantidadMayoreo != null && 
-              producto.precioMayoreo != null && 
-              nuevaCant >= producto.cantidadMayoreo!) {
-            precioFinal = producto.precioMayoreo!;
-          }
+          double precioFinal = _calcularPrecioUnitario(producto, nuevaCant);
 
           _carrito[existingIndex] = VentaItem(
             productoId: oldItem.productoId,
@@ -126,13 +140,7 @@ class _VentasScreenState extends State<VentasScreen> {
             cantidad: nuevaCant,
           );
         } else {
-          // Lógica de Mayoreo (inicial)
-          double precioFinal = producto.precio;
-          if (producto.cantidadMayoreo != null && 
-              producto.precioMayoreo != null && 
-              cantidad >= producto.cantidadMayoreo!) {
-            precioFinal = producto.precioMayoreo!;
-          }
+          double precioFinal = _calcularPrecioUnitario(producto, cantidad);
 
           _carrito.add(VentaItem(
             productoId: producto.id,
@@ -146,6 +154,156 @@ class _VentasScreenState extends State<VentasScreen> {
         _barcodeFocusNode.requestFocus();
       });
     }
+  }
+
+  double _calcularPrecioUnitario(Producto p, double cant) {
+    // 1. Prioridad Promoción
+    if (p.enPromocion && p.precioPromocion != null) {
+      return p.precioPromocion!;
+    }
+    // 2. Mayoreo si aplica
+    if (p.cantidadMayoreo != null && p.precioMayoreo != null && cant >= p.cantidadMayoreo!) {
+      return p.precioMayoreo!;
+    }
+    // 3. Precio Base
+    return p.precio;
+  }
+
+  Future<void> _editarCantidadItem(int index) async {
+    final item = _carrito[index];
+    final producto = _cacheProductos[item.productoId];
+    if (producto == null) return;
+
+    final TextEditingController ctrl = TextEditingController(text: item.cantidad.toString());
+    
+    final double? nuevaCantidad = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Editar: ${item.nombre}'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nueva cantidad', border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final val = double.tryParse(ctrl.text) ?? 0.0;
+              Navigator.pop(ctx, val);
+            }, 
+            child: const Text('Actualizar')
+          ),
+        ],
+      ),
+    );
+
+    if (nuevaCantidad != null) {
+      setState(() {
+        if (nuevaCantidad <= 0) {
+          _carrito.removeAt(index);
+        } else {
+          final nuevoPrecio = _calcularPrecioUnitario(producto, nuevaCantidad);
+          _carrito[index] = VentaItem(
+            productoId: item.productoId,
+            nombre: item.nombre,
+            costoUnitario: item.costoUnitario,
+            precioUnitario: nuevoPrecio,
+            cantidad: nuevaCantidad,
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _intentarCambiarTipoDescuento(TipoDescuento nuevoTipo) async {
+    final userData = AuthService().currentUserData;
+    final bool esDueno = userData?.rol == AuthService.rolDueno;
+
+    if (esDueno || _descuentoAutorizado) {
+      setState(() => _tipoDescuento = nuevoTipo);
+    } else {
+      final autorizado = await _solicitarPinAutorizacion();
+      if (autorizado) {
+        setState(() {
+          _descuentoAutorizado = true;
+          _tipoDescuento = nuevoTipo;
+        });
+      } else {
+        setState(() {
+          _tipoDescuento = TipoDescuento.ninguno;
+          _valorDescuentoCtrl.text = '0';
+        });
+      }
+    }
+  }
+
+  Future<bool> _solicitarPinAutorizacion() async {
+    final TextEditingController pinCtrl = TextEditingController();
+    final negocio = await _firebaseService.getDatosNegocio();
+    final pinCorrecto = negocio.pinAutorizacion;
+
+    if (pinCorrecto == null || pinCorrecto.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN no configurado. El dueño debe definirlo en Configuración.'), backgroundColor: Colors.orange),
+        );
+      }
+      return false;
+    }
+
+    final String? inputPin = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lock_person_outlined, color: Colors.blue),
+            SizedBox(width: 10),
+            Text('Autorización'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Se requiere el PIN de administración para aplicar este descuento.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: pinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, letterSpacing: 10),
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
+              decoration: const InputDecoration(
+                hintText: '****',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, pinCtrl.text), 
+            child: const Text('Verificar')
+          ),
+        ],
+      ),
+    );
+
+    if (inputPin == pinCorrecto) {
+      return true;
+    } else if (inputPin != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN Incorrecto'), backgroundColor: Colors.red),
+        );
+      }
+    }
+    return false;
   }
 
   Future<void> _procesarCodigoEscaneado(String code) async {
@@ -317,6 +475,8 @@ class _VentasScreenState extends State<VentasScreen> {
         envioPagadoPorVendedor: _envioPagadoPorVendedor,
         metodoPago: _metodoPago,
         clienteId: _metodoPago == MetodoPago.credito ? _clienteSeleccionado?.id : null,
+        tipoDescuento: _tipoDescuento,
+        valorDescuento: double.tryParse(_valorDescuentoCtrl.text) ?? 0.0,
       );
 
       await _firebaseService.registrarVenta(nuevaVenta, turnoCajaId: turno?.id);
@@ -475,6 +635,14 @@ class _VentasScreenState extends State<VentasScreen> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.manage_search_outlined),
+                  title: const Text('Bitácora de Movimientos'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BitacoraScreen()));
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.settings_outlined),
                   title: const Text('Configuración del Negocio'),
                   onTap: () {
@@ -577,8 +745,14 @@ class _VentasScreenState extends State<VentasScreen> {
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                   ),
                                   IconButton(
+                                    icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                    onPressed: () => _editarCantidadItem(index),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  IconButton(
                                     icon: const Icon(Icons.delete_outline, color: Colors.red),
                                     onPressed: () => setState(() => _carrito.removeAt(index)),
+                                    visualDensity: VisualDensity.compact,
                                   ),
                                 ],
                               ),
@@ -634,14 +808,14 @@ class _VentasScreenState extends State<VentasScreen> {
                                   Row(
                                     children: [
                                       ChoiceChip(
-                                        label: const Text('Vendedor'),
+                                        label: const Text('Vend.', style: TextStyle(fontSize: 10)),
                                         selected: _envioPagadoPorVendedor,
                                         onSelected: (v) => setState(() => _envioPagadoPorVendedor = true),
                                         visualDensity: VisualDensity.compact,
                                       ),
                                       const SizedBox(width: 8),
                                       ChoiceChip(
-                                        label: const Text('Cliente'),
+                                        label: const Text('Clien.', style: TextStyle(fontSize: 10)),
                                         selected: !_envioPagadoPorVendedor,
                                         onSelected: (v) => setState(() => _envioPagadoPorVendedor = false),
                                         visualDensity: VisualDensity.compact,
@@ -650,6 +824,69 @@ class _VentasScreenState extends State<VentasScreen> {
                                   ),
                                 ],
                               ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // ── Descuento Global ──
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Descuento Caja:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  Row(
+                                    children: [
+                                      ChoiceChip(
+                                        label: const Text('Ning.', style: TextStyle(fontSize: 10)),
+                                        selected: _tipoDescuento == TipoDescuento.ninguno,
+                                        onSelected: (v) {
+                                          setState(() {
+                                            _tipoDescuento = TipoDescuento.ninguno;
+                                            _valorDescuentoCtrl.text = '0';
+                                            _descuentoAutorizado = false;
+                                          });
+                                        },
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      ChoiceChip(
+                                        label: const Text('\$', style: TextStyle(fontSize: 10)),
+                                        selected: _tipoDescuento == TipoDescuento.fijo,
+                                        onSelected: (v) => _intentarCambiarTipoDescuento(TipoDescuento.fijo),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      ChoiceChip(
+                                        label: const Text('%', style: TextStyle(fontSize: 10)),
+                                        selected: _tipoDescuento == TipoDescuento.porcentaje,
+                                        onSelected: (v) => _intentarCambiarTipoDescuento(TipoDescuento.porcentaje),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 3,
+                              child: _tipoDescuento == TipoDescuento.ninguno
+                                ? const SizedBox()
+                                : TextField(
+                                    controller: _valorDescuentoCtrl,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    decoration: InputDecoration(
+                                      labelText: _tipoDescuento == TipoDescuento.fijo ? 'Caja (\$)' : 'Caja (%)',
+                                      isDense: true,
+                                      prefixIcon: const Icon(Icons.discount, size: 16),
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                    onChanged: (_) => setState(() {}),
+                                  ),
                             ),
                           ],
                         ),

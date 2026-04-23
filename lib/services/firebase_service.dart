@@ -11,6 +11,7 @@ import '../models/dashboard_data.dart';
 import '../models/cliente.dart';
 import '../models/abono.dart';
 import '../models/negocio.dart';
+import '../models/bitacora_log.dart';
 
 import 'auth_service.dart';
 
@@ -126,7 +127,10 @@ class FirebaseService {
 
   Future<void> agregarProducto(Producto producto) async {
     try {
-      await _productosRef.add(producto.toMap());
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(_productosRef.doc(), producto.toMap());
+      _inyectarLogBatch(batch, 'INVENTARIO', 'Agregó nuevo producto: ${producto.nombre}');
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al agregar producto: ${e.message}');
     }
@@ -134,7 +138,10 @@ class FirebaseService {
 
   Future<void> actualizarProducto(Producto producto) async {
     try {
-      await _productosRef.doc(producto.id).update(producto.toMap());
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(_productosRef.doc(producto.id), producto.toMap());
+      _inyectarLogBatch(batch, 'INVENTARIO', 'Editó datos del producto: ${producto.nombre}');
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al actualizar producto: ${e.message}');
     }
@@ -142,7 +149,10 @@ class FirebaseService {
 
   Future<void> eliminarProducto(String id) async {
     try {
-      await _productosRef.doc(id).update({'activo': false});
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(_productosRef.doc(id), {'activo': false});
+      _inyectarLogBatch(batch, 'INVENTARIO', 'Eliminó (desactivó) producto ID: $id');
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al eliminar producto: ${e.message}');
     }
@@ -198,6 +208,8 @@ class FirebaseService {
           usuarioId: _currentUserId,
         );
         transaction.set(kardexDoc, movimiento.toMap());
+        
+        _inyectarLogTransaccional(transaction, 'INVENTARIO', 'Reabasteció ${cantidadNueva} unidades de producto ID: $productoId');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al reabastecer producto: ${e.message}');
@@ -230,6 +242,8 @@ class FirebaseService {
           usuarioId: _currentUserId,
         );
         transaction.set(kardexDoc, mov.toMap());
+        
+        _inyectarLogTransaccional(transaction, 'INVENTARIO', 'AJUSTE MANUAL: Ajustó inventario de producto ID: $productoId ($cantidad). Motivo: $motivo');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al ajustar inventario: ${e.message}');
@@ -313,6 +327,32 @@ class FirebaseService {
     await batch.commit();
   }
 
+  // ── Bitácora (Audit Trail) ───────────────────────────────────────────────
+
+  final CollectionReference _bitacoraRef = FirebaseFirestore.instance.collection('bitacora');
+
+  /// Genera un Map para el log de bitácora (Helper Interno para Atomicidad)
+  Map<String, dynamic> _generarLogMap(String modulo, String descripcion) {
+    final user = AuthService().currentUserData;
+    return {
+      'fecha': DateTime.now().toIso8601String(),
+      'usuarioId': _currentUserId,
+      'nombreUsuario': user?.nombre ?? 'Desconocido',
+      'modulo': modulo,
+      'descripcion': descripcion,
+    };
+  }
+
+  /// Inyecta un log dentro de una transacción de Firestore (Atomicidad 100%)
+  void _inyectarLogTransaccional(Transaction transaction, String modulo, String descripcion) {
+    transaction.set(_bitacoraRef.doc(), _generarLogMap(modulo, descripcion));
+  }
+
+  /// Inyecta un log dentro de un WriteBatch (Atomicidad 100%)
+  void _inyectarLogBatch(WriteBatch batch, String modulo, String descripcion) {
+    batch.set(_bitacoraRef.doc(), _generarLogMap(modulo, descripcion));
+  }
+
   // ── Arqueo de Caja (Turnos) ───────────────────────────────────────────────
 
   /// Crea un nuevo turno de caja abierto
@@ -325,7 +365,10 @@ class FirebaseService {
         fondoInicial: turno.fondoInicial,
         estado: EstadoTurno.abierto,
       );
-      await docTurno.set(turnoGuardar.toMap());
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(docTurno, turnoGuardar.toMap());
+      _inyectarLogBatch(batch, 'CAJA', 'Abrió caja con un fondo inicial de \$${turno.fondoInicial.toStringAsFixed(2)}');
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al abrir caja: ${e.message}');
     }
@@ -334,11 +377,14 @@ class FirebaseService {
   /// Cierra un turno de caja existente, actualizando efectivo físico y fecha
   Future<void> cerrarTurnoCaja(String turnoId, double efectivoContado) async {
     try {
-      await _turnosCajaRef.doc(turnoId).update({
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(_turnosCajaRef.doc(turnoId), {
         'estado': EstadoTurno.cerrado.name,
         'fechaCierre': DateTime.now().toIso8601String(),
         'efectivoContado': efectivoContado,
       });
+      _inyectarLogBatch(batch, 'CAJA', 'Cerró caja. Efectivo en mostrador: \$${efectivoContado.toStringAsFixed(2)}');
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al cerrar caja: ${e.message}');
     }
@@ -378,6 +424,8 @@ class FirebaseService {
           'retirosEfectivo': retirosActuales + monto,
           'historialRetiros': historial,
         });
+        
+        _inyectarLogTransaccional(transaction, 'CAJA', 'Retiró \$${monto.toStringAsFixed(2)} de caja. Concepto: $concepto');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar retiro: ${e.message}');
@@ -514,6 +562,8 @@ class FirebaseService {
             campoActualizar: valorActual + ventaParaGuardar.total,
           });
         }
+        
+        _inyectarLogTransaccional(transaction, 'VENTAS', 'Registró venta exitosa por \$${venta.total.toStringAsFixed(2)} (${venta.metodoPago.name})');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar venta (Firebase): ${e.message}');
@@ -587,6 +637,8 @@ class FirebaseService {
             });
           }
         }
+        
+        _inyectarLogTransaccional(transaction, 'VENTAS', 'CANCELACION: Canceló la venta #${venta.id} por \$${venta.total.toStringAsFixed(2)}');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al cancelar venta: ${e.message}');
@@ -664,6 +716,9 @@ class FirebaseService {
             });
           }
         }
+        
+        final modo = volverAVender ? 'Devolución al inventario' : 'Reembolso sin retorno de stock';
+        _inyectarLogTransaccional(transaction, 'VENTAS', 'DEVOLUCION: $modo de la venta #${venta.id} por \$${venta.total.toStringAsFixed(2)}');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar devolución: ${e.message}');
@@ -927,6 +982,8 @@ class FirebaseService {
             'ventasEfectivo': ventasEfActual + abono.monto,
           });
         }
+
+        _inyectarLogTransaccional(transaction, 'CREDITOS', 'Registró abono de \$${abono.monto.toStringAsFixed(2)} para el cliente ID: ${abono.clienteId}');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar abono: ${e.message}');

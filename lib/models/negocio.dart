@@ -5,6 +5,7 @@ class Negocio {
   final String? rfc;
   final String? telefono;
   final String? direccion;
+  final String? pinAutorizacion;
 
   Negocio({
     required this.id,
@@ -13,6 +14,7 @@ class Negocio {
     this.rfc,
     this.telefono,
     this.direccion,
+    this.pinAutorizacion,
   });
 
   Map<String, dynamic> toMap() {
@@ -22,6 +24,7 @@ class Negocio {
       'rfc': rfc,
       'telefono': telefono,
       'direccion': direccion,
+      'pinAutorizacion': pinAutorizacion,
     };
   }
 
@@ -33,6 +36,7 @@ class Negocio {
       rfc: map['rfc'] as String?,
       telefono: map['telefono'] as String?,
       direccion: map['direccion'] as String?,
+      pinAutorizacion: map['pinAutorizacion'] as String?,
     );
   }
 
@@ -42,6 +46,7 @@ class Negocio {
     String? rfc,
     String? telefono,
     String? direccion,
+    String? pinAutorizacion,
   }) {
     return Negocio(
       id: id,
@@ -50,6 +55,7 @@ class Negocio {
       rfc: rfc ?? this.rfc,
       telefono: telefono ?? this.telefono,
       direccion: direccion ?? this.direccion,
+      pinAutorizacion: pinAutorizacion ?? this.pinAutorizacion,
     );
   }
 }

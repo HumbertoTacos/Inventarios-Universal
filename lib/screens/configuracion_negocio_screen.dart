@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/negocio.dart';
 import '../services/firebase_service.dart';
@@ -18,6 +19,7 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
   final _rfcCtrl = TextEditingController();
   final _telCtrl = TextEditingController();
   final _dirCtrl = TextEditingController();
+  final _pinCtrl = TextEditingController();
   
   String? _logoUrl;
   Uint8List? _previewBytes;
@@ -39,6 +41,7 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
         _rfcCtrl.text = negocio.rfc ?? '';
         _telCtrl.text = negocio.telefono ?? '';
         _dirCtrl.text = negocio.direccion ?? '';
+        _pinCtrl.text = negocio.pinAutorizacion ?? '';
         _logoUrl = negocio.logoUrl;
         _isLoading = false;
       });
@@ -86,6 +89,7 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
         rfc: _rfcCtrl.text.trim().isNotEmpty ? _rfcCtrl.text.trim() : null,
         telefono: _telCtrl.text.trim().isNotEmpty ? _telCtrl.text.trim() : null,
         direccion: _dirCtrl.text.trim().isNotEmpty ? _dirCtrl.text.trim() : null,
+        pinAutorizacion: _pinCtrl.text.trim().isNotEmpty ? _pinCtrl.text.trim() : null,
         logoUrl: finalLogoUrl,
       );
       
@@ -157,6 +161,13 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
                 _buildField('Teléfono de Contacto', _telCtrl, Icons.phone_android),
                 _buildField('Dirección Física', _dirCtrl, Icons.location_on_outlined, maxLines: 2),
                 
+                const Divider(height: 48),
+                const Text('Seguridad del Punto de Venta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 8),
+                const Text('Este PIN será solicitado a los empleados para aplicar descuentos manuales.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 16),
+                _buildField('PIN de Autorización (4-6 dígitos)', _pinCtrl, Icons.lock_outline, isPin: true),
+                
                 const SizedBox(height: 40),
                 SizedBox(
                   width: double.infinity,
@@ -175,12 +186,15 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
     );
   }
 
-  Widget _buildField(String label, TextEditingController controller, IconData icon, {int maxLines = 1}) {
+  Widget _buildField(String label, TextEditingController controller, IconData icon, {int maxLines = 1, bool isPin = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
+        obscureText: isPin,
+        keyboardType: isPin ? TextInputType.number : TextInputType.text,
+        inputFormatters: isPin ? [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)] : null,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),

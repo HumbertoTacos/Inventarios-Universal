@@ -25,8 +25,10 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   late final TextEditingController _codigoBarrasCtrl;
   late final TextEditingController _cantMayoreoCtrl;
   late final TextEditingController _precioMayoreoCtrl;
+  late final TextEditingController _precioPromocionCtrl;
 
   bool _guardando = false;
+  bool _enPromocion = false;
 
   @override
   void initState() {
@@ -38,6 +40,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _codigoBarrasCtrl = TextEditingController(text: widget.producto.codigoBarras ?? '');
     _cantMayoreoCtrl = TextEditingController(text: widget.producto.cantidadMayoreo?.toString() ?? '');
     _precioMayoreoCtrl = TextEditingController(text: widget.producto.precioMayoreo?.toString() ?? '');
+    _enPromocion = widget.producto.enPromocion;
+    _precioPromocionCtrl = TextEditingController(text: widget.producto.precioPromocion?.toString() ?? '');
   }
 
   @override
@@ -49,6 +53,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _codigoBarrasCtrl.dispose();
     _cantMayoreoCtrl.dispose();
     _precioMayoreoCtrl.dispose();
+    _precioPromocionCtrl.dispose();
     super.dispose();
   }
 
@@ -84,6 +89,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         codigoBarras: _codigoBarrasCtrl.text.trim().isNotEmpty ? _codigoBarrasCtrl.text.trim() : null,
         cantidadMayoreo: int.tryParse(_cantMayoreoCtrl.text),
         precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
+        enPromocion: _enPromocion,
+        precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
       );
 
       await _firebaseService.actualizarProducto(productoEditado);
@@ -247,6 +254,51 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Promociones ──
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Theme.of(context).colorScheme.primaryContainer),
+                          ),
+                          child: Column(
+                            children: [
+                              SwitchListTile(
+                                title: const Text('Activar Promoción (Oferta)', style: TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: const Text('Muestra un precio especial tachado'),
+                                value: _enPromocion,
+                                onChanged: (v) => setState(() => _enPromocion = v),
+                              ),
+                              if (_enPromocion)
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: TextFormField(
+                                    controller: _precioPromocionCtrl,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Precio de Promoción *',
+                                      prefixText: '\$ ',
+                                      prefixIcon: Icon(Icons.star_outline),
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+                                    validator: (v) {
+                                      if (!_enPromocion) return null;
+                                      if (v == null || v.trim().isEmpty) return 'Requerido';
+                                      final n = double.tryParse(v.trim());
+                                      final precioReg = double.tryParse(_precioCtrl.text);
+                                      if (n == null || n <= 0) return 'Inválido';
+                                      if (precioReg != null && n >= precioReg) return 'Debe ser menor al normal';
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
 

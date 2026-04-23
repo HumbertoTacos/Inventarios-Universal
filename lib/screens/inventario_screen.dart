@@ -444,8 +444,31 @@ class _InventarioScreenState extends State<InventarioScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text('\$${producto.precio.toStringAsFixed(2)}',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
+            if (producto.enPromocion && producto.precioPromocion != null) ...[
+               Text(
+                '\$${producto.precio.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.orange.shade700, borderRadius: BorderRadius.circular(4)),
+                    child: const Text('OFERTA', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 4),
+                  Text('\$${producto.precioPromocion!.toStringAsFixed(2)}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade700)),
+                ],
+              ),
+            ] else
+              Text('\$${producto.precio.toStringAsFixed(2)}',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
             Text('Stock: ${producto.cantidad.formatoInventario}',
                 style: TextStyle(fontSize: 12, fontWeight: inStock ? FontWeight.normal : FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
           ],
