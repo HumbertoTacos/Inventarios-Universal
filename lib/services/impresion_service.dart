@@ -32,10 +32,13 @@ class ImpresionService {
         return pw.MemoryImage(_logoBytesCache!);
       }
     } catch (e) {
-      print('Error al descargar logo para impresión: $e');
+      // ignore logo download errors
     }
     return null;
   }
+
+  static const String _linea = '--------------------------------';
+  static const String _lineaDelgada = '- - - - - - - - - - - - - - - -';
 
   /// Genera e imprime una etiqueta para un producto (Formato Térmico 58x40mm aprox)
   static Future<void> imprimirEtiquetaProducto(Producto producto) async {
@@ -90,7 +93,12 @@ class ImpresionService {
   }
 
   /// Genera e imprime el Ticket de Venta para el cliente
-  static Future<void> imprimirTicketVenta(Venta venta, Negocio negocio) async {
+  /// [nombreCliente] se imprime si la venta es a CRÉDITO.
+  static Future<void> imprimirTicketVenta(
+    Venta venta,
+    Negocio negocio, {
+    String? nombreCliente,
+  }) async {
     final pdf = pw.Document();
     final DateFormat formatter = DateFormat('dd/MM/yyyy HH:mm');
     
@@ -103,6 +111,7 @@ class ImpresionService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
+              // ── Logo ────────────────────────────────────────────────
               if (logoImage != null)
                 pw.Center(
                   child: pw.Container(
@@ -112,53 +121,121 @@ class ImpresionService {
                     child: pw.Image(logoImage, fit: pw.BoxFit.contain),
                   ),
                 ),
+
+              // ── Datos del negocio ────────────────────────────────────
               pw.Center(
                 child: pw.Column(
                   children: [
-                    pw.Text(negocio.nombre.toUpperCase(), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                    if (negocio.rfc != null) pw.Text('RFC: ${negocio.rfc}', style: pw.TextStyle(fontSize: 7)),
-                    if (negocio.direccion != null) pw.Text(negocio.direccion!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7)),
-                    if (negocio.telefono != null) pw.Text('Tel: ${negocio.telefono}', style: pw.TextStyle(fontSize: 7)),
+                    pw.Text(
+                      negocio.nombre.toUpperCase(),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
+                      textAlign: pw.TextAlign.center,
+                    ),
+                    if (negocio.rfc != null)
+                      pw.Text('RFC: ${negocio.rfc}', style: pw.TextStyle(fontSize: 7)),
+                    if (negocio.direccion != null)
+                      pw.Text(negocio.direccion!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7)),
+                    if (negocio.telefono != null)
+                      pw.Text('Tel: ${negocio.telefono}', style: pw.TextStyle(fontSize: 7)),
                   ],
                 ),
               ),
-              pw.Divider(thickness: 1),
+
+              // ── Cliente (solo ventas a crédito) ─────────────────────
+              if (venta.metodoPago == MetodoPago.credito && nombreCliente != null) ...[
+                pw.SizedBox(height: 4),
+                pw.Text(_lineaDelgada, style: pw.TextStyle(fontSize: 6)),
+                pw.Text(
+                  'Cliente: $nombreCliente',
+                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                ),
+              ],
+
+              pw.SizedBox(height: 4),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
               pw.Text('Ticket: ${venta.id.substring(0, 8).toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
-              pw.Text('Fecha: ${formatter.format(venta.fecha)}', style: pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 5),
-              pw.Divider(thickness: 0.5),
-              
+              pw.Text('Fecha : ${formatter.format(venta.fecha)}', style: pw.TextStyle(fontSize: 8)),
+              pw.Text('Pago  : ${venta.metodoPago.name.toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
+              pw.SizedBox(height: 4),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+
+              // ── Encabezado tabla ────────────────────────────────────
               pw.Row(
                 children: [
-                  pw.Expanded(flex: 3, child: pw.Text('Prod', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
-                  pw.Expanded(flex: 1, child: pw.Text('Cant', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
-                  pw.Expanded(flex: 1, child: pw.Text('Sub', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
+                  pw.SizedBox(
+                    width: 24,
+                    child: pw.Text('CANT', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Expanded(
+                    child: pw.Text('DESCRIPCIÓN', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.SizedBox(
+                    width: 36,
+                    child: pw.Text('TOTAL', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right),
+                  ),
                 ],
               ),
-              pw.SizedBox(height: 2),
+              pw.Text(_lineaDelgada, style: pw.TextStyle(fontSize: 6)),
 
+              // ── Filas de productos ───────────────────────────────────
               ...venta.items.map((item) => pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 1),
-                child: pw.Row(
+                padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Expanded(flex: 3, child: pw.Text(item.nombre, style: pw.TextStyle(fontSize: 7))),
-                    pw.Expanded(flex: 1, child: pw.Text(item.cantidad.toString(), style: pw.TextStyle(fontSize: 7), textAlign: pw.TextAlign.right)),
-                    pw.Expanded(flex: 1, child: pw.Text(item.subtotal.toStringAsFixed(1), style: pw.TextStyle(fontSize: 7), textAlign: pw.TextAlign.right)),
+                    pw.Row(
+                      children: [
+                        pw.SizedBox(
+                          width: 24,
+                          child: pw.Text(
+                            _formatCantidad(item.cantidad),
+                            style: pw.TextStyle(fontSize: 7),
+                          ),
+                        ),
+                        pw.Expanded(
+                          child: pw.Text(
+                            item.nombre,
+                            style: pw.TextStyle(fontSize: 7),
+                            maxLines: 2,
+                            overflow: pw.TextOverflow.clip,
+                          ),
+                        ),
+                        pw.SizedBox(
+                          width: 36,
+                          child: pw.Text(
+                            '\$${item.subtotal.toStringAsFixed(2)}',
+                            style: pw.TextStyle(fontSize: 7),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Precio unitario si aplica
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(left: 24),
+                      child: pw.Text(
+                        '@\$${item.precioUnitario.toStringAsFixed(2)} c/u',
+                        style: pw.TextStyle(fontSize: 6, color: PdfColors.grey600),
+                      ),
+                    ),
                   ],
                 ),
               )),
 
-              pw.Divider(thickness: 0.5),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+
+              // ── Totales ──────────────────────────────────────────────
               _filaTotal('Subtotal:', '\$${venta.subtotal.toStringAsFixed(2)}'),
               if (venta.descuentoAplicado > 0)
                 _filaTotal('Descuento:', '-\$${venta.descuentoAplicado.toStringAsFixed(2)}'),
               if (venta.costoEnvio > 0)
                 _filaTotal('Envío:', '\$${venta.costoEnvio.toStringAsFixed(2)}'),
               pw.SizedBox(height: 2),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
               _filaTotal('TOTAL:', '\$${venta.total.toStringAsFixed(2)}', boldness: pw.FontWeight.bold, size: 12),
-              pw.SizedBox(height: 5),
-              pw.Text('Pago: ${venta.metodoPago.name.toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 10),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+
+              pw.SizedBox(height: 8),
               pw.Center(child: pw.BarcodeWidget(
                 barcode: Barcode.qrCode(),
                 data: venta.id,
@@ -179,7 +256,7 @@ class ImpresionService {
   /// Genera e imprime el Corte Z (Cierre de Caja) para el administrador
   static Future<void> imprimirCorteZ(TurnoCaja turno, Negocio negocio) async {
     final pdf = pw.Document();
-    final DateFormat fmt = DateFormat('dd/MM HH:mm');
+    final DateFormat fmt = DateFormat('dd/MM/yy HH:mm');
 
     final pw.MemoryImage? logoImage = await _getLogoImage(negocio.logoUrl);
 
@@ -187,6 +264,14 @@ class ImpresionService {
       pw.Page(
         pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity, marginAll: 3 * PdfPageFormat.mm),
         build: (pw.Context context) {
+          final double diferencia = turno.diferenciaEfectivo;
+          String textoDiferencia = 'CUADRE EXACTO';
+          if (diferencia < 0) {
+            textoDiferencia = 'FALTANTE';
+          } else if (diferencia > 0) {
+            textoDiferencia = 'SOBRANTE';
+          }
+
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -199,35 +284,47 @@ class ImpresionService {
                     child: pw.Image(logoImage, fit: pw.BoxFit.contain),
                   ),
                 ),
-              pw.Center(child: pw.Text('CORTE DE CAJA (Z)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12))),
-              pw.Center(child: pw.Text(negocio.nombre, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold))),
-              pw.Divider(),
-              pw.Text('Apertura: ${fmt.format(turno.fechaApertura)}', style: pw.TextStyle(fontSize: 8)),
+              pw.Center(child: pw.Text('CORTE Z', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14))),
+              pw.Center(child: pw.Text(negocio.nombre, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+              pw.SizedBox(height: 5),
+              pw.Text('Apertura: ${fmt.format(turno.fechaApertura)}', style: pw.TextStyle(fontSize: 9)),
               if (turno.fechaCierre != null)
-                pw.Text('Cierre: ${fmt.format(turno.fechaCierre!)}', style: pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 10),
-              _filaResumen('FONDO INICIAL:', turno.fondoInicial),
-              pw.Divider(thickness: 0.5),
-              _filaResumen('Ventas Efectivo:', turno.ventasEfectivo),
-              _filaResumen('Ventas Tarjeta:', turno.ventasTarjeta),
-              _filaResumen('Ventas Transf:', turno.ventasTransferencia),
-              _filaResumen('Ventas Crédito:', turno.ventasCredito),
-              pw.Divider(thickness: 0.5),
-              _filaResumen('RETIROS/GASTOS:', -turno.retirosEfectivo),
-              pw.SizedBox(height: 10),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(4),
-                decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
-                child: pw.Column(
-                  children: [
-                    _filaResumen('ESPERADO CAJA:', turno.totalEsperadoEfectivo, boldness: pw.FontWeight.bold, size: 10),
-                    if (turno.efectivoContado != null)
-                      _filaResumen('CONTADO:', turno.efectivoContado!, boldness: pw.FontWeight.bold, size: 10),
-                  ],
+                pw.Text('Cierre: ${fmt.format(turno.fechaCierre!)}', style: pw.TextStyle(fontSize: 9)),
+              
+              pw.SizedBox(height: 5),
+              pw.Text('--------------------------------'),
+              pw.SizedBox(height: 5),
+              
+              _filaResumen('Fondo Inicial:', turno.fondoInicial),
+              _filaResumen('Ventas en Efectivo:', turno.ventasEfectivo),
+              _filaResumen('Entradas de Dinero:', turno.entradasEfectivo),
+              _filaResumen('Salidas/Retiros:', -turno.egresosEfectivo),
+              
+              pw.SizedBox(height: 5),
+              pw.Text('--------------------------------'),
+              pw.SizedBox(height: 5),
+              
+              _filaResumen('EFECTIVO ESPERADO:', turno.totalEsperadoEfectivo, boldness: pw.FontWeight.bold, size: 10),
+              if (turno.efectivoContado != null)
+                _filaResumen('EFECTIVO CONTADO:', turno.efectivoContado!, boldness: pw.FontWeight.bold, size: 10),
+              
+              if (turno.efectivoContado != null) ...[
+                pw.SizedBox(height: 5),
+                _filaResumen('DIFERENCIA:', diferencia, boldness: pw.FontWeight.bold, size: 10),
+                pw.Center(
+                  child: pw.Text(
+                    textoDiferencia,
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
                 ),
-              ),
+              ],
+              
               pw.SizedBox(height: 20),
-              pw.Center(child: pw.Text('FIRMA RESPONSABLE', style: pw.TextStyle(fontSize: 7))),
+              pw.Center(child: pw.Text('-------------------------', style: pw.TextStyle(fontSize: 8))),
+              pw.Center(child: pw.Text('FIRMA RESPONSABLE', style: pw.TextStyle(fontSize: 8))),
             ],
           );
         },
@@ -236,6 +333,11 @@ class ImpresionService {
 
     await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'CorteZ_${turno.id}');
   }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  static String _formatCantidad(double c) =>
+      c == c.truncateToDouble() ? c.toInt().toString() : c.toStringAsFixed(2);
 
   static pw.Widget _filaTotal(String label, String valor, {pw.FontWeight? boldness, double size = 8}) {
     return pw.Row(

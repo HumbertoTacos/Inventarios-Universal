@@ -51,8 +51,9 @@ dependencies:
   firebase_storage: ^13.3.0
   http: ^1.6.0
   path_provider: ^2.1.5
-  share_plus: ^13.1.0
+  share_plus: ^10.0.0
   animated_flip_counter: ^0.3.4
+  file_picker: ^8.1.2
 
 
 dev_dependencies:

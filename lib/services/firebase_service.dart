@@ -6,6 +6,7 @@ import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/venta.dart';
 import '../models/turno_caja.dart';
+import '../models/movimiento_caja.dart';
 import '../models/movimiento_inventario.dart';
 import '../models/dashboard_data.dart';
 import '../models/cliente.dart';
@@ -389,17 +390,34 @@ class FirebaseService {
     }
   }
 
-  /// Cierra un turno de caja existente, actualizando efectivo físico y fecha
+  /// Cierra un turno de caja existente, actualizando efectivo físico, calculando diferencia y fecha
   Future<void> cerrarTurnoCaja(String turnoId, double efectivoContado) async {
     try {
-      final batch = FirebaseFirestore.instance.batch();
-      batch.update(_turnosCajaRef.doc(turnoId), {
-        'estado': EstadoTurno.cerrado.name,
-        'fechaCierre': DateTime.now().toIso8601String(),
-        'efectivoContado': efectivoContado,
+      final docRef = _turnosCajaRef.doc(turnoId);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) throw Exception('Turno no encontrado');
+        
+        final data = snapshot.data() as Map<String, dynamic>;
+        
+        final fondoInicial = (data['fondoInicial'] as num?)?.toDouble() ?? 0.0;
+        final ventasEfectivo = (data['ventasEfectivo'] as num?)?.toDouble() ?? 0.0;
+        final entradasEfectivo = (data['entradasEfectivo'] as num?)?.toDouble() ?? 0.0;
+        final egresosEfectivo = (data['egresosEfectivo'] as num?)?.toDouble() ?? (data['retirosEfectivo'] as num?)?.toDouble() ?? 0.0;
+        
+        final esperado = (fondoInicial + ventasEfectivo + entradasEfectivo) - egresosEfectivo;
+        final diferencia = efectivoContado - esperado;
+        
+        transaction.update(docRef, {
+          'estado': EstadoTurno.cerrado.name,
+          'fechaCierre': DateTime.now().toIso8601String(),
+          'efectivoContado': efectivoContado,
+          'diferencia': diferencia,
+        });
+        
+        _inyectarLogTransaccional(transaction, 'CAJA', 'Cerró caja. Efectivo contado: \$${efectivoContado.toStringAsFixed(2)}, Diferencia: \$${diferencia.toStringAsFixed(2)}');
       });
-      _inyectarLogBatch(batch, 'CAJA', 'Cerró caja. Efectivo en mostrador: \$${efectivoContado.toStringAsFixed(2)}');
-      await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al cerrar caja: ${e.message}');
     }
@@ -417,33 +435,55 @@ class FirebaseService {
         snapshot.docs.first.id);
   }
 
-  /// Registra un gasto o retiro de efectivo del turno actual
-  Future<void> registrarRetiroCaja(String turnoId, double monto, String concepto) async {
+  /// Registra un movimiento de caja (ingreso o egreso) en el turno actual
+  Future<void> registrarMovimientoCaja(MovimientoCaja mov) async {
     try {
-      final docRef = _turnosCajaRef.doc(turnoId);
+      final docTurno = _turnosCajaRef.doc(mov.turnoId);
+      final docMov = docTurno.collection('movimientos').doc(mov.id.isEmpty ? null : mov.id);
+
       await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
+        final snapshot = await transaction.get(docTurno);
         if (!snapshot.exists) throw Exception('Turno no encontrado');
         
         final data = snapshot.data() as Map<String, dynamic>;
-        final retirosActuales = (data['retirosEfectivo'] as num?)?.toDouble() ?? 0.0;
-        final historial = (data['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
         
-        historial.add({
-          'monto': monto,
-          'concepto': concepto,
-          'hora': DateTime.now().toIso8601String(),
-        });
+        // 1. Registrar el movimiento en la subcolección
+        final movToSave = MovimientoCaja(
+          id: docMov.id,
+          turnoId: mov.turnoId,
+          tipo: mov.tipo,
+          monto: mov.monto,
+          concepto: mov.concepto,
+          fecha: mov.fecha,
+        );
+        transaction.set(docMov, movToSave.toMap());
 
-        transaction.update(docRef, {
-          'retirosEfectivo': retirosActuales + monto,
-          'historialRetiros': historial,
-        });
-        
-        _inyectarLogTransaccional(transaction, 'CAJA', 'Retiró \$${monto.toStringAsFixed(2)} de caja. Concepto: $concepto');
+        // 2. Actualizar totales del turno
+        if (mov.tipo == 'ingreso') {
+          final entradasActuales = (data['entradasEfectivo'] as num?)?.toDouble() ?? 0.0;
+          transaction.update(docTurno, {
+            'entradasEfectivo': entradasActuales + mov.monto,
+          });
+          _inyectarLogTransaccional(transaction, 'CAJA', 'Ingresó \$${mov.monto.toStringAsFixed(2)} a caja. Concepto: ${mov.concepto}');
+        } else {
+          final egresosActuales = (data['egresosEfectivo'] as num?)?.toDouble() ?? (data['retirosEfectivo'] as num?)?.toDouble() ?? 0.0;
+          // Mantenemos historialRetiros por compatibilidad visual si hace falta
+          final historial = (data['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
+          historial.add({
+            'monto': mov.monto,
+            'concepto': mov.concepto,
+            'hora': DateTime.now().toIso8601String(),
+          });
+          
+          transaction.update(docTurno, {
+            'egresosEfectivo': egresosActuales + mov.monto,
+            'historialRetiros': historial,
+          });
+          _inyectarLogTransaccional(transaction, 'CAJA', 'Retiró \$${mov.monto.toStringAsFixed(2)} de caja. Concepto: ${mov.concepto}');
+        }
       });
     } on FirebaseException catch (e) {
-      throw Exception('Error al registrar retiro: ${e.message}');
+      throw Exception('Error al registrar movimiento: ${e.message}');
     }
   }
 
@@ -1027,6 +1067,114 @@ class FirebaseService {
         .map((snap) => snap.docs
             .map((d) => Abono.fromMap(d.data() as Map<String, dynamic>, d.id))
             .toList());
+  }
+
+  // ── Búsqueda por Nombre ──────────────────────────────────────────────────
+
+  /// Busca productos activos cuyo nombre empieza con [query] (prefijo Firestore).
+  /// Máximo 20 resultados para no sobrecargar la UI.
+  Future<List<Producto>> buscarProductosPorNombre(String query) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim().toLowerCase();
+    // Técnica de rango: isGreaterThanOrEqualTo + isLessThanOrEqualTo con \uf8ff
+    try {
+      final snap = await _productosRef
+          .where('activo', isEqualTo: true)
+          .where('esBase', isEqualTo: true)
+          .where('nombreLower', isGreaterThanOrEqualTo: q)
+          .where('nombreLower', isLessThanOrEqualTo: '$q\uf8ff')
+          .limit(20)
+          .get(const GetOptions(source: Source.serverAndCache));
+      return snap.docs
+          .map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id))
+          .toList();
+    } catch (_) {
+      // Fallback: si el índice no existe aún, hacemos filtro en memoria sobre los datos paginados
+      return [];
+    }
+  }
+
+  // ── Importación Masiva CSV ────────────────────────────────────────────────
+
+  /// Importa una lista de filas CSV como productos.
+  /// Columnas esperadas: Nombre, Categoria, Precio, Costo, Cantidad, Unidad, CodigoBarras
+  /// Crea categorías al vuelo si no existen. Usa WriteBatch (máx 500 por lote).
+  Future<int> importarProductosCSV(List<Map<String, String>> filas) async {
+    if (filas.isEmpty) return 0;
+
+    // 1. Cargar mapa de categorías existentes (nombre → id)
+    final catSnap = await _categoriasRef.orderBy('orden').get();
+    final Map<String, String> catMap = {};
+    for (final doc in catSnap.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final nombre = data['nombre'] as String? ?? '';
+      if (nombre.isNotEmpty) catMap[nombre.toLowerCase()] = doc.id;
+    }
+
+    // 2. Pre-calcular el orden máximo para nuevas categorías
+    int ordenMax = catSnap.docs.length;
+
+    int importados = 0;
+    const int tamLote = 400; // margen por debajo del límite 500 de Firestore
+
+    for (int offset = 0; offset < filas.length; offset += tamLote) {
+      final lote = filas.sublist(
+        offset,
+        (offset + tamLote) > filas.length ? filas.length : offset + tamLote,
+      );
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (final fila in lote) {
+        final nombre = (fila['Nombre'] ?? '').trim();
+        if (nombre.isEmpty) continue;
+
+        // 2a. Resolver categoría
+        final categoriaNombre = (fila['Categoria'] ?? 'General').trim();
+        final categoriaKey = categoriaNombre.toLowerCase();
+
+        if (!catMap.containsKey(categoriaKey)) {
+          // Crear categoría al vuelo
+          final newCatRef = _categoriasRef.doc();
+          ordenMax++;
+          batch.set(newCatRef, {
+            'nombre': categoriaNombre,
+            'orden': ordenMax,
+            'atributos': [],
+          });
+          catMap[categoriaKey] = newCatRef.id;
+        }
+
+        // 2b. Construir el producto
+        final precio = double.tryParse(fila['Precio'] ?? '0') ?? 0.0;
+        final costo = double.tryParse(fila['Costo'] ?? '0') ?? 0.0;
+        final cantidad = double.tryParse(fila['Cantidad'] ?? '0') ?? 0.0;
+        final unidad = (fila['Unidad'] ?? 'pza').trim();
+        final codigo = (fila['CodigoBarras'] ?? '').trim();
+
+        final prodRef = _productosRef.doc();
+        final nombreLower = nombre.toLowerCase();
+        batch.set(prodRef, {
+          'nombre': nombre,
+          'nombreLower': nombreLower,
+          'categoria': categoriaNombre,
+          'precio': precio,
+          'costo_promedio': costo,
+          'cantidad': cantidad,
+          'unidad': unidad,
+          'codigoBarras': codigo.isNotEmpty ? codigo : null,
+          'activo': true,
+          'esBase': true,
+          'enPromocion': false,
+          'fechaCreacion': DateTime.now().toIso8601String(),
+        });
+        importados++;
+      }
+
+      await batch.commit();
+    }
+
+    return importados;
   }
 
   // ── Datos del Negocio ────────────────────────────────────────────────────

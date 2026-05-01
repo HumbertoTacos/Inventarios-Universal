@@ -4,8 +4,9 @@ import '../models/cliente.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_cliente_screen.dart';
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
+import '../utils/responsive_layout.dart';
 
 class ClientesScreen extends StatefulWidget {
   /// Si true, la pantalla actúa como selector y retorna un [Cliente] al cerrar.
@@ -96,67 +97,67 @@ class _ClientesScreenState extends State<ClientesScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      drawer: widget.modoSeleccion ? null : const AppDrawer(currentRoute: 'clientes'),
-      appBar: AppBar(
-        title: Text(widget.modoSeleccion ? 'Seleccionar Cliente' : 'Clientes',
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: cs.primaryContainer,
-        foregroundColor: cs.onPrimaryContainer,
-        leading: widget.modoSeleccion 
-            ? null 
-            : Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
+    return ResponsiveScaffold(
+      currentRoute: 'clientes',
+      title: widget.modoSeleccion ? 'Seleccionar Cliente' : 'Clientes',
+      hideDrawer: widget.modoSeleccion,
+      appBarBottom: PreferredSize(
+        preferredSize: const Size.fromHeight(72),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: _buscar,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _enModoBusqueda
+                      ? IconButton(icon: const Icon(Icons.clear), onPressed: _limpiarBusqueda)
+                      : null,
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
-              ),
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(72),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: _buscar,
-              decoration: InputDecoration(
-                hintText: 'Buscar por nombre...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _enModoBusqueda
-                    ? IconButton(icon: const Icon(Icons.clear), onPressed: _limpiarBusqueda)
-                    : null,
-                filled: true,
-                fillColor: Theme.of(context).scaffoldBackgroundColor,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
             ),
           ),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: _enModoBusqueda
-              ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
-              : StreamBuilder<List<Cliente>>(
-                  stream: _svc.getClientesStream(),
-                  builder: (ctx, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final clientes = snap.data ?? [];
-                    return _buildListaClientes(clientes);
-                  },
-                ),
-        ),
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(isDesktop: false),
+        tabletBody: _buildBody(isDesktop: true),
+        desktopBody: _buildBody(isDesktop: true),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _mostrarFormularioAgregar(),
         icon: const Icon(Icons.person_add_alt_1),
         label: const Text('Nuevo Cliente'),
+      ),
+    );
+  }
+
+  Widget _buildBody({bool isDesktop = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+        child: _enModoBusqueda
+            ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
+            : StreamBuilder<List<Cliente>>(
+                stream: _svc.getClientesStream(),
+                builder: (ctx, snap) {
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final clientes = snap.data ?? [];
+                  return _buildListaClientes(clientes);
+                },
+              ),
       ),
     );
   }

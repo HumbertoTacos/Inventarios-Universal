@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 
 class GestionCategoriasScreen extends StatelessWidget {
   const GestionCategoriasScreen({super.key});
@@ -16,78 +17,76 @@ class GestionCategoriasScreen extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final firebaseService = FirebaseService();
 
-    return Scaffold(
-      drawer: const AppDrawer(currentRoute: 'categorias'),
-      appBar: AppBar(
-        title: const Text(
-          'Gestionar Categorías',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: colorScheme.primaryContainer,
-        foregroundColor: colorScheme.onPrimaryContainer,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        elevation: 0,
-      ),
-      body: StreamBuilder<List<Categoria>>(
-        stream: firebaseService.getCategorias(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final categorias = snapshot.data ?? [];
-
-          if (categorias.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.category_outlined, size: 80, color: Colors.grey.shade400),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Sin categorías',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Toca el botón + para agregar una.',
-                    style: TextStyle(color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            itemCount: categorias.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 4),
-            itemBuilder: (context, index) {
-              final cat = categorias[index];
-              return _CategoriaCard(
-                categoria: cat,
-                firebaseService: firebaseService,
-              );
-            },
-          );
-        },
+    return ResponsiveScaffold(
+      currentRoute: 'categorias',
+      title: 'Gestionar Categorías',
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(context, firebaseService, isDesktop: false),
+        tabletBody: _buildBody(context, firebaseService, isDesktop: true),
+        desktopBody: _buildBody(context, firebaseService, isDesktop: true),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _mostrarDialogoAgregar(context, firebaseService),
         icon: const Icon(Icons.add),
         label: const Text('Agregar categoría'),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, FirebaseService firebaseService, {bool isDesktop = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+        child: StreamBuilder<List<Categoria>>(
+          stream: firebaseService.getCategorias(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final categorias = snapshot.data ?? [];
+
+            if (categorias.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.category_outlined, size: 80, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Sin categorías',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Toca el botón + para agregar una.',
+                      style: TextStyle(color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              itemCount: categorias.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 4),
+              itemBuilder: (context, index) {
+                final cat = categorias[index];
+                return _CategoriaCard(
+                  categoria: cat,
+                  firebaseService: firebaseService,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

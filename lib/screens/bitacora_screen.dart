@@ -9,7 +9,8 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 
 class BitacoraScreen extends StatefulWidget {
   const BitacoraScreen({super.key});
@@ -31,16 +32,6 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
       initialDateRange: _rangoSeleccionado,
       firstDate: DateTime(2024),
       lastDate: DateTime.now().add(const Duration(days: 1)),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: Theme.of(context).colorScheme.copyWith(
-              primary: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
 
     if (picked != null) {
@@ -88,8 +79,6 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     final negocioId = AuthService().currentNegocioId;
     Query query = _bitacoraRef
         .where('negocioId', isEqualTo: negocioId)
@@ -97,142 +86,156 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
         .limit(50);
 
     if (_rangoSeleccionado != null) {
-      // Ajustamos el fin para incluir todo el último día (23:59:59)
-      final inicio = DateTime(_rangoSeleccionado!.start.year, _rangoSeleccionado!.start.month, _rangoSeleccionado!.start.day);
-      final fin = DateTime(_rangoSeleccionado!.end.year, _rangoSeleccionado!.end.month, _rangoSeleccionado!.end.day, 23, 59, 59);
+      final start = DateTime(_rangoSeleccionado!.start.year, _rangoSeleccionado!.start.month, _rangoSeleccionado!.start.day);
+      final end = DateTime(_rangoSeleccionado!.end.year, _rangoSeleccionado!.end.month, _rangoSeleccionado!.end.day, 23, 59, 59);
       
       query = query
-          .where('fecha', isGreaterThanOrEqualTo: inicio.toIso8601String())
-          .where('fecha', isLessThanOrEqualTo: fin.toIso8601String());
+          .where('fecha', isGreaterThanOrEqualTo: start)
+          .where('fecha', isLessThanOrEqualTo: end);
     }
 
-    return Scaffold(
-      drawer: const AppDrawer(currentRoute: 'bitacora'),
-      appBar: AppBar(
-        title: const Text('Bitácora de Movimientos'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        actions: [
-          StreamBuilder<QuerySnapshot>(
-            stream: query.snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox();
-              return IconButton(
-                icon: const Icon(Icons.download_outlined),
-                onPressed: () {
-                  final logs = snapshot.data!.docs.map((doc) => BitacoraLog.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList();
-                  _exportarBitacora(logs);
-                },
-                tooltip: 'Exportar a CSV',
-              );
-            }
-          ),
-          if (_rangoSeleccionado != null)
-            IconButton(
-              icon: const Icon(Icons.clear_all),
-              onPressed: () => setState(() => _rangoSeleccionado = null),
-              tooltip: 'Limpiar filtro',
-            ),
+    return ResponsiveScaffold(
+      currentRoute: 'bitacora',
+      title: 'Bitácora de Movimientos',
+      actions: [
+        if (_rangoSeleccionado != null)
           IconButton(
-            icon: const Icon(Icons.date_range),
-            onPressed: _seleccionarRangoFechas,
-            tooltip: 'Filtrar por fecha',
+            icon: const Icon(Icons.clear_all),
+            onPressed: () => setState(() => _rangoSeleccionado = null),
+            tooltip: 'Limpiar filtro',
           ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: query.snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final logs = snapshot.data!.docs.map((doc) {
-            return BitacoraLog.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-          }).toList();
-
-          if (logs.isEmpty) {
-            return const PremiumEmptyState(
-              icon: Icons.manage_search,
-              title: 'Bitácora Vacía',
-              subtitle: 'No se encontraron movimientos en el periodo seleccionado.',
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(8),
-            itemCount: logs.length,
-            itemBuilder: (context, index) {
-              final log = logs[index];
-              return PremiumCard(
-                margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
-                child: ListTile(
-                  leading: _getIconForModulo(log.modulo),
-                  title: Text(log.descripcion, style: const TextStyle(fontSize: 14)),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Row(
-                      children: [
-                        Text(log.nombreUsuario, style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 12)),
-                        const SizedBox(width: 8),
-                        Text(DateFormat('dd/MM HH:mm').format(log.fecha), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer.withAlpha(100),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(log.modulo, style: TextStyle(fontSize: 10, color: colorScheme.onPrimaryContainer, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              );
-            },
-          );
-        },
+        IconButton(
+          icon: const Icon(Icons.calendar_month_outlined),
+          onPressed: _seleccionarRangoFechas,
+          tooltip: 'Filtrar por fecha',
+        ),
+      ],
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(query, isDesktop: false),
+        tabletBody: _buildBody(query, isDesktop: true),
+        desktopBody: _buildBody(query, isDesktop: true),
       ),
     );
   }
 
-  Widget _getIconForModulo(String modulo) {
-    IconData iconData;
-    Color color;
+  Widget _buildBody(Query query, {bool isDesktop = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+        child: Column(
+          children: [
+            if (_rangoSeleccionado != null)
+              _buildRangoActivo(),
+            
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: query.snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-    switch (modulo) {
-      case 'VENTAS':
-        iconData = Icons.point_of_sale;
-        color = Colors.green;
-        break;
-      case 'INVENTARIO':
-        iconData = Icons.inventory_2_outlined;
-        color = Colors.orange;
-        break;
-      case 'CAJA':
-        iconData = Icons.payments_outlined;
-        color = Colors.blue;
-        break;
-      case 'CREDITOS':
-        iconData = Icons.person_outline;
-        color = Colors.purple;
-        break;
-      default:
-        iconData = Icons.history;
-        color = Colors.grey;
-    }
+                  final logs = snapshot.data!.docs
+                      .map((doc) => BitacoraLog.fromFirestore(doc))
+                      .toList();
 
-    return CircleAvatar(
-      backgroundColor: color.withAlpha(30),
-      radius: 18,
-      child: Icon(iconData, size: 18, color: color),
+                  if (logs.isEmpty) {
+                    return const PremiumEmptyState(
+                      icon: Icons.history_toggle_off,
+                      title: 'Sin movimientos',
+                      subtitle: 'No se encontraron registros en este período.',
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      _buildExportButton(logs),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          itemCount: logs.length,
+                          itemBuilder: (context, index) => PremiumCard(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: _buildLogTile(logs[index]),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRangoActivo() {
+    final fmt = DateFormat('dd MMM yyyy');
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.primaryContainer.withAlpha(50),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        children: [
+          Icon(Icons.filter_list, size: 16, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            'Filtrando: ${fmt.format(_rangoSeleccionado!.start)} - ${fmt.format(_rangoSeleccionado!.end)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportButton(List<BitacoraLog> logs) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton.icon(
+        onPressed: () => _exportarBitacora(logs),
+        icon: const Icon(Icons.download),
+        label: const Text('Exportar a CSV'),
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 45),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogTile(BitacoraLog log) {
+    final tt = Theme.of(context).textTheme;
+    final fmt = DateFormat('dd/MM/yyyy HH:mm');
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      title: Row(
+        children: [
+          Text(log.modulo.toUpperCase(), 
+            style: tt.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.bold
+            )
+          ),
+          const Spacer(),
+          Text(fmt.format(log.fecha), style: tt.labelSmall?.copyWith(color: Colors.grey)),
+        ],
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Text(log.descripcion, style: tt.bodyMedium),
+          const SizedBox(height: 2),
+          Text('Por: ${log.nombreUsuario}', style: tt.bodySmall?.copyWith(fontStyle: FontStyle.italic)),
+        ],
+      ),
     );
   }
 }

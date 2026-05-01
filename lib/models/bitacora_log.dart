@@ -39,4 +39,8 @@ class BitacoraLog {
       descripcion: map['descripcion'] ?? '',
     );
   }
+
+  factory BitacoraLog.fromFirestore(dynamic doc) {
+    return BitacoraLog.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+  }
 }

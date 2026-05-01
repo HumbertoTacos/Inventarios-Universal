@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:csv/csv.dart';
+import 'dart:convert';
+import 'dart:io';
 import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/venta.dart';
@@ -8,17 +12,11 @@ import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'editar_producto_screen.dart';
-import 'estadisticas_screen.dart';
-import 'gestion_categorias_screen.dart';
-import 'historial_ventas_screen.dart';
-import 'ventas_screen.dart';
-import 'mi_equipo_screen.dart';
-import 'clientes_screen.dart';
 import '../services/auth_service.dart';
-import 'auth_gate.dart';
 import '../utils/formatters.dart';
 import '../services/impresion_service.dart';
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
 
 class InventarioScreen extends StatefulWidget {
@@ -49,6 +47,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   // Estado de Datos
   List<Producto> _productos = [];
+  List<Producto> _productosFiltradosNombre = []; // Resultados filtrados localmente por nombre
   DocumentSnapshot? _lastDoc;
   Producto? _searchResult; // Para mostrar un resultado exacto por SKU
   
@@ -57,6 +56,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
   bool _isFetchingMore = false;   // Cargando página siguiente
   bool _hasMoreData = true;       // ¿Quedan más datos en Firebase?
   bool _isSearching = false;      // ¿Estamos en modo búsqueda/SKU?
+  bool _isSearchingNombre = false; // Búsqueda por nombre activa
 
   // Filtros
   Categoria? _filtroCategoria;
@@ -167,23 +167,61 @@ class _InventarioScreenState extends State<InventarioScreen> {
       return;
     }
 
-    setState(() {
-      _isSearching = true;
-      _isLoading = true;
-      _searchResult = null;
-    });
+    final q = query.trim();
+    final soloDigitos = RegExp(r'^\d+$').hasMatch(q);
 
-    try {
-      // Intentamos buscar por SKU como prioridad (Lo que pide el POS/Senior)
-      final res = await _firebaseService.buscarVariantePorSKU(query.trim());
-      if (mounted) {
-        setState(() {
-          _searchResult = res;
-          _isLoading = false;
-        });
+    if (soloDigitos) {
+      // Búsqueda por SKU/código de barras (lógica original)
+      setState(() {
+        _isSearching = true;
+        _isSearchingNombre = false;
+        _isLoading = true;
+        _searchResult = null;
+        _productosFiltradosNombre = [];
+      });
+
+      try {
+        final res = await _firebaseService.buscarVariantePorSKU(q);
+        if (mounted) {
+          setState(() {
+            _searchResult = res;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) setState(() => _isLoading = false);
       }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+    } else {
+      // Búsqueda por nombre: primero filtrado local, luego Firestore
+      setState(() {
+        _isSearching = false;
+        _isSearchingNombre = true;
+        _isLoading = false;
+      });
+
+      final queryLower = q.toLowerCase();
+
+      // 1. Filtro local inmediato
+      final locales = _productos
+          .where((p) => p.nombre.toLowerCase().contains(queryLower))
+          .toList();
+
+      setState(() => _productosFiltradosNombre = locales);
+
+      // 2. Si pocos resultados, buscar en Firestore
+      if (locales.length < 5) {
+        try {
+          final remotos = await _firebaseService.buscarProductosPorNombre(queryLower);
+          if (mounted) {
+            final ids = locales.map((p) => p.id).toSet();
+            final fusionados = [...locales];
+            for (final r in remotos) {
+              if (!ids.contains(r.id)) fusionados.add(r);
+            }
+            setState(() => _productosFiltradosNombre = fusionados);
+          }
+        } catch (_) {}
+      }
     }
   }
 
@@ -193,80 +231,154 @@ class _InventarioScreenState extends State<InventarioScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      drawer: widget.modoSeleccion
-          ? null
-          : const AppDrawer(currentRoute: 'inventario'),
-      appBar: AppBar(
-        title: const Text('Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        backgroundColor: colorScheme.primaryContainer,
-        foregroundColor: colorScheme.onPrimaryContainer,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(76),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchCtrl,
-                    onSubmitted: _ejecutarBusqueda,
-                    decoration: InputDecoration(
-                      hintText: 'Buscar SKU / Código...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchCtrl.text.isNotEmpty 
-                        ? IconButton(icon: const Icon(Icons.clear), onPressed: () { _searchCtrl.clear(); _fetchInitial(); })
-                        : IconButton(
-                            icon: const Icon(Icons.qr_code_scanner),
-                            onPressed: _escanearParaBuscar,
-                          ),
-                      filled: true,
-                      fillColor: Theme.of(context).scaffoldBackgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    ),
-                  ),
+    final appBarBottom = PreferredSize(
+      preferredSize: const Size.fromHeight(76),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) {
+                  // Búsqueda en tiempo real si tiene letras, o al submit si solo dígitos
+                  if (v.trim().isEmpty) { _fetchInitial(); return; }
+                  if (!RegExp(r'^\d+$').hasMatch(v.trim())) _ejecutarBusqueda(v);
+                },
+                onSubmitted: _ejecutarBusqueda,
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre o código de barras...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchCtrl.text.isNotEmpty 
+                    ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() {
+                          _isSearchingNombre = false;
+                          _productosFiltradosNombre = [];
+                        });
+                        _fetchInitial();
+                      })
+                    : IconButton(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        onPressed: _escanearParaBuscar,
+                      ),
+                  filled: true,
+                  fillColor: Theme.of(context).scaffoldBackgroundColor,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: _filtroCategoria != null ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.filter_list, color: _filtroCategoria != null ? colorScheme.onPrimary : colorScheme.onSurface),
-                    onPressed: _mostrarModalFiltros,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: _filtroCategoria != null ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: IconButton(
+                icon: Icon(Icons.filter_list, color: _filtroCategoria != null ? colorScheme.onPrimary : colorScheme.onSurface),
+                onPressed: _mostrarModalFiltros,
+              ),
+            ),
+          ],
         ),
       ),
-      body: _buildBody(),
-      floatingActionButton: widget.modoSeleccion || !_puedeAgregarProductos
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _navegarAAgregarProducto,
-              icon: const Icon(Icons.add),
-              label: const Text('Agregar'),
-            ),
+    );
+
+    final actions = [
+      if (!widget.modoSeleccion && _esDueno)
+        IconButton(
+          icon: const Icon(Icons.upload_file_outlined),
+          tooltip: 'Importar CSV',
+          onPressed: _importarCSV,
+        ),
+    ];
+
+    final floatingActionButton = widget.modoSeleccion || !_puedeAgregarProductos
+        ? null
+        : FloatingActionButton.extended(
+            onPressed: _navegarAAgregarProducto,
+            icon: const Icon(Icons.add),
+            label: const Text('Agregar'),
+          );
+
+    final bodyContent = ResponsiveLayout(
+      mobileBody: _buildBody(isDesktop: false),
+      tabletBody: _buildBody(isDesktop: true, isTablet: true),
+      desktopBody: _buildBody(isDesktop: true, isTablet: false),
+    );
+
+    if (widget.modoSeleccion) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
+          centerTitle: true,
+          backgroundColor: colorScheme.primaryContainer,
+          foregroundColor: colorScheme.onPrimaryContainer,
+          elevation: 0,
+          actions: actions,
+          bottom: appBarBottom,
+        ),
+        body: bodyContent,
+        floatingActionButton: floatingActionButton,
+      );
+    }
+
+    return ResponsiveScaffold(
+      currentRoute: 'inventario',
+      title: 'Inventario',
+      actions: actions,
+      appBarBottom: appBarBottom,
+      body: bodyContent,
+      floatingActionButton: floatingActionButton,
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody({bool isDesktop = false, bool isTablet = false}) {
     Widget content;
+    
+    Widget buildListOrGrid(int itemCount, Widget Function(int) itemBuilder) {
+      if (isDesktop) {
+        return GridView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: isTablet ? 3 : 5,
+            childAspectRatio: 0.8,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: itemCount,
+          itemBuilder: (context, index) => itemBuilder(index),
+        );
+      } else {
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: itemCount,
+          itemBuilder: (context, index) => itemBuilder(index),
+        );
+      }
+    }
+
     if (_isLoading) {
       content = const Center(child: CircularProgressIndicator());
+    } else if (_isSearchingNombre) {
+      if (_productosFiltradosNombre.isEmpty) {
+        content = _buildEstadoVacio('Sin resultados', 'No hay productos que coincidan con "${_searchCtrl.text}".');
+      } else {
+        content = buildListOrGrid(
+          _productosFiltradosNombre.length,
+          (index) => isDesktop ? _buildProductoGridCard(_productosFiltradosNombre[index]) : _buildProductoCard(_productosFiltradosNombre[index])
+        );
+      }
     } else if (_isSearching) {
       if (_searchResult == null) {
         content = _buildEstadoVacio('No encontrado', 'No hay productos con ese código.');
       } else {
-        content = ListView(
-          padding: const EdgeInsets.all(12),
-          children: [_buildProductoCard(_searchResult!)],
+        content = buildListOrGrid(
+          1,
+          (index) => isDesktop ? _buildProductoGridCard(_searchResult!) : _buildProductoCard(_searchResult!)
         );
       }
     } else if (_productos.isEmpty) {
@@ -274,24 +386,22 @@ class _InventarioScreenState extends State<InventarioScreen> {
     } else {
       content = RefreshIndicator(
         onRefresh: _fetchInitial,
-        child: ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          itemCount: _productos.length + (_hasMoreData ? 1 : 0),
-          itemBuilder: (context, index) {
+        child: buildListOrGrid(
+          _productos.length + (_hasMoreData ? 1 : 0),
+          (index) {
             if (index == _productos.length) {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
               );
             }
-            return _buildProductoCard(_productos[index]);
-          },
+            return isDesktop ? _buildProductoGridCard(_productos[index]) : _buildProductoCard(_productos[index]);
+          }
         ),
       );
     }
 
-    return Center(
+    return isDesktop ? content : Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
         child: content,
@@ -306,7 +416,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
       icon: Icons.inventory_2_outlined,
       title: titulo,
       subtitle: subtitulo,
-      action: _isSearching
+      action: (_isSearching || _isSearchingNombre)
           ? TextButton(
               onPressed: () {
                 _searchCtrl.clear();
@@ -372,6 +482,86 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
+  Widget _buildProductoGridCard(Producto producto) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final inStock = producto.cantidad > 0;
+    
+    return Card(
+      elevation: 1,
+      color: colorScheme.surfaceContainer,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () => widget.modoSeleccion
+            ? Navigator.pop(context, producto)
+            : _abrirMenuAcciones(producto),
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: inStock ? colorScheme.secondaryContainer : Colors.red.shade50,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Center(
+                  child: Text(producto.nombre[0].toUpperCase(), 
+                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: inStock ? colorScheme.onSecondaryContainer : Colors.red.shade700)),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Text((producto.codigoBarras?.isNotEmpty ?? false) ? 'SKU: ${producto.codigoBarras}' : 'Sin SKU', style: TextStyle(fontSize: 10, color: colorScheme.outline)),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Stock', style: TextStyle(fontSize: 10, color: colorScheme.outline)),
+                            Text(producto.cantidad.formatoInventario, 
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (producto.enPromocion && producto.precioPromocion != null)
+                              Text('\$${producto.precioPromocion!.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade700))
+                            else
+                              Text('\$${producto.precio.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Métodos de apoyo (Filtros, Modales, etc.) ──────────────────────────────
   
   void _mostrarModalFiltros() {
@@ -394,6 +584,126 @@ class _InventarioScreenState extends State<InventarioScreen> {
   }
 
   void _navegarAAgregarProducto() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarProductoScreen())).then((_) => _fetchInitial());
+
+  // ── Importación Masiva CSV ─────────────────────────────────────────────────
+
+  Future<void> _importarCSV() async {
+    try {
+      // 1. Abrir selector de archivos
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        allowMultiple: false,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      String csvContent;
+
+      if (file.bytes != null) {
+        // Web / bytes en memoria
+        csvContent = utf8.decode(file.bytes!);
+      } else if (file.path != null) {
+        // Desktop / Mobile: leer desde disco
+        csvContent = await File(file.path!).readAsString(encoding: utf8);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo leer el archivo.'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
+
+      // 2. Parsear CSV
+      final rows = const CsvToListConverter(eol: '\n').convert(csvContent);
+      if (rows.isEmpty) return;
+
+      // Primera fila = headers
+      final headers = rows.first.map((h) => h.toString().trim()).toList();
+      final filas = <Map<String, String>>[];
+
+      for (int i = 1; i < rows.length; i++) {
+        final row = rows[i];
+        final Map<String, String> fila = {};
+        for (int j = 0; j < headers.length && j < row.length; j++) {
+          fila[headers[j]] = row[j].toString().trim();
+        }
+        if (fila['Nombre']?.isNotEmpty == true) {
+          filas.add(fila);
+        }
+      }
+
+      if (filas.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('El CSV no tiene filas válidas.'), backgroundColor: Colors.orange),
+          );
+        }
+        return;
+      }
+
+      // 3. Mostrar confirmación
+      if (!mounted) return;
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(children: [
+            Icon(Icons.upload_file, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Importar CSV'),
+          ]),
+          content: Text(
+            'Se importarán ${filas.length} producto(s).\n\n'
+            'Las categorías nuevas serán creadas automáticamente.\n'
+            '¿Deseas continuar?',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Importar')),
+          ],
+        ),
+      );
+
+      if (confirmar != true || !mounted) return;
+
+      // 4. Mostrar loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const AlertDialog(
+          content: Row(children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Importando productos...'),
+          ]),
+        ),
+      );
+
+      // 5. Subir a Firestore
+      final importados = await _firebaseService.importarProductosCSV(filas);
+
+      if (mounted) Navigator.pop(context); // Cerrar loading
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✓ $importados producto(s) importados correctamente.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _fetchInitial();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si quedó abierto
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al importar CSV: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
 
   Future<void> _mostrarDialogoRestock(Producto producto) async {
     final TextEditingController ctrl = TextEditingController();

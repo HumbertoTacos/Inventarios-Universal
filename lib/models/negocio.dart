@@ -6,6 +6,8 @@ class Negocio {
   final String? telefono;
   final String? direccion;
   final String? pinAutorizacion;
+  final bool usaCajaRegistradora;
+  final bool manejaEnvios;
 
   Negocio({
     required this.id,
@@ -15,6 +17,8 @@ class Negocio {
     this.telefono,
     this.direccion,
     this.pinAutorizacion,
+    this.usaCajaRegistradora = true,
+    this.manejaEnvios = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -25,6 +29,8 @@ class Negocio {
       'telefono': telefono,
       'direccion': direccion,
       'pinAutorizacion': pinAutorizacion,
+      'usaCajaRegistradora': usaCajaRegistradora,
+      'manejaEnvios': manejaEnvios,
     };
   }
 
@@ -37,6 +43,8 @@ class Negocio {
       telefono: map['telefono'] as String?,
       direccion: map['direccion'] as String?,
       pinAutorizacion: map['pinAutorizacion'] as String?,
+      usaCajaRegistradora: map['usaCajaRegistradora'] as bool? ?? true,
+      manejaEnvios: map['manejaEnvios'] as bool? ?? false,
     );
   }
 
@@ -47,6 +55,8 @@ class Negocio {
     String? telefono,
     String? direccion,
     String? pinAutorizacion,
+    bool? usaCajaRegistradora,
+    bool? manejaEnvios,
   }) {
     return Negocio(
       id: id,
@@ -56,6 +66,8 @@ class Negocio {
       telefono: telefono ?? this.telefono,
       direccion: direccion ?? this.direccion,
       pinAutorizacion: pinAutorizacion ?? this.pinAutorizacion,
+      usaCajaRegistradora: usaCajaRegistradora ?? this.usaCajaRegistradora,
+      manejaEnvios: manejaEnvios ?? this.manejaEnvios,
     );
   }
 }

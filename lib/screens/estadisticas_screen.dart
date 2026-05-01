@@ -8,7 +8,8 @@ import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../utils/formatters.dart';
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 
 class EstadisticasScreen extends StatefulWidget {
   const EstadisticasScreen({super.key});
@@ -81,56 +82,53 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    return Scaffold(
-      backgroundColor: cs.surfaceContainerLowest,
-      drawer: const AppDrawer(currentRoute: 'estadisticas'),
-      appBar: AppBar(
-        title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: cs.primaryContainer,
-        foregroundColor: cs.onPrimaryContainer,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+    return ResponsiveScaffold(
+      currentRoute: 'estadisticas',
+      title: 'Dashboard',
+      actions: [
+        // Botón de exportación CSV
+        _exportando
+            ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            : IconButton(
+                icon: const Icon(Icons.download_outlined),
+                tooltip: 'Exportar CSV',
+                onPressed: _exportarCSV,
+              ),
+        // Selector de período compacto
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: SegmentedButton<int>(
+            style: SegmentedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+            segments: const [
+              ButtonSegment(value: 7, label: Text('7d')),
+              ButtonSegment(value: 30, label: Text('30d')),
+            ],
+            selected: {_diasSeleccionados},
+            onSelectionChanged: (s) => _cambiarPeriodo(s.first),
           ),
         ),
-        elevation: 0,
-        actions: [
-          // Botón de exportación CSV
-          _exportando
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 12),
-                  child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.download_outlined),
-                  tooltip: 'Exportar CSV',
-                  onPressed: _exportarCSV,
-                ),
-          // Selector de período compacto
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: SegmentedButton<int>(
-              style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                textStyle: const TextStyle(fontSize: 12),
-              ),
-              segments: const [
-                ButtonSegment(value: 7, label: Text('7d')),
-                ButtonSegment(value: 30, label: Text('30d')),
-              ],
-              selected: {_diasSeleccionados},
-              onSelectionChanged: (s) => _cambiarPeriodo(s.first),
-            ),
-          ),
-        ],
+      ],
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(cs, tt, isDesktop: false),
+        tabletBody: _buildBody(cs, tt, isDesktop: true, isTablet: true),
+        desktopBody: _buildBody(cs, tt, isDesktop: true, isTablet: false),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: RefreshIndicator(
-            onRefresh: () async => setState(() => _cargar()),
-            child: SingleChildScrollView(
+    );
+  }
+
+  Widget _buildBody(ColorScheme cs, TextTheme tt, {bool isDesktop = false, bool isTablet = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1200 : 800),
+        child: RefreshIndicator(
+          onRefresh: () async => setState(() => _cargar()),
+          child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           child: FutureBuilder<DashboardData>(
@@ -152,7 +150,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Tarjetas KPI ──────────────────────────────────────
-                  _buildKpiGrid(data, cs, tt),
+                  _buildKpiGrid(data, cs, tt, isDesktop: isDesktop, isTablet: isTablet),
                   const SizedBox(height: 24),
 
                   // ── Gráfico de Barras ─────────────────────────────────
@@ -199,21 +197,25 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           ),
         ),
       ),
-      ),
-      ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Widgets ───────────────────────────────────────────────────────────────
 
-  Widget _buildKpiGrid(DashboardData data, ColorScheme cs, TextTheme tt) {
+  Widget _buildKpiGrid(DashboardData data, ColorScheme cs, TextTheme tt, {bool isDesktop = false, bool isTablet = false}) {
+    int crossAxisCount = 2;
+    if (isDesktop) {
+      crossAxisCount = isTablet ? 3 : 5;
+    }
+    
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: 1.6,
+      childAspectRatio: isDesktop ? (isTablet ? 1.3 : 1.4) : 1.2,
       children: [
         _buildKpiCard('Ingresos', '\$${data.ingresosTotales.toStringAsFixed(2)}',
             Icons.trending_up, Colors.green.shade600, cs),
@@ -253,11 +255,12 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500)),
-              Text(valor,
-                  style: TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold, color: color, letterSpacing: -0.5),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(valor,
+                    style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: color, letterSpacing: -0.5)),
+              ),
             ],
           ),
         ],

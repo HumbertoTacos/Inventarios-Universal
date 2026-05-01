@@ -9,8 +9,9 @@ class TurnoCaja {
   final double ventasTarjeta;
   final double ventasTransferencia;
   final double ventasCredito;
+  final double entradasEfectivo; // Ingresos manuales
+  final double egresosEfectivo;  // Retiros/gastos
   final double? efectivoContado;
-  final double retirosEfectivo;
   final List<Map<String, dynamic>> historialRetiros;
   final EstadoTurno estado;
 
@@ -23,18 +24,21 @@ class TurnoCaja {
     this.ventasTarjeta = 0.0,
     this.ventasTransferencia = 0.0,
     this.ventasCredito = 0.0,
+    this.entradasEfectivo = 0.0,
+    this.egresosEfectivo = 0.0,
     this.efectivoContado,
-    this.retirosEfectivo = 0.0,
     this.historialRetiros = const [],
     this.estado = EstadoTurno.abierto,
   });
 
-  /// Total esperado en la caja = (Fondo Inicial + Ventas en Efectivo) - Retiros
-  double get totalEsperadoEfectivo => (fondoInicial + ventasEfectivo) - retirosEfectivo;
+  /// Total esperado en la caja = (Fondo Inicial + Ventas en Efectivo + Entradas) - Egresos
+  double get totalEsperadoEfectivo => (fondoInicial + ventasEfectivo + entradasEfectivo) - egresosEfectivo;
 
   /// Diferencia entre el físico contado y lo esperado en sistema
-  double get diferenciaEfectivo =>
-      (efectivoContado ?? 0.0) - totalEsperadoEfectivo;
+  double get diferenciaEfectivo => (efectivoContado ?? 0.0) - totalEsperadoEfectivo;
+
+  // Compatibilidad hacia atrás (por si alguna parte del código antiguo lo usa antes de migrar todo)
+  double get retirosEfectivo => egresosEfectivo;
 
   Map<String, dynamic> toMap() {
     return {
@@ -45,8 +49,9 @@ class TurnoCaja {
       'ventasTarjeta': ventasTarjeta,
       'ventasTransferencia': ventasTransferencia,
       'ventasCredito': ventasCredito,
+      'entradasEfectivo': entradasEfectivo,
+      'egresosEfectivo': egresosEfectivo,
       'efectivoContado': efectivoContado,
-      'retirosEfectivo': retirosEfectivo,
       'historialRetiros': historialRetiros,
       'estado': estado.name,
     };
@@ -64,11 +69,12 @@ class TurnoCaja {
       fondoInicial: (map['fondoInicial'] as num?)?.toDouble() ?? 0.0,
       ventasEfectivo: (map['ventasEfectivo'] as num?)?.toDouble() ?? 0.0,
       ventasTarjeta: (map['ventasTarjeta'] as num?)?.toDouble() ?? 0.0,
-      ventasTransferencia:
-          (map['ventasTransferencia'] as num?)?.toDouble() ?? 0.0,
+      ventasTransferencia: (map['ventasTransferencia'] as num?)?.toDouble() ?? 0.0,
       ventasCredito: (map['ventasCredito'] as num?)?.toDouble() ?? 0.0,
+      entradasEfectivo: (map['entradasEfectivo'] as num?)?.toDouble() ?? 0.0,
+      // Retrocompatibilidad: leer de 'retirosEfectivo' si 'egresosEfectivo' no existe
+      egresosEfectivo: (map['egresosEfectivo'] as num?)?.toDouble() ?? (map['retirosEfectivo'] as num?)?.toDouble() ?? 0.0,
       efectivoContado: (map['efectivoContado'] as num?)?.toDouble(),
-      retirosEfectivo: (map['retirosEfectivo'] as num?)?.toDouble() ?? 0.0,
       historialRetiros: (map['historialRetiros'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
@@ -88,8 +94,9 @@ class TurnoCaja {
     double? ventasTarjeta,
     double? ventasTransferencia,
     double? ventasCredito,
+    double? entradasEfectivo,
+    double? egresosEfectivo,
     double? efectivoContado,
-    double? retirosEfectivo,
     List<Map<String, dynamic>>? historialRetiros,
     EstadoTurno? estado,
   }) {
@@ -102,8 +109,9 @@ class TurnoCaja {
       ventasTarjeta: ventasTarjeta ?? this.ventasTarjeta,
       ventasTransferencia: ventasTransferencia ?? this.ventasTransferencia,
       ventasCredito: ventasCredito ?? this.ventasCredito,
+      entradasEfectivo: entradasEfectivo ?? this.entradasEfectivo,
+      egresosEfectivo: egresosEfectivo ?? this.egresosEfectivo,
       efectivoContado: efectivoContado ?? this.efectivoContado,
-      retirosEfectivo: retirosEfectivo ?? this.retirosEfectivo,
       historialRetiros: historialRetiros ?? this.historialRetiros,
       estado: estado ?? this.estado,
     );

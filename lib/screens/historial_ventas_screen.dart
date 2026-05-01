@@ -6,7 +6,8 @@ import '../services/impresion_service.dart';
 import '../services/auth_service.dart';
 import 'detalle_venta_screen.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
   const HistorialVentasScreen({super.key});
@@ -58,30 +59,30 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
   Widget build(BuildContext context) {
     final DateFormat formatter = DateFormat('dd/MM/yyyy');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Historial de Pedidos'),
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
+    return ResponsiveScaffold(
+      currentRoute: 'historial',
+      title: 'Historial de Pedidos',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.calendar_month_outlined),
+          tooltip: 'Seleccionar Periodo',
+          onPressed: _seleccionarFecha,
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month_outlined),
-            tooltip: 'Seleccionar Periodo',
-            onPressed: _seleccionarFecha,
-          ),
-        ],
+      ],
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(formatter, isDesktop: false),
+        tabletBody: _buildBody(formatter, isDesktop: true),
+        desktopBody: _buildBody(formatter, isDesktop: true),
       ),
-      drawer: const AppDrawer(currentRoute: 'historial'),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Column(
-            children: [
+    );
+  }
+
+  Widget _buildBody(DateFormat formatter, {bool isDesktop = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+        child: Column(
+          children: [
           // Visualizador de Rango
           GestureDetector(
             onTap: _seleccionarFecha,
@@ -139,7 +140,6 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           ),
         ],
       ),
-    ),
     ),
     );
   }

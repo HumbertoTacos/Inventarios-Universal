@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/firebase_service.dart';
 import '../screens/inventario_screen.dart';
 import '../screens/ventas_screen.dart';
 import '../screens/historial_ventas_screen.dart';
@@ -13,6 +12,7 @@ import '../screens/configuracion_negocio_screen.dart';
 import '../screens/auth_gate.dart';
 import '../screens/caja_screen.dart';
 import '../models/negocio.dart';
+import '../controllers/configuracion_controller.dart';
 
 class AppDrawer extends StatefulWidget {
   final String currentRoute;
@@ -24,27 +24,27 @@ class AppDrawer extends StatefulWidget {
 }
 
 class _AppDrawerState extends State<AppDrawer> {
-  final FirebaseService _firebaseService = FirebaseService();
-  final AuthService _authService = AuthService();
-  Negocio? _negocio;
+  final _authService = AuthService();
+  late final ConfiguracionController _configController;
 
   @override
   void initState() {
     super.initState();
-    _loadNegocioData();
+    _configController = ConfiguracionController.instance;
+    _configController.addListener(_rebuild);
+    if (_configController.negocio == null) {
+      _configController.cargarConfiguracion();
+    }
   }
 
-  Future<void> _loadNegocioData() async {
-    try {
-      final data = await _firebaseService.getDatosNegocio();
-      if (mounted) {
-        setState(() {
-          _negocio = data;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading business data for drawer: $e');
-    }
+  @override
+  void dispose() {
+    _configController.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
   }
 
   void _navigateTo(Widget screen, String routeName) {
@@ -67,11 +67,13 @@ class _AppDrawerState extends State<AppDrawer> {
         esDueno || (userData?.permisos.puedeVerEstadisticas ?? false);
 
     final colorScheme = Theme.of(context).colorScheme;
+    final negocio = _configController.negocio;
+    final usaCaja = _configController.usaCajaRegistradora;
 
     return Drawer(
       child: Column(
         children: [
-          _buildHeader(colorScheme, userData),
+          _buildHeader(colorScheme, userData, negocio),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -88,12 +90,13 @@ class _AppDrawerState extends State<AppDrawer> {
                   routeName: 'ventas',
                   screen: const VentasScreen(),
                 ),
-                _buildMenuItem(
-                  icon: Icons.point_of_sale_outlined,
-                  title: 'Caja y Turnos',
-                  routeName: 'caja',
-                  screen: const CajaScreen(),
-                ),
+                if (usaCaja)
+                  _buildMenuItem(
+                    icon: Icons.point_of_sale_outlined,
+                    title: 'Caja y Turnos',
+                    routeName: 'caja',
+                    screen: const CajaScreen(),
+                  ),
                 if (puedeVerHistorial)
                   _buildMenuItem(
                     icon: Icons.history,
@@ -172,7 +175,7 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  Widget _buildHeader(ColorScheme colorScheme, UserData? userData) {
+  Widget _buildHeader(ColorScheme colorScheme, UserData? userData, Negocio? negocio) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
@@ -193,9 +196,9 @@ class _AppDrawerState extends State<AppDrawer> {
             radius: 35,
             backgroundColor: Colors.white,
             child: ClipOval(
-              child: _negocio?.logoUrl != null && _negocio!.logoUrl!.isNotEmpty
+              child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
                 ? Image.network(
-                    _negocio!.logoUrl!,
+                    negocio.logoUrl!,
                     width: 70,
                     height: 70,
                     fit: BoxFit.cover,
@@ -207,7 +210,7 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           const SizedBox(height: 16),
           Text(
-            _negocio?.nombre ??
+            negocio?.nombre ??
                 userData?.negocioNombre ??
                 'Inventarios Universal',
             style: const TextStyle(

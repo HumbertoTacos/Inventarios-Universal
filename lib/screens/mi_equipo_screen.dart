@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
-import '../widgets/app_drawer.dart';
+import '../widgets/responsive_scaffold.dart';
+import '../utils/responsive_layout.dart';
 
 
 class MiEquipoScreen extends StatefulWidget {
@@ -111,193 +112,190 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
     final cs = Theme.of(context).colorScheme;
     final currentNegocioId = AuthService().currentNegocioId;
 
-    return Scaffold(
-      drawer: const AppDrawer(currentRoute: 'equipo'),
-      appBar: AppBar(
-        title: const Text('Mi Equipo', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: cs.primaryContainer,
-        foregroundColor: cs.onPrimaryContainer,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        elevation: 0,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: Column(
-            children: [
-              // ── Código de Invitación ─────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [cs.primaryContainer, cs.primary.withAlpha(20)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: cs.primary.withAlpha(50)),
-                    boxShadow: [
-                      BoxShadow(color: cs.primary.withAlpha(15), blurRadius: 24, offset: const Offset(0, 8)),
-                    ],
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  width: double.infinity,
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.badge_outlined, color: cs.onPrimaryContainer),
-                          const SizedBox(width: 8),
-                          Text('Código para emplear',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                _isLoadingCodigo
-                    ? const CircularProgressIndicator()
-                    : SelectableText(
-                        _codigoActual,
-                        style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 10,
-                            color: cs.primary),
-                      ),
-                const SizedBox(height: 4),
-                        Text('Comparte este código con tus empleados para que se puedan unir temporalmente.',
-                            style: TextStyle(fontSize: 13, color: cs.onPrimaryContainer.withAlpha(180)),
-                            textAlign: TextAlign.center),
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('Regenerar Código'),
-                          onPressed: _isLoadingCodigo ? null : _regenerarCodigo,
-                          style: FilledButton.styleFrom(
-                              backgroundColor: cs.primary,
-                              foregroundColor: cs.onPrimary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              // ── Lista de Empleados ───────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Row(children: [
-              Icon(Icons.people_outlined, color: cs.outline, size: 18),
-              const SizedBox(width: 8),
-              Text('Empleados activos',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: cs.outline)),
-            ]),
-          ),
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('usuarios')
-                  .where('negocioId', isEqualTo: currentNegocioId)
-                  .where('rol', isNotEqualTo: AuthService.rolDueno)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                final docs = (snapshot.data?.docs ?? []).where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return data['rol'] == AuthService.rolEmpleado || data['rol'] == 'usuario';
-                }).toList();
-
-                if (docs.isEmpty) {
-                  return const PremiumEmptyState(
-                    icon: Icons.people_outline,
-                    title: 'Sin Empleados',
-                    subtitle: 'No tienes empleados registrados.',
-                  );
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 4),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final uid = docs[index].id;
-                    final nombre = data['nombre'] as String? ?? 'Sin nombre';
-                    final email = data['email'] as String? ?? '';
-                    final estatus = data['estatus'] as String? ?? '';
-                    final isActivo = estatus != 'despedido' && estatus != 'inactivo';
-
-                    // Contar permisos activos
-                    final permisosMap = data['permisos'] as Map<String, dynamic>?;
-                    final permisos = permisosMap != null
-                        ? PermisosEmpleado.fromMap(permisosMap)
-                        : const PermisosEmpleado();
-                    final permisosActivos = [
-                      permisos.puedeAjustarStock,
-                      permisos.puedeEditarProductos,
-                      permisos.puedeEliminarProductos,
-                      permisos.puedeVerEstadisticas,
-                      permisos.puedeVerHistorialVentas,
-                      permisos.puedeAbrirCerrarCaja,
-                    ].where((v) => v).length;
-
-                    return PremiumCard(
-                      color: isActivo ? null : Colors.grey.shade100,
-                      child: ListTile(
-                        onTap: isActivo
-                            ? () => _abrirPanelPermisos(uid, nombre, email, data)
-                            : null,
-                        leading: CircleAvatar(
-                          backgroundColor: isActivo ? cs.primaryContainer : Colors.grey.shade300,
-                          child: Text(nombre[0].toUpperCase(),
-                              style: TextStyle(
-                                  color: isActivo ? cs.onPrimaryContainer : Colors.grey,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                        title: Text(nombre,
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                decoration: isActivo ? null : TextDecoration.lineThrough)),
-                        subtitle: Text(email),
-                        trailing: isActivo
-                            ? Row(mainAxisSize: MainAxisSize.min, children: [
-                                // Badge de permisos
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: cs.secondaryContainer,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: Text('$permisosActivos/6 permisos',
-                                      style: TextStyle(fontSize: 11, color: cs.onSecondaryContainer)),
-                                ),
-                                const SizedBox(width: 4),
-                                Icon(Icons.chevron_right, color: cs.outline),
-                              ])
-                            : const Icon(Icons.block, color: Colors.red),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      ),
+    return ResponsiveScaffold(
+      currentRoute: 'equipo',
+      title: 'Mi Equipo',
+      body: ResponsiveLayout(
+        mobileBody: _buildBody(cs, currentNegocioId, isDesktop: false),
+        tabletBody: _buildBody(cs, currentNegocioId, isDesktop: true),
+        desktopBody: _buildBody(cs, currentNegocioId, isDesktop: true),
       ),
     );
   }
+
+  Widget _buildBody(ColorScheme cs, String? currentNegocioId, {bool isDesktop = false}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+        child: Column(
+          children: [
+            // ── Código de Invitación ─────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [cs.primaryContainer, cs.primary.withAlpha(20)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: cs.primary.withAlpha(50)),
+                  boxShadow: [
+                    BoxShadow(color: cs.primary.withAlpha(15), blurRadius: 24, offset: const Offset(0, 8)),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.badge_outlined, color: cs.onPrimaryContainer),
+                        const SizedBox(width: 8),
+                        Text('Código para emplear',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: cs.onPrimaryContainer)),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+              _isLoadingCodigo
+                  ? const CircularProgressIndicator()
+                  : SelectableText(
+                      _codigoActual,
+                      style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 10,
+                          color: cs.primary),
+                    ),
+              const SizedBox(height: 4),
+                      Text('Comparte este código con tus empleados para que se puedan unir temporalmente.',
+                          style: TextStyle(fontSize: 13, color: cs.onPrimaryContainer.withAlpha(180)),
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 20),
+                      FilledButton.icon(
+                        icon: const Icon(Icons.refresh, size: 16),
+                        label: const Text('Regenerar Código'),
+                        onPressed: _isLoadingCodigo ? null : _regenerarCodigo,
+                        style: FilledButton.styleFrom(
+                            backgroundColor: cs.primary,
+                            foregroundColor: cs.onPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            // ── Lista de Empleados ───────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Row(children: [
+            Icon(Icons.people_outlined, color: cs.outline, size: 18),
+            const SizedBox(width: 8),
+            Text('Empleados activos',
+                style: TextStyle(fontWeight: FontWeight.w600, color: cs.outline)),
+          ]),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('usuarios')
+                .where('negocioId', isEqualTo: currentNegocioId)
+                .where('rol', isNotEqualTo: AuthService.rolDueno)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+
+              final docs = (snapshot.data?.docs ?? []).where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return data['rol'] == AuthService.rolEmpleado || data['rol'] == 'usuario';
+              }).toList();
+
+              if (docs.isEmpty) {
+                return const PremiumEmptyState(
+                  icon: Icons.people_outline,
+                  title: 'Sin Empleados',
+                  subtitle: 'No tienes empleados registrados.',
+                );
+              }
+
+              return ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data() as Map<String, dynamic>;
+                  final uid = docs[index].id;
+                  final nombre = data['nombre'] as String? ?? 'Sin nombre';
+                  final email = data['email'] as String? ?? '';
+                  final estatus = data['estatus'] as String? ?? '';
+                  final isActivo = estatus != 'despedido' && estatus != 'inactivo';
+
+                  // Contar permisos activos
+                  final permisosMap = data['permisos'] as Map<String, dynamic>?;
+                  final permisos = permisosMap != null
+                      ? PermisosEmpleado.fromMap(permisosMap)
+                      : const PermisosEmpleado();
+                  final permisosActivos = [
+                    permisos.puedeAjustarStock,
+                    permisos.puedeEditarProductos,
+                    permisos.puedeEliminarProductos,
+                    permisos.puedeVerEstadisticas,
+                    permisos.puedeVerHistorialVentas,
+                    permisos.puedeAbrirCerrarCaja,
+                  ].where((v) => v).length;
+
+                  return PremiumCard(
+                    color: isActivo ? null : Colors.grey.shade100,
+                    child: ListTile(
+                      onTap: isActivo
+                          ? () => _abrirPanelPermisos(uid, nombre, email, data)
+                          : null,
+                      leading: CircleAvatar(
+                        backgroundColor: isActivo ? cs.primaryContainer : Colors.grey.shade300,
+                        child: Text(nombre[0].toUpperCase(),
+                            style: TextStyle(
+                                color: isActivo ? cs.onPrimaryContainer : Colors.grey,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      title: Text(nombre,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              decoration: isActivo ? null : TextDecoration.lineThrough)),
+                      subtitle: Text(email),
+                      trailing: isActivo
+                          ? Row(mainAxisSize: MainAxisSize.min, children: [
+                              // Badge de permisos
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: cs.secondaryContainer,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text('$permisosActivos/6 permisos',
+                                    style: TextStyle(fontSize: 11, color: cs.onSecondaryContainer)),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.chevron_right, color: cs.outline),
+                            ])
+                          : const Icon(Icons.block, color: Colors.red),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+  ),
+);
+}
 }
 
 // ── Panel de Permisos por Empleado ────────────────────────────────────────────
