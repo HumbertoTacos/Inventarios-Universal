@@ -228,16 +228,17 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
           final proveedores = snapshot.data ?? [];
           return DropdownButtonFormField<String>(
             value: _idProveedorSeleccionado,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Proveedor',
               prefixIcon: Icon(Icons.local_shipping_outlined),
               border: OutlineInputBorder(),
             ),
-            items: proveedores.map((p) => DropdownMenuItem(
+            items: proveedores.map<DropdownMenuItem<String>>((Proveedor p) => DropdownMenuItem<String>(
               value: p.id,
               child: Text(p.nombre),
             )).toList(),
-            onChanged: (val) => setState(() => _idProveedorSeleccionado = val),
+            onChanged: (String? val) => setState(() => _idProveedorSeleccionado = val),
           );
         },
       ),
