@@ -62,7 +62,8 @@ class _AppDrawerState extends State<AppDrawer> {
   @override
   Widget build(BuildContext context) {
     final userData = _authService.currentUserData;
-    final bool esDueno = userData?.rol == AuthService.rolDueno;
+    final String userRol = userData?.rol?.toLowerCase() ?? '';
+    final bool esDueno = userRol == 'dueño' || userRol == 'dueno' || userRol == 'admin';
     final bool puedeVerHistorial =
         esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
     final bool puedeVerEstadisticas =

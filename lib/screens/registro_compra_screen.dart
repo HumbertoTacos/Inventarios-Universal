@@ -23,7 +23,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   final List<DetalleCompra> _itemsCompra = [];
   final Map<String, Producto> _cacheProductos = {};
   
-  Proveedor? _proveedorSeleccionado;
+  String? _idProveedorSeleccionado;
   bool _procesando = false;
 
   // Omni-Box logic
@@ -151,7 +151,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   }
 
   Future<void> _registrarCompra() async {
-    if (_proveedorSeleccionado == null) {
+    if (_idProveedorSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Selecciona un proveedor'), backgroundColor: Colors.red),
       );
@@ -166,10 +166,13 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
 
     setState(() => _procesando = true);
     try {
+      final proveedor = (await _firebaseService.getProveedores().first)
+          .firstWhere((p) => p.id == _idProveedorSeleccionado);
+
       final compra = Compra(
         id: '',
-        proveedorId: _proveedorSeleccionado!.id,
-        proveedorNombre: _proveedorSeleccionado!.nombre,
+        proveedorId: proveedor.id,
+        proveedorNombre: proveedor.nombre,
         fecha: DateTime.now(),
         costoTotal: _totalCompra,
         items: _itemsCompra,
@@ -218,18 +221,18 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
         stream: _firebaseService.getProveedores(),
         builder: (context, snapshot) {
           final proveedores = snapshot.data ?? [];
-          return DropdownButtonFormField<Proveedor>(
-            value: _proveedorSeleccionado,
+          return DropdownButtonFormField<String>(
+            value: _idProveedorSeleccionado,
             decoration: const InputDecoration(
               labelText: 'Proveedor',
               prefixIcon: Icon(Icons.local_shipping_outlined),
               border: OutlineInputBorder(),
             ),
             items: proveedores.map((p) => DropdownMenuItem(
-              value: p,
+              value: p.id,
               child: Text(p.nombre),
             )).toList(),
-            onChanged: (val) => setState(() => _proveedorSeleccionado = val),
+            onChanged: (val) => setState(() => _idProveedorSeleccionado = val),
           );
         },
       ),

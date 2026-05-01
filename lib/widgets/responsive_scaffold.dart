@@ -15,6 +15,8 @@ import '../screens/mi_equipo_screen.dart';
 import '../screens/bitacora_screen.dart';
 import '../screens/configuracion_negocio_screen.dart';
 import '../screens/caja_screen.dart';
+import '../screens/gestion_proveedores_screen.dart';
+import '../screens/registro_compra_screen.dart';
 import '../controllers/configuracion_controller.dart';
 
 class ResponsiveScaffold extends StatelessWidget {
@@ -221,7 +223,8 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
   @override
   Widget build(BuildContext context) {
     final userData = _authService.currentUserData;
-    final bool esDueno = userData?.rol == AuthService.rolDueno;
+    final String userRol = userData?.rol?.toLowerCase() ?? '';
+    final bool esDueno = userRol == 'dueño' || userRol == 'dueno' || userRol == 'admin';
     final bool puedeVerHistorial =
         esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
     final bool puedeVerEstadisticas =
@@ -243,6 +246,8 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
       if (esDueno || puedeVerEstadisticas)
         _RailItem('estadisticas', 'Estadísticas', Icons.bar_chart, const EstadisticasScreen()),
       if (esDueno) ...[
+        _RailItem('proveedores', 'Proveedores', Icons.local_shipping_outlined, const GestionProveedoresScreen()),
+        _RailItem('registro_compra', 'Comprar', Icons.add_business_outlined, const RegistroCompraScreen()),
         _RailItem('categorias', 'Categorías', Icons.category_outlined, const GestionCategoriasScreen()),
         _RailItem('equipo', 'Mi Equipo', Icons.people_alt_outlined, const MiEquipoScreen()),
         _RailItem('bitacora', 'Bitácora', Icons.manage_search_outlined, const BitacoraScreen()),
