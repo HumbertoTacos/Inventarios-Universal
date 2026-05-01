@@ -50,6 +50,10 @@ class Venta {
   final double costoEnvioDevolucion;
   final bool devueltoAlInventario;
 
+  // Rentabilidad
+  final double costoTotal;
+  final double utilidad;
+
   // Nuevos campos: Pago y Descuentos
   final MetodoPago metodoPago;
   final TipoDescuento tipoDescuento;
@@ -79,19 +83,32 @@ class Venta {
     double? subtotalInyectado,
     double? descuentoInyectado,
     double? totalInyectado,
+    double? costoTotalInyectado,
+    double? utilidadInyectado,
   })  : subtotal = subtotalInyectado ?? _calcularSubtotal(items),
         descuentoAplicado = descuentoInyectado ??
             _calcularDescuento(
                 _calcularSubtotal(items), tipoDescuento, valorDescuento),
+        costoTotal = costoTotalInyectado ?? _calcularCostoTotal(items),
         total = totalInyectado ??
             _calcularTotal(
                 _calcularSubtotal(items),
                 _calcularDescuento(
                     _calcularSubtotal(items), tipoDescuento, valorDescuento),
-                !envioPagadoPorVendedor ? costoEnvio : 0.0);
+                !envioPagadoPorVendedor ? costoEnvio : 0.0),
+        utilidad = utilidadInyectado ?? 
+            ((totalInyectado ?? _calcularTotal(
+                _calcularSubtotal(items),
+                _calcularDescuento(
+                    _calcularSubtotal(items), tipoDescuento, valorDescuento),
+                !envioPagadoPorVendedor ? costoEnvio : 0.0)) - (costoTotalInyectado ?? _calcularCostoTotal(items)));
 
   static double _calcularSubtotal(List<VentaItem> items) {
     return items.fold(0.0, (sum, item) => sum + item.subtotal);
+  }
+
+  static double _calcularCostoTotal(List<VentaItem> items) {
+    return items.fold(0.0, (sum, item) => sum + (item.costoUnitario * item.cantidad));
   }
 
   static double _calcularDescuento(
@@ -124,6 +141,8 @@ class Venta {
       'subtotal': subtotal,
       'descuentoAplicado': descuentoAplicado,
       'total': total,
+      'costoTotal': costoTotal,
+      'utilidad': utilidad,
       if (clienteId != null) 'clienteId': clienteId,
     };
   }
@@ -154,6 +173,8 @@ class Venta {
       subtotalInyectado: (map['subtotal'] as num?)?.toDouble(),
       descuentoInyectado: (map['descuentoAplicado'] as num?)?.toDouble(),
       totalInyectado: (map['total'] as num?)?.toDouble(),
+      costoTotalInyectado: (map['costoTotal'] as num?)?.toDouble(),
+      utilidadInyectado: (map['utilidad'] as num?)?.toDouble(),
       clienteId: map['clienteId'] as String?,
     );
   }

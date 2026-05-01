@@ -1,13 +1,46 @@
 {
   "indexes": [
     {
+      "collectionGroup": "bitacora",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "negocioId", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "productos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "activo", "order": "ASCENDING" },
+        { "fieldPath": "esBase", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "productos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "esBase", "order": "ASCENDING" },
+        { "fieldPath": "nombre", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "productos",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "activo", "order": "ASCENDING" },
         { "fieldPath": "esBase", "order": "ASCENDING" },
-        { "fieldPath": "nombre", "order": "ASCENDING" }
-      ]
+        { "fieldPath": "cantidad", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "productos",
@@ -15,38 +48,41 @@
       "fields": [
         { "fieldPath": "activo", "order": "ASCENDING" },
         { "fieldPath": "esBase", "order": "ASCENDING" },
-        { "fieldPath": "cantidad", "order": "ASCENDING" }
-      ]
+        { "fieldPath": "nombre", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "ventas",
+      "collectionGroup": "productos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fecha", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "abonos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "clienteId", "order": "ASCENDING" },
-        { "fieldPath": "fecha", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "categorias",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "orden", "order": "ASCENDING" }
-      ]
+        { "fieldPath": "esBase", "order": "ASCENDING" },
+        { "fieldPath": "cantidad", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "usuarios",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "negocioId", "order": "ASCENDING" },
-        { "fieldPath": "rol", "order": "ASCENDING" }
-      ]
+        { "fieldPath": "rol", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "ventas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "estado", "order": "ASCENDING" },
+        { "fieldPath": "fecha", "order": "ASCENDING" },
+        { "fieldPath": "total", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []

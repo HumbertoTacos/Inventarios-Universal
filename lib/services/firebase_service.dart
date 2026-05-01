@@ -13,6 +13,8 @@ import '../models/cliente.dart';
 import '../models/abono.dart';
 import '../models/negocio.dart';
 import '../models/bitacora_log.dart';
+import '../models/proveedor.dart';
+import '../models/compra.dart';
 
 import 'auth_service.dart';
 
@@ -46,11 +48,17 @@ class FirebaseService {
   CollectionReference get _kardexRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('kardex');
 
+  CollectionReference get _comprasRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('compras');
+
   CollectionReference get _clientesRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('clientes');
 
   CollectionReference get _abonosRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('abonos');
+
+  CollectionReference get _proveedoresRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('proveedores');
 
   DocumentReference get _negocioDataRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId);
@@ -377,6 +385,7 @@ class FirebaseService {
       final docTurno = _turnosCajaRef.doc();
       final turnoGuardar = TurnoCaja(
         id: docTurno.id,
+        usuarioId: _currentUserId,
         fechaApertura: turno.fechaApertura,
         fondoInicial: turno.fondoInicial,
         estado: EstadoTurno.abierto,
@@ -547,10 +556,27 @@ class FirebaseService {
         // 2. Escrituras
         // a) Guardar la venta
         final docVenta = _ventasRef.doc();
+
+        // Inyectar costoActual de cada producto en los items de la venta
+        final itemsConCostoActual = venta.items.map((item) {
+          final snap = productosSnaps[item.productoId]!;
+          final data = snap.data() as Map<String, dynamic>;
+          final costoReal = (data['costoActual'] as num?)?.toDouble() ?? 
+                            (data['costoPromedio'] as num?)?.toDouble() ?? 0.0;
+          
+          return VentaItem(
+            productoId: item.productoId,
+            nombre: item.nombre,
+            costoUnitario: costoReal,
+            precioUnitario: item.precioUnitario,
+            cantidad: item.cantidad,
+          );
+        }).toList();
+
         final ventaParaGuardar = Venta(
           id: docVenta.id,
           fecha: venta.fecha,
-          items: venta.items,
+          items: itemsConCostoActual,
           costoEnvio: venta.costoEnvio,
           envioPagadoPorVendedor: venta.envioPagadoPorVendedor,
           estado: venta.estado,
@@ -629,60 +655,77 @@ class FirebaseService {
 
   Future<void> cancelarVenta(Venta venta) async {
     try {
+      // ── Pre-validaciones (fuera de la transacción para poder hacer queries) ──
+
+      // Paso 1: Verificar configuración del negocio
+      final negocioSnap = await _negocioDataRef.get();
+      final negocioData = negocioSnap.data() as Map<String, dynamic>?;
+      final bool usaCaja = (negocioData?['usaCajaRegistradora'] as bool?) ?? false;
+
+      // Paso 1b: Si usa caja, buscar el turno activo del usuario ACTUAL
+      DocumentSnapshot? turnoActualSnap;
+      if (usaCaja) {
+        final turnosQuery = await _turnosCajaRef
+            .where('estado', isEqualTo: EstadoTurno.abierto.name)
+            .where('usuarioId', isEqualTo: _currentUserId)
+            .limit(1)
+            .get();
+
+        if (turnosQuery.docs.isEmpty) {
+          throw Exception(
+            'Debes abrir tu caja registradora para poder realizar una devolución de efectivo.',
+          );
+        }
+        turnoActualSnap = turnosQuery.docs.first;
+      }
+
+      // ── Transacción Atómica ───────────────────────────────────────────────
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final docVenta = _ventasRef.doc(venta.id);
-        
-        // 1. Lecturas (Productos para obtener su stock actual y evitar fallos del Kardex)
-        Map<String, DocumentSnapshot> productosSnaps = {};
+
+        // Paso 2a: Leer stock actual de todos los productos (ANTES de escrituras)
+        final Map<String, DocumentSnapshot> productosSnaps = {};
         for (final item in venta.items) {
           final docSnap = await transaction.get(_productosRef.doc(item.productoId));
-          if (!docSnap.exists) throw Exception("Producto ${item.nombre} no existe");
+          if (!docSnap.exists) throw Exception('Producto "${item.nombre}" no existe en el inventario.');
           productosSnaps[item.productoId] = docSnap;
         }
 
-        // 2. Escrituras
-        // a) Cambiar estado
+        // Leer el turno dentro de la transacción para estado consistente
+        DocumentSnapshot? turnoTransSnap;
+        if (turnoActualSnap != null) {
+          turnoTransSnap = await transaction.get(turnoActualSnap.reference);
+        }
+
+        // ── Paso 2: Restauración Base (siempre se ejecuta) ─────────────────
+
+        // a) Marcar venta como cancelada
         transaction.update(docVenta, {'estado': 'cancelada'});
 
-        // b) Devolver productos al inventario y Kardex
+        // b) Devolver productos al inventario + registrar en Kardex
         for (final item in venta.items) {
           final ref = _productosRef.doc(item.productoId);
-          final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toInt();
+          final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toDouble();
           final newStock = currentStock + item.cantidad;
-          
+
           transaction.update(ref, {'cantidad': newStock});
 
           final kardexDoc = _kardexRef.doc();
-          final mov = MovimientoInventario(
+          final movInv = MovimientoInventario(
             id: kardexDoc.id,
             productoId: item.productoId,
             tipoMovimiento: TipoMovimiento.entrada,
             cantidadAlterada: item.cantidad,
             stockResultante: newStock,
-            motivo: 'Cancelación de Venta',
+            motivo: 'Cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
             fecha: DateTime.now(),
             usuarioId: _currentUserId,
           );
-          transaction.set(kardexDoc, mov.toMap());
+          transaction.set(kardexDoc, movInv.toMap());
         }
 
-        // 3. Reversión financiera (Bug Fix QA)
-        if (venta.metodoPago == MetodoPago.efectivo) {
-          // Buscamos el turno abierto de forma atómica si es posible, 
-          // o usamos una lectura previa si no. Aquí buscaremos el activo.
-          final turnosQuery = await _turnosCajaRef
-              .where('estado', isEqualTo: EstadoTurno.abierto.name)
-              .limit(1)
-              .get();
-          
-          if (turnosQuery.docs.isNotEmpty) {
-            final turnoDoc = turnosQuery.docs.first;
-            final ventasEfectivoActual = (turnoDoc.get('ventasEfectivo') as num?)?.toDouble() ?? 0.0;
-            transaction.update(turnoDoc.reference, {
-              'ventasEfectivo': ventasEfectivoActual - venta.total,
-            });
-          }
-        } else if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
+        // c) Reversión de saldo de crédito si aplica
+        if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
           final refCliente = _clientesRef.doc(venta.clienteId!);
           final snapCliente = await transaction.get(refCliente);
           if (snapCliente.exists) {
@@ -692,11 +735,155 @@ class FirebaseService {
             });
           }
         }
-        
-        _inyectarLogTransaccional(transaction, 'VENTAS', 'CANCELACION: Canceló la venta #${venta.id} por \$${venta.total.toStringAsFixed(2)}');
+
+        // ── Paso 3: Afectación de Caja (solo si aplica) ────────────────────
+        if (turnoTransSnap != null && turnoActualSnap != null) {
+          final turnoData = turnoTransSnap.data() as Map<String, dynamic>;
+          final egresosActuales = (turnoData['egresosEfectivo'] as num?)?.toDouble() ?? 0.0;
+          final historial = (turnoData['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
+
+          // a) Crear documento de MovimientoCaja como Egreso
+          final docMovRef = turnoActualSnap.reference.collection('movimientos').doc();
+          transaction.set(docMovRef, {
+            'turnoId': turnoActualSnap.id,
+            'tipo': 'egreso',
+            'monto': venta.total,
+            'concepto': 'Devolución por cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+            'fecha': DateTime.now().toIso8601String(),
+          });
+
+          // b) Actualizar egresosEfectivo del turno
+          historial.add({
+            'monto': venta.total,
+            'concepto': 'Devolución por cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+            'hora': DateTime.now().toIso8601String(),
+          });
+          transaction.update(turnoActualSnap.reference, {
+            'egresosEfectivo': egresosActuales + venta.total,
+            'historialRetiros': historial,
+          });
+        }
+
+        // ── Bitácora ────────────────────────────────────────────────────────
+        _inyectarLogTransaccional(
+          transaction,
+          'VENTAS',
+          'CANCELACIÓN: Venta #${venta.id.substring(0, 8).toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
+          '${turnoActualSnap != null ? "Egreso registrado en caja." : "Sin afectación de caja."}',
+        );
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al cancelar venta: ${e.message}');
+    }
+    // Las excepciones lanzadas manualmente (ej: sin turno abierto) se propagan tal cual
+  }
+
+  // ── Compras ───────────────────────────────────────────────────────────────
+
+  Future<void> registrarCompra(Compra compra) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // 1. Leer productos para actualizar stock y costo promedio
+        Map<String, DocumentSnapshot> productosSnaps = {};
+        for (final item in compra.items) {
+          final docSnap = await transaction.get(_productosRef.doc(item.productoId));
+          if (!docSnap.exists) throw Exception('El producto ${item.nombre} no existe.');
+          productosSnaps[item.productoId] = docSnap;
+        }
+
+        // 2. Procesar cada item de la compra
+        for (final item in compra.items) {
+          final snap = productosSnaps[item.productoId]!;
+          final data = snap.data() as Map<String, dynamic>;
+          
+          final double stockActual = (data['cantidad'] as num?)?.toDouble() ?? 0.0;
+          final double costoActual = (data['costoActual'] as num?)?.toDouble() ?? 
+                                     (data['costoPromedio'] as num?)?.toDouble() ?? 0.0;
+          
+          // Cálculo de Costo Promedio Ponderado
+          // Nuevo Costo = ((Stock Actual * Costo Actual) + (Cant. Comprada * Costo Compra)) / (Stock Actual + Cant. Comprada)
+          double nuevoCosto = item.costoUnitario;
+          if (stockActual + item.cantidad > 0) {
+            nuevoCosto = ((stockActual * costoActual) + (item.cantidad * item.costoUnitario)) / (stockActual + item.cantidad);
+          }
+          
+          final double nuevoStock = stockActual + item.cantidad;
+
+          // Actualizar producto
+          transaction.update(snap.reference, {
+            'cantidad': nuevoStock,
+            'costoActual': nuevoCosto,
+            'costoPromedio': nuevoCosto, // Sincronizamos ambos por ahora
+          });
+
+          // Registrar en Kardex
+          final kardexDoc = _kardexRef.doc();
+          final mov = MovimientoInventario(
+            id: kardexDoc.id,
+            productoId: item.productoId,
+            tipoMovimiento: TipoMovimiento.entrada,
+            cantidadAlterada: item.cantidad,
+            stockResultante: nuevoStock,
+            motivo: 'Compra a proveedor',
+            fecha: DateTime.now(),
+            usuarioId: _currentUserId,
+          );
+          transaction.set(kardexDoc, mov.toMap());
+        }
+
+        // 3. Guardar la compra
+        final docCompra = _comprasRef.doc();
+        transaction.set(docCompra, compra.toMap());
+
+        _inyectarLogTransaccional(transaction, 'COMPRAS', 'Registró una compra por \$${compra.costoTotal.toStringAsFixed(2)}');
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar compra: ${e.message}');
+    }
+  }
+
+  // ── Proveedores ───────────────────────────────────────────────────────────
+
+  Stream<List<Proveedor>> getProveedores() {
+    return _proveedoresRef
+        .orderBy('nombre')
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => Proveedor.fromMap(d.data() as Map<String, dynamic>, d.id))
+            .toList());
+  }
+
+  Future<void> agregarProveedor(Proveedor proveedor) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final docRef = _proveedoresRef.doc();
+      batch.set(docRef, proveedor.toMap());
+      _inyectarLogBatch(batch, 'PROVEEDORES', 'Agregó al proveedor: ${proveedor.nombre}');
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al agregar proveedor: ${e.message}');
+    }
+  }
+
+  Future<void> actualizarProveedor(Proveedor proveedor) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(_proveedoresRef.doc(proveedor.id), proveedor.toMap());
+      _inyectarLogBatch(batch, 'PROVEEDORES', 'Actualizó al proveedor: ${proveedor.nombre}');
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al actualizar proveedor: ${e.message}');
+    }
+  }
+
+  Future<void> eliminarProveedor(String id, String nombre) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      batch.delete(_proveedoresRef.doc(id));
+      _inyectarLogBatch(batch, 'PROVEEDORES', 'Eliminó al proveedor: $nombre');
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al eliminar proveedor: ${e.message}');
     }
   }
 
@@ -706,62 +893,85 @@ class FirebaseService {
     required bool volverAVender,
   }) async {
     try {
+      // ── Pre-validaciones (fuera de la transacción para poder hacer queries) ──
+
+      // Paso 1: Verificar configuración del negocio
+      final negocioSnap = await _negocioDataRef.get();
+      final negocioData = negocioSnap.data() as Map<String, dynamic>?;
+      final bool usaCaja = (negocioData?['usaCajaRegistradora'] as bool?) ?? false;
+
+      // Paso 1b: Si usa caja, buscar el turno activo del usuario ACTUAL
+      DocumentSnapshot? turnoActualSnap;
+      if (usaCaja) {
+        final turnosQuery = await _turnosCajaRef
+            .where('estado', isEqualTo: EstadoTurno.abierto.name)
+            .where('usuarioId', isEqualTo: _currentUserId)
+            .limit(1)
+            .get();
+
+        if (turnosQuery.docs.isEmpty) {
+          throw Exception(
+            'Debes abrir tu caja registradora para poder realizar una devolución de efectivo.',
+          );
+        }
+        turnoActualSnap = turnosQuery.docs.first;
+      }
+
+      // ── Transacción Atómica ───────────────────────────────────────────────
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final docVenta = _ventasRef.doc(venta.id);
 
-        Map<String, DocumentSnapshot> productosSnaps = {};
+        // Paso 2a: Leer stock actual de todos los productos (ANTES de escrituras) si volverAVender
+        final Map<String, DocumentSnapshot> productosSnaps = {};
         if (volverAVender) {
           for (final item in venta.items) {
             final docSnap = await transaction.get(_productosRef.doc(item.productoId));
-            if (!docSnap.exists) throw Exception("Producto ${item.nombre} no existe");
+            if (!docSnap.exists) throw Exception('Producto "${item.nombre}" no existe en el inventario.');
             productosSnaps[item.productoId] = docSnap;
           }
         }
 
+        // Leer el turno dentro de la transacción para estado consistente
+        DocumentSnapshot? turnoTransSnap;
+        if (turnoActualSnap != null) {
+          turnoTransSnap = await transaction.get(turnoActualSnap.reference);
+        }
+
+        // ── Paso 2: Restauración Base (siempre se ejecuta) ─────────────────
+
+        // a) Marcar venta como devuelta
         transaction.update(docVenta, {
           'estado': 'devuelta',
           'costoEnvioDevolucion': costoEnvioDevolucion,
           'devueltoAlInventario': volverAVender,
         });
 
+        // b) Devolver productos al inventario + registrar en Kardex (solo si volverAVender)
         if (volverAVender) {
           for (final item in venta.items) {
             final ref = _productosRef.doc(item.productoId);
-            final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toInt();
+            final currentStock = (productosSnaps[item.productoId]!.get('cantidad') as num).toDouble();
             final newStock = currentStock + item.cantidad;
-            
+
             transaction.update(ref, {'cantidad': newStock});
 
             final kardexDoc = _kardexRef.doc();
-            final mov = MovimientoInventario(
+            final movInv = MovimientoInventario(
               id: kardexDoc.id,
               productoId: item.productoId,
               tipoMovimiento: TipoMovimiento.entrada,
               cantidadAlterada: item.cantidad,
               stockResultante: newStock,
-              motivo: 'Devolución de Venta',
+              motivo: 'Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
               fecha: DateTime.now(),
               usuarioId: _currentUserId,
             );
-            transaction.set(kardexDoc, mov.toMap());
+            transaction.set(kardexDoc, movInv.toMap());
           }
         }
 
-        // 3. Reversión financiera (Bug Fix QA)
-        if (venta.metodoPago == MetodoPago.efectivo) {
-          final turnosQuery = await _turnosCajaRef
-              .where('estado', isEqualTo: EstadoTurno.abierto.name)
-              .limit(1)
-              .get();
-          
-          if (turnosQuery.docs.isNotEmpty) {
-            final turnoDoc = turnosQuery.docs.first;
-            final ventasEfectivoActual = (turnoDoc.get('ventasEfectivo') as num?)?.toDouble() ?? 0.0;
-            transaction.update(turnoDoc.reference, {
-              'ventasEfectivo': ventasEfectivoActual - venta.total,
-            });
-          }
-        } else if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
+        // c) Reversión de saldo de crédito si aplica
+        if (venta.metodoPago == MetodoPago.credito && venta.clienteId != null) {
           final refCliente = _clientesRef.doc(venta.clienteId!);
           final snapCliente = await transaction.get(refCliente);
           if (snapCliente.exists) {
@@ -771,9 +981,45 @@ class FirebaseService {
             });
           }
         }
-        
+
+        // ── Paso 3: Afectación de Caja (solo si aplica) ────────────────────
+        if (turnoTransSnap != null && turnoActualSnap != null) {
+          final turnoData = turnoTransSnap.data() as Map<String, dynamic>;
+          final egresosActuales = (turnoData['egresosEfectivo'] as num?)?.toDouble() ?? 0.0;
+          final historial = (turnoData['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
+
+          final totalEgreso = venta.total + costoEnvioDevolucion;
+
+          // a) Crear documento de MovimientoCaja como Egreso
+          final docMovRef = turnoActualSnap.reference.collection('movimientos').doc();
+          transaction.set(docMovRef, {
+            'turnoId': turnoActualSnap.id,
+            'tipo': 'egreso',
+            'monto': totalEgreso,
+            'concepto': 'Reembolso por Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+            'fecha': DateTime.now().toIso8601String(),
+          });
+
+          // b) Actualizar egresosEfectivo del turno
+          historial.add({
+            'monto': totalEgreso,
+            'concepto': 'Reembolso por Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+            'hora': DateTime.now().toIso8601String(),
+          });
+          transaction.update(turnoActualSnap.reference, {
+            'egresosEfectivo': egresosActuales + totalEgreso,
+            'historialRetiros': historial,
+          });
+        }
+
+        // ── Bitácora ────────────────────────────────────────────────────────
         final modo = volverAVender ? 'Devolución al inventario' : 'Reembolso sin retorno de stock';
-        _inyectarLogTransaccional(transaction, 'VENTAS', 'DEVOLUCION: $modo de la venta #${venta.id} por \$${venta.total.toStringAsFixed(2)}');
+        _inyectarLogTransaccional(
+          transaction,
+          'VENTAS',
+          'DEVOLUCIÓN: $modo de la venta #${venta.id.substring(0, 8).toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
+          '${turnoActualSnap != null ? "Egreso registrado en caja." : "Sin afectación de caja."}',
+        );
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar devolución: ${e.message}');

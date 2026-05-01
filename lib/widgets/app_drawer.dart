@@ -11,6 +11,8 @@ import '../screens/bitacora_screen.dart';
 import '../screens/configuracion_negocio_screen.dart';
 import '../screens/auth_gate.dart';
 import '../screens/caja_screen.dart';
+import '../screens/gestion_proveedores_screen.dart';
+import '../screens/registro_compra_screen.dart';
 import '../models/negocio.dart';
 import '../controllers/configuracion_controller.dart';
 
@@ -123,6 +125,18 @@ class _AppDrawerState extends State<AppDrawer> {
 
                 if (esDueno) ...[
                   const Divider(),
+                  _buildMenuItem(
+                    icon: Icons.local_shipping_outlined,
+                    title: 'Proveedores',
+                    routeName: '/proveedores',
+                    screen: const GestionProveedoresScreen(),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.add_business_outlined,
+                    title: 'Registrar Compra',
+                    routeName: '/registro_compra',
+                    screen: const RegistroCompraScreen(),
+                  ),
                   _buildMenuItem(
                     icon: Icons.category_outlined,
                     title: 'Gestionar Categorías',

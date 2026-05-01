@@ -3,6 +3,7 @@ class Producto {
   final String nombre;
   final String categoria;
   final double costoPromedio;
+  final double costoActual;
   final double precio;
   final double cantidad;
   final String descripcion;
@@ -26,6 +27,7 @@ class Producto {
     required this.nombre,
     required this.categoria,
     required this.costoPromedio,
+    this.costoActual = 0.0,
     required this.precio,
     required this.cantidad,
     required this.descripcion,
@@ -46,6 +48,7 @@ class Producto {
       'nombre': nombre,
       'categoria': categoria,
       'costoPromedio': costoPromedio,
+      'costoActual': costoActual,
       'precio': precio,
       'cantidad': cantidad,
       'descripcion': descripcion,
@@ -68,6 +71,7 @@ class Producto {
       nombre: map['nombre'] ?? '',
       categoria: map['categoria'] ?? '',
       costoPromedio: (map['costoPromedio'] as num?)?.toDouble() ?? 0.0,
+      costoActual: (map['costoActual'] as num?)?.toDouble() ?? 0.0,
       precio: (map['precio'] as num?)?.toDouble() ?? 0.0,
       cantidad: (map['cantidad'] as num?)?.toDouble() ?? 0.0,
       descripcion: map['descripcion'] ?? '',
@@ -93,6 +97,7 @@ class Producto {
     String? nombre,
     String? categoria,
     double? costoPromedio,
+    double? costoActual,
     double? precio,
     double? cantidad,
     String? descripcion,
@@ -112,6 +117,7 @@ class Producto {
       nombre: nombre ?? this.nombre,
       categoria: categoria ?? this.categoria,
       costoPromedio: costoPromedio ?? this.costoPromedio,
+      costoActual: costoActual ?? this.costoActual,
       precio: precio ?? this.precio,
       cantidad: cantidad ?? this.cantidad,
       descripcion: descripcion ?? this.descripcion,

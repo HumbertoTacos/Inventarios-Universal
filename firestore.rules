@@ -58,7 +58,6 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid;
       allow update: if request.auth != null && (
         request.auth.uid == uid || 
-        esAdmin() || 
         (getUserProfile().rol == 'dueño' && getUserProfile().negocioId == resource.data.negocioId)
       );
       allow delete: if false; // Los perfiles no se eliminan desde el cliente
@@ -152,6 +151,19 @@ service cloud.firestore {
         allow create: if perteneceANegocio(negocioId); // Se crea durante ventas/ajustes
         allow update, delete: if false; // El Kardex es un log inmutable
       }
+
+      // ─────────────────────────────────────────────────────────────────────
+      // NUEVOS MÓDULOS: proveedores y compras
+      // ─────────────────────────────────────────────────────────────────────
+      match /proveedores/{id} {
+        allow read: if perteneceANegocio(negocioId);
+        allow write: if esDueno(negocioId);
+      }
+
+      match /compras/{id} {
+        allow read, create: if perteneceANegocio(negocioId);
+        allow update, delete: if false; // Compras inmutables
+      }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -161,5 +173,15 @@ service cloud.firestore {
     match /admin_data/{document=**} {
       allow read, write: if esAdmin();
     }
+    
+    match /bitacora/{logId} {
+  // Solo permite leer si el log pertenece al negocio del usuario autenticado
+  allow read: if request.auth != null && 
+    get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId == resource.data.negocioId;
+  
+  // Solo permite crear logs (no editar ni borrar para mantener integridad)
+  allow create: if request.auth != null;
+  allow update, delete: if false; 
+}
   }
 }

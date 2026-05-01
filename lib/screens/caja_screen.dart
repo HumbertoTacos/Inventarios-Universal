@@ -47,6 +47,7 @@ class _CajaScreenState extends State<CajaScreen> {
 
     final nuevoTurno = TurnoCaja(
       id: '',
+      usuarioId: '',
       fechaApertura: DateTime.now(),
       fondoInicial: fondoInicial,
     );

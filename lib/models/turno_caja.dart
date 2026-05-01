@@ -4,6 +4,7 @@ class TurnoCaja {
   final String id;
   final DateTime fechaApertura;
   final DateTime? fechaCierre;
+  final String usuarioId;
   final double fondoInicial;
   final double ventasEfectivo;
   final double ventasTarjeta;
@@ -18,6 +19,7 @@ class TurnoCaja {
   TurnoCaja({
     required this.id,
     required this.fechaApertura,
+    required this.usuarioId,
     this.fechaCierre,
     required this.fondoInicial,
     this.ventasEfectivo = 0.0,
@@ -42,6 +44,7 @@ class TurnoCaja {
 
   Map<String, dynamic> toMap() {
     return {
+      'usuarioId': usuarioId,
       'fechaApertura': fechaApertura.toIso8601String(),
       'fechaCierre': fechaCierre?.toIso8601String(),
       'fondoInicial': fondoInicial,
@@ -60,6 +63,7 @@ class TurnoCaja {
   factory TurnoCaja.fromMap(Map<String, dynamic> map, String id) {
     return TurnoCaja(
       id: id,
+      usuarioId: map['usuarioId'] as String? ?? '',
       fechaApertura: map['fechaApertura'] != null
           ? DateTime.parse(map['fechaApertura'])
           : DateTime.now(),
@@ -88,6 +92,7 @@ class TurnoCaja {
   TurnoCaja copyWith({
     String? id,
     DateTime? fechaApertura,
+    String? usuarioId,
     DateTime? fechaCierre,
     double? fondoInicial,
     double? ventasEfectivo,
@@ -102,6 +107,7 @@ class TurnoCaja {
   }) {
     return TurnoCaja(
       id: id ?? this.id,
+      usuarioId: usuarioId ?? this.usuarioId,
       fechaApertura: fechaApertura ?? this.fechaApertura,
       fechaCierre: fechaCierre ?? this.fechaCierre,
       fondoInicial: fondoInicial ?? this.fondoInicial,
