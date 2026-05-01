@@ -7,6 +7,8 @@ class VentaItem {
   final double costoUnitario;
   final double precioUnitario;
   final double cantidad;
+  final String? proveedorId;
+  final String? proveedorNombre;
 
   double get subtotal => precioUnitario * cantidad;
 
@@ -16,6 +18,8 @@ class VentaItem {
     required this.costoUnitario,
     required this.precioUnitario,
     required this.cantidad,
+    this.proveedorId,
+    this.proveedorNombre,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +30,8 @@ class VentaItem {
       'precioUnitario': precioUnitario,
       'cantidad': cantidad,
       'subtotal': subtotal,
+      'proveedorId': proveedorId,
+      'proveedorNombre': proveedorNombre,
     };
   }
 
@@ -36,6 +42,8 @@ class VentaItem {
       costoUnitario: (map['costoUnitario'] as num?)?.toDouble() ?? 0.0,
       precioUnitario: (map['precioUnitario'] as num?)?.toDouble() ?? 0.0,
       cantidad: (map['cantidad'] as num?)?.toDouble() ?? 0.0,
+      proveedorId: map['proveedorId'] as String?,
+      proveedorNombre: map['proveedorNombre'] as String?,
     );
   }
 }

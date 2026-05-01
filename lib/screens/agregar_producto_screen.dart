@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/producto.dart';
 import '../models/categoria.dart';
+import '../models/proveedor.dart';
 import '../services/firebase_service.dart';
 import 'barcode_scanner_screen.dart';
 
@@ -30,6 +31,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   bool _guardando = false;
   bool _enPromocion = false;
   Categoria? _categoriaSeleccionada;
+  Proveedor? _proveedorSeleccionado;
 
   // Valores dinámicos por atributo: nombre → valor elegido/escrito
   final Map<String, String> _atributos = {};
@@ -144,6 +146,28 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                         onChanged: _alCambiarCategoria,
                         validator: (v) =>
                             v == null ? 'Selecciona una categoría' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Proveedor ──
+                      StreamBuilder<List<Proveedor>>(
+                        stream: _firebaseService.getProveedores(),
+                        builder: (context, provSnap) {
+                          final proveedores = provSnap.data ?? [];
+                          return DropdownButtonFormField<Proveedor>(
+                            value: _proveedorSeleccionado,
+                            decoration: const InputDecoration(
+                              labelText: 'Proveedor Preferido (opcional)',
+                              prefixIcon: Icon(Icons.local_shipping_outlined),
+                              border: OutlineInputBorder(),
+                            ),
+                            items: proveedores.map((p) => DropdownMenuItem(
+                              value: p,
+                              child: Text(p.nombre),
+                            )).toList(),
+                            onChanged: (val) => setState(() => _proveedorSeleccionado = val),
+                          );
+                        },
                       ),
                       const SizedBox(height: 16),
 
@@ -478,6 +502,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
       enPromocion: _enPromocion,
       precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
+      proveedorId: _proveedorSeleccionado?.id,
+      proveedorNombre: _proveedorSeleccionado?.nombre,
     );
 
     try {

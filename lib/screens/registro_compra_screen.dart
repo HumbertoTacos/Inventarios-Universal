@@ -45,6 +45,11 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
 
   void _agregarProducto(Producto p) {
     setState(() {
+      // Auto-selección de proveedor si no hay uno elegido
+      if (_idProveedorSeleccionado == null && p.proveedorId != null) {
+        _idProveedorSeleccionado = p.proveedorId;
+      }
+
       _cacheProductos[p.id] = p;
       final existingIndex = _itemsCompra.indexWhere((i) => i.productoId == p.id);
       

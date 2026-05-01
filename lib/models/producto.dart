@@ -13,6 +13,10 @@ class Producto {
   final Map<String, dynamic> atributos;
   final bool esBase;
   final String? baseId;
+  final String? proveedorId;
+  final String? proveedorNombre;
+  final DateTime? ultimaCompraFecha; // Fecha de la última vez que se compró
+  final double? ultimoCostoCompra;   // Precio unitario de la última compra
 
   // Mayoreo
   final int? cantidadMayoreo;
@@ -37,6 +41,10 @@ class Producto {
     this.atributos = const {},
     this.esBase = true,
     this.baseId,
+    this.proveedorId,
+    this.proveedorNombre,
+    this.ultimaCompraFecha,
+    this.ultimoCostoCompra,
     this.cantidadMayoreo,
     this.precioMayoreo,
     this.enPromocion = false,
@@ -58,6 +66,10 @@ class Producto {
       'atributos': atributos,
       'esBase': esBase,
       'baseId': baseId,
+      'proveedorId': proveedorId,
+      'proveedorNombre': proveedorNombre,
+      'ultimaCompraFecha': ultimaCompraFecha?.toIso8601String(),
+      'ultimoCostoCompra': ultimoCostoCompra,
       'cantidadMayoreo': cantidadMayoreo,
       'precioMayoreo': precioMayoreo,
       'enPromocion': enPromocion,
@@ -81,6 +93,10 @@ class Producto {
       atributos: map['atributos'] ?? {},
       esBase: map['esBase'] ?? true,
       baseId: map['baseId'],
+      proveedorId: map['proveedorId'],
+      proveedorNombre: map['proveedorNombre'],
+      ultimaCompraFecha: map['ultimaCompraFecha'] != null ? DateTime.tryParse(map['ultimaCompraFecha']) : null,
+      ultimoCostoCompra: (map['ultimoCostoCompra'] as num?)?.toDouble(),
       cantidadMayoreo: (map['cantidadMayoreo'] as num?)?.toInt(),
       precioMayoreo: (map['precioMayoreo'] as num?)?.toDouble(),
       enPromocion: map['enPromocion'] ?? false,
@@ -111,6 +127,10 @@ class Producto {
     double? precioMayoreo,
     bool? enPromocion,
     double? precioPromocion,
+    String? proveedorId,
+    String? proveedorNombre,
+    DateTime? ultimaCompraFecha,
+    double? ultimoCostoCompra,
   }) {
     return Producto(
       id: id,
@@ -131,6 +151,10 @@ class Producto {
       precioMayoreo: precioMayoreo ?? this.precioMayoreo,
       enPromocion: enPromocion ?? this.enPromocion,
       precioPromocion: precioPromocion ?? this.precioPromocion,
+      proveedorId: proveedorId ?? this.proveedorId,
+      proveedorNombre: proveedorNombre ?? this.proveedorNombre,
+      ultimaCompraFecha: ultimaCompraFecha ?? this.ultimaCompraFecha,
+      ultimoCostoCompra: ultimoCostoCompra ?? this.ultimoCostoCompra,
     );
   }
 }

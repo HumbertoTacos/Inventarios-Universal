@@ -27,6 +27,11 @@ class DashboardData {
   final int totalVentas;
   final List<TopProducto> topProductos;
   final int diasConsultados;
+  
+  /// Utilidad neta acumulada por proveedor.
+  final Map<String, double> utilidadPorProveedor;
+  /// Mapa de IDs a Nombres de proveedores para el reporte.
+  final Map<String, String> nombresProveedores;
 
   double get capitalCongelado => 0; // Se carga por separado
 
@@ -40,6 +45,8 @@ class DashboardData {
     required this.totalVentas,
     required this.topProductos,
     required this.diasConsultados,
+    required this.utilidadPorProveedor,
+    required this.nombresProveedores,
   });
 
   factory DashboardData.empty(int dias) => DashboardData(
@@ -52,5 +59,7 @@ class DashboardData {
         totalVentas: 0,
         topProductos: [],
         diasConsultados: dias,
+        utilidadPorProveedor: {},
+        nombresProveedores: {},
       );
 }

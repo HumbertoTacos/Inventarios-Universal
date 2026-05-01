@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 import '../models/producto.dart';
 import '../models/categoria.dart';
+import '../models/proveedor.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
 import 'agregar_producto_screen.dart';
@@ -60,6 +61,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   // Filtros
   Categoria? _filtroCategoria;
+  Proveedor? _filtroProveedor;
 
   @override
   void initState() {
@@ -89,7 +91,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
     });
 
     try {
-      final result = await _firebaseService.getProductosPaginados(limite: 20);
+      final result = await _firebaseService.getProductosPaginados(
+        limite: 20,
+        categoriaId: _filtroCategoria?.id,
+        proveedorId: _filtroProveedor?.id,
+      );
       if (!mounted) return;
       setState(() {
         _productos = result.productos;
@@ -113,7 +119,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
     try {
       final result = await _firebaseService.getProductosPaginados(
         limite: 20, 
-        startAfter: _lastDoc
+        startAfter: _lastDoc,
+        categoriaId: _filtroCategoria?.id,
+        proveedorId: _filtroProveedor?.id,
       );
 
       if (!mounted) return;
@@ -272,11 +280,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
             const SizedBox(width: 8),
             Container(
               decoration: BoxDecoration(
-                color: _filtroCategoria != null ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
+                color: (_filtroCategoria != null || _filtroProveedor != null) ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
-                icon: Icon(Icons.filter_list, color: _filtroCategoria != null ? colorScheme.onPrimary : colorScheme.onSurface),
+                icon: Icon(Icons.filter_list, color: (_filtroCategoria != null || _filtroProveedor != null) ? colorScheme.onPrimary : colorScheme.onSurface),
                 onPressed: _mostrarModalFiltros,
               ),
             ),
@@ -567,10 +575,18 @@ class _InventarioScreenState extends State<InventarioScreen> {
   void _mostrarModalFiltros() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _FiltrosBottomSheet(
         filtroCategoriaInicial: _filtroCategoria,
-        onApply: (cat) { setState(() => _filtroCategoria = cat); _fetchInitial(); },
+        filtroProveedorInicial: _filtroProveedor,
+        onApply: (cat, prov) { 
+          setState(() {
+            _filtroCategoria = cat;
+            _filtroProveedor = prov;
+          }); 
+          _fetchInitial(); 
+        },
       ),
     );
   }
@@ -846,9 +862,14 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
 class _FiltrosBottomSheet extends StatefulWidget {
   final Categoria? filtroCategoriaInicial;
-  final void Function(Categoria?) onApply;
+  final Proveedor? filtroProveedorInicial;
+  final void Function(Categoria?, Proveedor?) onApply;
 
-  const _FiltrosBottomSheet({this.filtroCategoriaInicial, required this.onApply});
+  const _FiltrosBottomSheet({
+    this.filtroCategoriaInicial, 
+    this.filtroProveedorInicial,
+    required this.onApply
+  });
 
   @override
   State<_FiltrosBottomSheet> createState() => _FiltrosBottomSheetState();
@@ -857,60 +878,99 @@ class _FiltrosBottomSheet extends StatefulWidget {
 class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
   final FirebaseService _firebaseService = FirebaseService();
   Categoria? _catSelect;
+  Proveedor? _provSelect;
 
   @override
   void initState() {
     super.initState();
     _catSelect = widget.filtroCategoriaInicial;
+    _provSelect = widget.filtroProveedorInicial;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: StreamBuilder<List<Categoria>>(
-        stream: _firebaseService.getCategorias(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const SizedBox(height: 150, child: Center(child: CircularProgressIndicator()));
-          }
-          final categorias = snapshot.data ?? [];
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Container(
+      padding: EdgeInsets.only(
+        left: 24, right: 24, top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Text('Filtrar por Categoría', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              DropdownButtonFormField<Categoria>(
+              const Icon(Icons.filter_alt_outlined),
+              const SizedBox(width: 8),
+              Text('Filtrar Inventario', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Filtro de Categoría
+          StreamBuilder<List<Categoria>>(
+            stream: _firebaseService.getCategorias(),
+            builder: (context, snapshot) {
+              final categorias = snapshot.data ?? [];
+              return DropdownButtonFormField<Categoria>(
                 value: _catSelect,
-                decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
+                decoration: const InputDecoration(
+                  labelText: 'Categoría', 
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.category_outlined),
+                ),
                 items: [
-                  const DropdownMenuItem<Categoria>(value: null, child: Text('Todas')),
+                  const DropdownMenuItem<Categoria>(value: null, child: Text('Todas las categorías')),
                   ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
                 ],
                 onChanged: (cat) => setState(() => _catSelect = cat),
-              ),
-              const SizedBox(height: 32),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () { widget.onApply(null); Navigator.pop(context); },
-                      child: const Text('Limpiar'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () { widget.onApply(_catSelect); Navigator.pop(context); },
-                      child: const Text('Aplicar'),
-                    ),
-                  ),
+              );
+            }
+          ),
+          const SizedBox(height: 16),
+
+          // Filtro de Proveedor
+          StreamBuilder<List<Proveedor>>(
+            stream: _firebaseService.getProveedores(),
+            builder: (context, snapshot) {
+              final proveedores = snapshot.data ?? [];
+              return DropdownButtonFormField<Proveedor>(
+                value: _provSelect,
+                decoration: const InputDecoration(
+                  labelText: 'Proveedor', 
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.local_shipping_outlined),
+                ),
+                items: [
+                  const DropdownMenuItem<Proveedor>(value: null, child: Text('Todos los proveedores')),
+                  ...proveedores.map((p) => DropdownMenuItem(value: p, child: Text(p.nombre))),
                 ],
+                onChanged: (p) => setState(() => _provSelect = p),
+              );
+            }
+          ),
+
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () { widget.onApply(null, null); Navigator.pop(context); },
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: const Text('Limpiar Todo'),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () { widget.onApply(_catSelect, _provSelect); Navigator.pop(context); },
+                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  child: const Text('Aplicar Filtros'),
+                ),
               ),
             ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }

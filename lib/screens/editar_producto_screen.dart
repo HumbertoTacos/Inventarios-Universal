@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../models/producto.dart';
+import '../models/proveedor.dart';
 import '../services/firebase_service.dart';
 import 'barcode_scanner_screen.dart';
 import '../services/impresion_service.dart';
@@ -29,6 +31,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
 
   bool _guardando = false;
   bool _enPromocion = false;
+  String? _idProveedorSeleccionado;
+  String? _nombreProveedorSeleccionado;
 
   @override
   void initState() {
@@ -42,6 +46,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _precioMayoreoCtrl = TextEditingController(text: widget.producto.precioMayoreo?.toString() ?? '');
     _enPromocion = widget.producto.enPromocion;
     _precioPromocionCtrl = TextEditingController(text: widget.producto.precioPromocion?.toString() ?? '');
+    _idProveedorSeleccionado = widget.producto.proveedorId;
+    _nombreProveedorSeleccionado = widget.producto.proveedorNombre;
   }
 
   @override
@@ -91,6 +97,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
         enPromocion: _enPromocion,
         precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
+        proveedorId: _idProveedorSeleccionado,
+        proveedorNombre: _nombreProveedorSeleccionado,
       );
 
       await _firebaseService.actualizarProducto(productoEditado);
@@ -176,6 +184,65 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                           ),
                         ),
 
+                        // ── Historial de Última Compra ──
+                        if (widget.producto.ultimaCompraFecha != null)
+                          Card(
+                            elevation: 0,
+                            color: Colors.blue.shade50,
+                            margin: const EdgeInsets.only(bottom: 24),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.history, color: Colors.blue.shade800, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Última Compra',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text('Fecha', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                          Text(
+                                            DateFormat('dd/MM/yyyy HH:mm').format(widget.producto.ultimaCompraFecha!),
+                                            style: const TextStyle(fontWeight: FontWeight.w600),
+                                          ),
+                                        ],
+                                      ),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          const Text('Costo Unitario', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                          Text(
+                                            '\$${widget.producto.ultimoCostoCompra?.toStringAsFixed(2) ?? "0.00"}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.blue,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                         // Nombre
                         TextFormField(
                           controller: _nombreCtrl,
@@ -185,6 +252,34 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                             prefixIcon: Icon(Icons.inventory),
                           ),
                           validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Proveedor ──
+                        StreamBuilder<List<Proveedor>>(
+                          stream: _firebaseService.getProveedores(),
+                          builder: (context, snapshot) {
+                            final proveedores = snapshot.data ?? [];
+                            return DropdownButtonFormField<String>(
+                              value: _idProveedorSeleccionado,
+                              decoration: const InputDecoration(
+                                labelText: 'Proveedor Preferido',
+                                prefixIcon: Icon(Icons.local_shipping_outlined),
+                                border: OutlineInputBorder(),
+                              ),
+                              items: proveedores.map((p) => DropdownMenuItem(
+                                value: p.id,
+                                child: Text(p.nombre),
+                              )).toList(),
+                              onChanged: (val) {
+                                final p = proveedores.firstWhere((element) => element.id == val);
+                                setState(() {
+                                  _idProveedorSeleccionado = val;
+                                  _nombreProveedorSeleccionado = p.nombre;
+                                });
+                              },
+                            );
+                          },
                         ),
                         const SizedBox(height: 16),
 

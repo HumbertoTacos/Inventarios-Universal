@@ -74,12 +74,24 @@ class FirebaseService {
   /// - Primera página (startAfter == null): siempre va al servidor
   ///   para reflejar cambios de stock recientes (ventas, ajustes).
   /// - Páginas siguientes: caché primero para reducir lecturas.
-  Future<ProductosPaginadosResult> getProductosPaginados({int limite = 20, DocumentSnapshot? startAfter}) async {
+  Future<ProductosPaginadosResult> getProductosPaginados({
+    int limite = 20, 
+    DocumentSnapshot? startAfter,
+    String? categoriaId,
+    String? proveedorId,
+  }) async {
     Query query = _productosRef
         .where('activo', isEqualTo: true)
-        .where('esBase', isEqualTo: true)
-        .orderBy('nombre')
-        .limit(limite);
+        .where('esBase', isEqualTo: true);
+
+    if (categoriaId != null && categoriaId.isNotEmpty) {
+      query = query.where('categoriaId', isEqualTo: categoriaId);
+    }
+    if (proveedorId != null && proveedorId.isNotEmpty) {
+      query = query.where('proveedorId', isEqualTo: proveedorId);
+    }
+
+    query = query.orderBy('nombre').limit(limite);
         
     if (startAfter != null) {
       query = query.startAfterDocument(startAfter);
@@ -570,6 +582,8 @@ class FirebaseService {
             costoUnitario: costoReal,
             precioUnitario: item.precioUnitario,
             cantidad: item.cantidad,
+            proveedorId: data['proveedorId'],
+            proveedorNombre: data['proveedorNombre'],
           );
         }).toList();
 
@@ -809,11 +823,13 @@ class FirebaseService {
           
           final double nuevoStock = stockActual + item.cantidad;
 
-          // Actualizar producto
+          // Actualizar producto con historial de compra
           transaction.update(snap.reference, {
             'cantidad': nuevoStock,
             'costoActual': nuevoCosto,
-            'costoPromedio': nuevoCosto, // Sincronizamos ambos por ahora
+            'costoPromedio': nuevoCosto, 
+            'ultimaCompraFecha': compra.fecha.toIso8601String(),
+            'ultimoCostoCompra': item.costoUnitario,
           });
 
           // Registrar en Kardex
@@ -1109,6 +1125,8 @@ class FirebaseService {
     final contadores = <String, double>{};
     final nombres = <String, String>{};
     final ingresosProd = <String, double>{};
+    final utilidadPorProveedor = <String, double>{};
+    final nombresProveedores = <String, String>{};
 
     double ingresosTotales = 0;
     double costosTotales = 0;
@@ -1133,6 +1151,13 @@ class FirebaseService {
           contadores[item.productoId] = (contadores[item.productoId] ?? 0) + item.cantidad;
           nombres[item.productoId] = item.nombre;
           ingresosProd[item.productoId] = (ingresosProd[item.productoId] ?? 0) + ing;
+
+          // Rentabilidad por Proveedor
+          if (item.proveedorId != null) {
+            final util = ing - cos;
+            utilidadPorProveedor[item.proveedorId!] = (utilidadPorProveedor[item.proveedorId!] ?? 0) + util;
+            nombresProveedores[item.proveedorId!] = item.proveedorNombre ?? 'Proveedor Desconocido';
+          }
         }
         if (v.costoEnvio > 0) {
           if (v.envioPagadoPorVendedor) {
@@ -1182,6 +1207,8 @@ class FirebaseService {
       totalVentas: totalVentas,
       topProductos: top,
       diasConsultados: dias,
+      utilidadPorProveedor: utilidadPorProveedor,
+      nombresProveedores: nombresProveedores,
     );
   }
 
