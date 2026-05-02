@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
@@ -1348,22 +1349,24 @@ class FirebaseService {
   /// Busca productos activos cuyo nombre empieza con [query] (prefijo Firestore).
   /// Máximo 20 resultados para no sobrecargar la UI.
   Future<List<Producto>> buscarProductosPorNombre(String query) async {
-    if (query.trim().isEmpty) return [];
     final q = query.trim().toLowerCase();
+    if (q.isEmpty || q.length < 2) return [];
+
     // Técnica de rango: isGreaterThanOrEqualTo + isLessThanOrEqualTo con \uf8ff
     try {
       final snap = await _productosRef
           .where('activo', isEqualTo: true)
-          .where('esBase', isEqualTo: true)
+          // Quitamos .where('esBase', isEqualTo: true) para permitir buscar variantes
           .where('nombreLower', isGreaterThanOrEqualTo: q)
           .where('nombreLower', isLessThanOrEqualTo: '$q\uf8ff')
           .limit(20)
           .get(const GetOptions(source: Source.serverAndCache));
+
       return snap.docs
           .map((d) => Producto.fromMap(d.data() as Map<String, dynamic>, d.id))
           .toList();
-    } catch (_) {
-      // Fallback: si el índice no existe aún, hacemos filtro en memoria sobre los datos paginados
+    } catch (e) {
+      debugPrint('Error en buscarProductosPorNombre: $e');
       return [];
     }
   }

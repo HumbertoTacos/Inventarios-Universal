@@ -82,25 +82,43 @@ class AdminDashboardScreen extends StatelessWidget {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            debugPrint('Error en Stream de Admin: ${snapshot.error}');
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Text('Error de conexión: ${snapshot.error}', textAlign: TextAlign.center),
+              ),
+            );
           }
 
           final docs = snapshot.data?.docs ?? [];
 
           if (docs.isEmpty) {
-            return const Center(child: Text('No hay cuentas pendientes por aprobar.'));
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('No hay cuentas pendientes por aprobar.'),
+                ],
+              ),
+            );
           }
 
           return ListView.builder(
             itemCount: docs.length,
             padding: const EdgeInsets.symmetric(vertical: 8),
             itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final uid = docs[index].id;
+              final doc = docs[index];
+              final data = doc.data() as Map<String, dynamic>? ?? {};
+              final uid = doc.id;
+              
               final nombre = data['nombre'] ?? 'Sin nombre';
               final email = data['email'] ?? 'Sin correo';
               final negocio = data['negocioNombre'] ?? 'Negocio Desconocido';
-              final rol = data['rol'] ?? 'dueño';
+              final String rolRaw = (data['rol'] as String? ?? 'dueño').toLowerCase().trim();
+              final bool esDueno = rolRaw == 'dueño' || rolRaw == 'dueno';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -109,10 +127,10 @@ class AdminDashboardScreen extends StatelessWidget {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   leading: CircleAvatar(
-                    backgroundColor: (rol == 'dueño' || rol == 'dueno') ? Colors.blue.shade100 : Colors.orange.shade100,
+                    backgroundColor: esDueno ? Colors.blue.shade100 : Colors.orange.shade100,
                     child: Icon(
-                      (rol == 'dueño' || rol == 'dueno') ? Icons.business : Icons.person,
-                      color: (rol == 'dueño' || rol == 'dueno') ? Colors.blue : Colors.orange,
+                      esDueno ? Icons.business : Icons.person,
+                      color: esDueno ? Colors.blue : Colors.orange,
                     ),
                   ),
                   title: Text(
@@ -122,7 +140,7 @@ class AdminDashboardScreen extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '$negocio - $nombre ($rol)',
+                    '$negocio - $nombre (${esDueno ? 'Dueño' : 'Empleado'})',
                     style: const TextStyle(fontSize: 13),
                   ),
                   trailing: ElevatedButton(

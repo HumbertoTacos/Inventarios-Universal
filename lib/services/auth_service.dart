@@ -77,7 +77,15 @@ class UserData {
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+  AuthService._internal() {
+    // Solo configuramos serverClientId en plataformas nativas (Android/iOS)
+    // En la Web, esto lanza un error porque se configura vía index.html
+    if (!kIsWeb) {
+      _googleSignIn.initialize(
+        serverClientId: '131903442796-8dhek9ucm7pcquiqq238378vsesad0vt.apps.googleusercontent.com',
+      );
+    }
+  }
   
   // Instancia única de Google Sign-In para evitar reinicializaciones (Fix [GSI_LOGGER])
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;

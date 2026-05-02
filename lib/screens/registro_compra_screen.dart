@@ -32,6 +32,29 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   Timer? _debounceTimer;
   List<Producto> _resultadosBusqueda = [];
   bool _mostrandoBusqueda = false;
+  List<Producto> _productosGlobales = []; // [New] Cache global para búsqueda "contains"
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCatalogoInicial();
+  }
+
+  Future<void> _cargarCatalogoInicial() async {
+    try {
+      final res = await _firebaseService.getProductosPaginados(limite: 50);
+      if (mounted) {
+        setState(() {
+          _productosGlobales = res.productos;
+          for (var p in res.productos) {
+            _cacheProductos[p.id] = p;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error cargando catálogo inicial: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -94,6 +117,14 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
       final locales = _cacheProductos.values
           .where((p) => p.nombre.toLowerCase().contains(query))
           .toList();
+
+      // Si no hay suficientes locales, intentamos con la lista global (aunque ya deberían estar en cache)
+      final idsLocales = locales.map((l) => l.id).toSet();
+      for (var p in _productosGlobales) {
+        if (!idsLocales.contains(p.id) && p.nombre.toLowerCase().contains(query)) {
+          locales.add(p);
+        }
+      }
 
       List<Producto> remotos = [];
       if (locales.length < 5) {
