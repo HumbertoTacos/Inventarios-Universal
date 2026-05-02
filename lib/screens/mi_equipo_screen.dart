@@ -307,24 +307,32 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
                           ),
                           title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text(email),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.close, color: Colors.red),
-                                onPressed: () => _rechazarEmpleado(uid, nombre),
-                                tooltip: 'Rechazar',
-                              ),
-                              const SizedBox(width: 4),
-                              FilledButton(
-                                onPressed: () => _aprobarEmpleado(uid, nombre),
-                                style: FilledButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  visualDensity: VisualDensity.compact,
+                          trailing: SizedBox(
+                            width: 150,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.close, color: Colors.red),
+                                  onPressed: () => _rechazarEmpleado(uid, nombre),
+                                  tooltip: 'Rechazar',
                                 ),
-                                child: const Text('Aprobar'),
-                              ),
-                            ],
+                                const SizedBox(width: 4),
+                                SizedBox(
+                                  width: 90,
+                                  height: 36,
+                                  child: FilledButton(
+                                    onPressed: () => _aprobarEmpleado(uid, nombre),
+                                    style: FilledButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    child: const Text('Aprobar',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -362,7 +370,10 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
 
               final docs = (snapshot.data?.docs ?? []).where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
-                return data['rol'] == AuthService.rolEmpleado || data['rol'] == 'usuario';
+                final r = (data['rol'] as String? ?? '').toLowerCase();
+                return r == AuthService.rolEmpleado ||
+                    r == 'cajero' ||
+                    r == 'usuario';
               }).toList();
 
               if (docs.isEmpty) {
@@ -475,6 +486,12 @@ class _PanelPermisosEmpleadoState extends State<_PanelPermisosEmpleado> {
   late bool _verEstadisticas;
   late bool _verHistorial;
   late bool _abrirCaja;
+  late bool _gestionarClientes;
+  late bool _gestionarProveedores;
+  late bool _gestionarCategorias;
+  late bool _registrarCompras;
+  late bool _verBitacora;
+  late bool _exportarDatos;
   bool _guardando = false;
 
   @override
@@ -486,6 +503,12 @@ class _PanelPermisosEmpleadoState extends State<_PanelPermisosEmpleado> {
     _verEstadisticas = widget.permisosIniciales.puedeVerEstadisticas;
     _verHistorial = widget.permisosIniciales.puedeVerHistorialVentas;
     _abrirCaja = widget.permisosIniciales.puedeAbrirCerrarCaja;
+    _gestionarClientes = widget.permisosIniciales.puedeGestionarClientes;
+    _gestionarProveedores = widget.permisosIniciales.puedeGestionarProveedores;
+    _gestionarCategorias = widget.permisosIniciales.puedeGestionarCategorias;
+    _registrarCompras = widget.permisosIniciales.puedeRegistrarCompras;
+    _verBitacora = widget.permisosIniciales.puedeVerBitacora;
+    _exportarDatos = widget.permisosIniciales.puedeExportarDatos;
   }
 
   Future<void> _guardar() async {
@@ -498,6 +521,12 @@ class _PanelPermisosEmpleadoState extends State<_PanelPermisosEmpleado> {
         puedeVerEstadisticas: _verEstadisticas,
         puedeVerHistorialVentas: _verHistorial,
         puedeAbrirCerrarCaja: _abrirCaja,
+        puedeGestionarClientes: _gestionarClientes,
+        puedeGestionarProveedores: _gestionarProveedores,
+        puedeGestionarCategorias: _gestionarCategorias,
+        puedeRegistrarCompras: _registrarCompras,
+        puedeVerBitacora: _verBitacora,
+        puedeExportarDatos: _exportarDatos,
       );
       await AuthService().actualizarPermisosEmpleado(widget.uid, nuevos);
       if (mounted) {
@@ -575,46 +604,80 @@ class _PanelPermisosEmpleadoState extends State<_PanelPermisosEmpleado> {
                     _editarProductos, (v) => setState(() => _editarProductos = v)),
                 _permiso('Eliminar Productos', 'Puede borrar productos del catálogo.',
                     _eliminarProductos, (v) => setState(() => _eliminarProductos = v)),
+                
                 const Divider(indent: 16, endIndent: 16, height: 8),
-                _seccion('Reportes', Icons.bar_chart_outlined),
-                _permiso('Ver Estadísticas y Ganancias', 'Acceso al dashboard de análisis.',
-                    _verEstadisticas, (v) => setState(() => _verEstadisticas = v)),
-                _permiso('Ver Historial de Pedidos', 'Consultar el listado de ventas.',
-                    _verHistorial, (v) => setState(() => _verHistorial = v)),
+                _seccion('Catálogos', Icons.contacts_outlined),
+                _permiso('Gestionar Clientes', 'Crear, editar y ver historial de clientes.',
+                    _gestionarClientes, (v) => setState(() => _gestionarClientes = v)),
+                _permiso('Gestionar Proveedores', 'Administrar lista de proveedores.',
+                    _gestionarProveedores, (v) => setState(() => _gestionarProveedores = v)),
+                _permiso('Gestionar Categorías', 'Organizar productos por categorías.',
+                    _gestionarCategorias, (v) => setState(() => _gestionarCategorias = v)),
+
                 const Divider(indent: 16, endIndent: 16, height: 8),
-                _seccion('Caja', Icons.point_of_sale_outlined),
-                _permiso('Abrir y Cerrar Caja', 'Puede iniciar y cerrar turnos de caja.',
+                _seccion('Operaciones y Caja', Icons.point_of_sale_outlined),
+                _permiso('Abrir y Cerrar Caja', 'Iniciar turnos y ver cortes de caja.',
                     _abrirCaja, (v) => setState(() => _abrirCaja = v)),
+                _permiso('Registrar Compras', 'Ingresar stock mediante facturas de proveedores.',
+                    _registrarCompras, (v) => setState(() => _registrarCompras = v)),
+
+                const Divider(indent: 16, endIndent: 16, height: 8),
+                _seccion('Auditoría y Reportes', Icons.analytics_outlined),
+                _permiso('Ver Estadísticas y Ganancias', 'Dashboard de análisis de negocio.',
+                    _verEstadisticas, (v) => setState(() => _verEstadisticas = v)),
+                _permiso('Ver Historial de Ventas', 'Consultar el listado de ventas pasadas.',
+                    _verHistorial, (v) => setState(() => _verHistorial = v)),
+                _permiso('Ver Bitácora (Logs)', 'Ver rastreo de acciones críticas.',
+                    _verBitacora, (v) => setState(() => _verBitacora = v)),
+                _permiso('Exportar Datos', 'Descargar reportes en Excel o PDF.',
+                    _exportarDatos, (v) => setState(() => _exportarDatos = v)),
                 const SizedBox(height: 8),
               ],
             ),
           ),
           // Botones de acción
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.of(context).viewInsets.bottom),
+            padding: EdgeInsets.fromLTRB(16, 0, 16,
+                16 + MediaQuery.of(context).viewInsets.bottom),
             child: Row(
               children: [
-                OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    widget.onDespedir();
-                  },
-                  icon: const Icon(Icons.remove_circle_outline, size: 18),
-                  label: const Text('Dar de baja'),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red)),
+                SizedBox(
+                  width: 130,
+                  height: 40,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      widget.onDespedir();
+                    },
+                    icon: const Icon(Icons.remove_circle_outline, size: 16),
+                    label: const Text('Dar de baja',
+                        style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        padding: EdgeInsets.zero),
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _guardando ? null : _guardar,
-                    icon: _guardando
-                        ? const SizedBox(
-                            width: 18, height: 18,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.save_outlined, size: 18),
-                    label: Text(_guardando ? 'Guardando...' : 'Guardar Permisos'),
+                  child: SizedBox(
+                    height: 40,
+                    child: FilledButton.icon(
+                      onPressed: _guardando ? null : _guardar,
+                      icon: _guardando
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.save_outlined, size: 16),
+                      label: Text(
+                        _guardando ? 'Guardando...' : 'Guardar Permisos',
+                        style: const TextStyle(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ),
                 ),
               ],

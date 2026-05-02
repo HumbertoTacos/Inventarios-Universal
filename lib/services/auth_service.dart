@@ -12,6 +12,12 @@ class PermisosEmpleado {
   final bool puedeVerEstadisticas;
   final bool puedeVerHistorialVentas;
   final bool puedeAbrirCerrarCaja;
+  final bool puedeGestionarClientes;
+  final bool puedeGestionarProveedores;
+  final bool puedeGestionarCategorias;
+  final bool puedeRegistrarCompras;
+  final bool puedeVerBitacora;
+  final bool puedeExportarDatos;
 
   const PermisosEmpleado({
     this.puedeAjustarStock = true,
@@ -20,6 +26,12 @@ class PermisosEmpleado {
     this.puedeVerEstadisticas = false,
     this.puedeVerHistorialVentas = true,
     this.puedeAbrirCerrarCaja = true,
+    this.puedeGestionarClientes = true,
+    this.puedeGestionarProveedores = false,
+    this.puedeGestionarCategorias = false,
+    this.puedeRegistrarCompras = false,
+    this.puedeVerBitacora = false,
+    this.puedeExportarDatos = false,
   });
 
   /// El dueño siempre tiene todos los permisos en true.
@@ -29,7 +41,13 @@ class PermisosEmpleado {
         puedeEliminarProductos = true,
         puedeVerEstadisticas = true,
         puedeVerHistorialVentas = true,
-        puedeAbrirCerrarCaja = true;
+        puedeAbrirCerrarCaja = true,
+        puedeGestionarClientes = true,
+        puedeGestionarProveedores = true,
+        puedeGestionarCategorias = true,
+        puedeRegistrarCompras = true,
+        puedeVerBitacora = true,
+        puedeExportarDatos = true;
 
   factory PermisosEmpleado.fromMap(Map<String, dynamic> map) {
     return PermisosEmpleado(
@@ -39,6 +57,12 @@ class PermisosEmpleado {
       puedeVerEstadisticas: map['puedeVerEstadisticas'] as bool? ?? false,
       puedeVerHistorialVentas: map['puedeVerHistorialVentas'] as bool? ?? true,
       puedeAbrirCerrarCaja: map['puedeAbrirCerrarCaja'] as bool? ?? true,
+      puedeGestionarClientes: map['puedeGestionarClientes'] as bool? ?? true,
+      puedeGestionarProveedores: map['puedeGestionarProveedores'] as bool? ?? false,
+      puedeGestionarCategorias: map['puedeGestionarCategorias'] as bool? ?? false,
+      puedeRegistrarCompras: map['puedeRegistrarCompras'] as bool? ?? false,
+      puedeVerBitacora: map['puedeVerBitacora'] as bool? ?? false,
+      puedeExportarDatos: map['puedeExportarDatos'] as bool? ?? false,
     );
   }
 
@@ -49,6 +73,12 @@ class PermisosEmpleado {
     'puedeVerEstadisticas': puedeVerEstadisticas,
     'puedeVerHistorialVentas': puedeVerHistorialVentas,
     'puedeAbrirCerrarCaja': puedeAbrirCerrarCaja,
+    'puedeGestionarClientes': puedeGestionarClientes,
+    'puedeGestionarProveedores': puedeGestionarProveedores,
+    'puedeGestionarCategorias': puedeGestionarCategorias,
+    'puedeRegistrarCompras': puedeRegistrarCompras,
+    'puedeVerBitacora': puedeVerBitacora,
+    'puedeExportarDatos': puedeExportarDatos,
   };
 }
 
