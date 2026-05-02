@@ -33,7 +33,7 @@ class AppColors {
   static const Color secondaryLight= Color(0xFF6EE7B7); // emerald-300
 
   // Fondo y superficie
-  static const Color background    = Color(0xFFF8F9FA); // gris ultra-suave
+  static const Color background    = Color(0xFFFFFFFF); // Blanco puro
   static const Color surface       = Color(0xFFFFFFFF); // blanco puro para cards
   static const Color surfaceVariant= Color(0xFFF1F5F9); // slate-100
 

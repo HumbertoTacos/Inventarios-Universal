@@ -9,6 +9,7 @@ import 'admin_dashboard_screen.dart';
 import 'verificacion_correo_screen.dart';
 import 'completar_registro_google_screen.dart';
 import 'cuenta_inactiva_screen.dart';
+import '../widgets/premium_splash.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -19,7 +20,7 @@ class AuthGate extends StatelessWidget {
       stream: AuthService().authStateChanges,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const PremiumSplash();
         }
 
         final user = snapshot.data;
@@ -36,7 +37,7 @@ class AuthGate extends StatelessWidget {
           future: AuthService().reloadUserData(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              return const PremiumSplash(message: 'Iniciando sesión...');
             }
 
             if (snapshot.hasError) {

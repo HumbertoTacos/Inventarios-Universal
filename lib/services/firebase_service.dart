@@ -15,6 +15,7 @@ import '../models/negocio.dart';
 import '../models/bitacora_log.dart';
 import '../models/proveedor.dart';
 import '../models/compra.dart';
+import '../models/movimiento_kardex.dart';
 
 import 'auth_service.dart';
 
@@ -874,7 +875,7 @@ class FirebaseService {
       final batch = FirebaseFirestore.instance.batch();
       final docRef = _proveedoresRef.doc();
       batch.set(docRef, proveedor.toMap());
-      _inyectarLogBatch(batch, 'PROVEEDORES', 'Agregó al proveedor: ${proveedor.nombre}');
+      _inyectarLogBatch(batch, 'PROVEEDORES', 'Agregó al proveedor: ${proveedor.nombreComercial}');
       await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al agregar proveedor: ${e.message}');
@@ -885,7 +886,7 @@ class FirebaseService {
     try {
       final batch = FirebaseFirestore.instance.batch();
       batch.update(_proveedoresRef.doc(proveedor.id), proveedor.toMap());
-      _inyectarLogBatch(batch, 'PROVEEDORES', 'Actualizó al proveedor: ${proveedor.nombre}');
+      _inyectarLogBatch(batch, 'PROVEEDORES', 'Actualizó al proveedor: ${proveedor.nombreComercial}');
       await batch.commit();
     } on FirebaseException catch (e) {
       throw Exception('Error al actualizar proveedor: ${e.message}');
@@ -1468,5 +1469,45 @@ class FirebaseService {
     final ref = _storageRef.child('logo.jpg');
     final uploadTask = await ref.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
     return await uploadTask.ref.getDownloadURL();
+  }
+
+  // ── Módulo de Mermas y Ajustes (Kardex) ───────────────────────────────────
+
+  /// Registra un ajuste de inventario (merma, daño, etc.) de forma atómica.
+  /// No afecta costos ni cajas, solo stock físico.
+  Future<void> registrarAjusteInventario(MovimientoKardex movimiento) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final productDoc = await transaction.get(_productosRef.doc(movimiento.productoId));
+        
+        if (!productDoc.exists) {
+          throw Exception('El producto no existe.');
+        }
+
+        final productData = productDoc.data() as Map<String, dynamic>;
+        final stockActual = (productData['cantidad'] as num?)?.toDouble() ?? 0.0;
+
+        if (stockActual < movimiento.cantidad) {
+          throw Exception('Stock insuficiente para realizar el ajuste. Stock actual: $stockActual');
+        }
+
+        final nuevoStock = stockActual - movimiento.cantidad;
+
+        // 1. Actualizar stock del producto
+        transaction.update(productDoc.reference, {
+          'cantidad': nuevoStock,
+        });
+
+        // 2. Registrar en Kardex
+        final kardexDoc = _kardexRef.doc();
+        transaction.set(kardexDoc, movimiento.toMap());
+
+        // 3. Registrar en Bitácora
+        final descripcionLog = 'Ajuste de inventario: -${movimiento.cantidad} de ${movimiento.nombreProducto} por ${movimiento.tipoMovimiento.replaceAll('_', ' ')}';
+        _inyectarLogTransaccional(transaction, 'INVENTARIO', descripcionLog);
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error en la transacción de ajuste: ${e.message}');
+    }
   }
 }

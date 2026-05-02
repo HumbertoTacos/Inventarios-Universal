@@ -13,6 +13,7 @@ import '../screens/auth_gate.dart';
 import '../screens/caja_screen.dart';
 import '../screens/gestion_proveedores_screen.dart';
 import '../screens/registro_compra_screen.dart';
+import '../screens/ajuste_inventario_screen.dart';
 import '../models/negocio.dart';
 import '../controllers/configuracion_controller.dart';
 
@@ -86,6 +87,12 @@ class _AppDrawerState extends State<AppDrawer> {
                   title: 'Inventario',
                   routeName: 'inventario',
                   screen: const InventarioScreen(),
+                ),
+                _buildMenuItem(
+                  icon: Icons.auto_fix_high_outlined,
+                  title: 'Mermas y Ajustes',
+                  routeName: '/ajuste_inventario',
+                  screen: const AjusteInventarioScreen(),
                 ),
                 _buildMenuItem(
                   icon: Icons.point_of_sale,

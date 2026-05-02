@@ -25,10 +25,12 @@ class _GestionProveedoresScreenState extends State<GestionProveedoresScreen> {
         builder: (context) => AlertDialog(
           title: Text(proveedor == null ? 'Nuevo Proveedor' : 'Editar Proveedor'),
           content: SizedBox(
-            width: 500,
-            child: _ProveedorForm(
-              proveedor: proveedor,
-              onSave: (p) => _guardarProveedor(p),
+            width: 800,
+            child: SingleChildScrollView(
+              child: _ProveedorForm(
+                proveedor: proveedor,
+                onSave: (p) => _guardarProveedor(p),
+              ),
             ),
           ),
         ),
@@ -99,7 +101,7 @@ class _GestionProveedoresScreenState extends State<GestionProveedoresScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('¿Eliminar Proveedor?'),
-        content: Text('¿Estás seguro de eliminar a ${proveedor.nombre}?'),
+        content: Text('¿Estás seguro de eliminar a ${proveedor.nombreComercial}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           FilledButton(
@@ -113,7 +115,7 @@ class _GestionProveedoresScreenState extends State<GestionProveedoresScreen> {
 
     if (confirm == true) {
       try {
-        await _firebaseService.eliminarProveedor(proveedor.id, proveedor.nombre);
+        await _firebaseService.eliminarProveedor(proveedor.id, proveedor.nombreComercial);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -174,7 +176,7 @@ class _GestionProveedoresScreenState extends State<GestionProveedoresScreen> {
             ),
             desktopBody: _ProveedorGrid(
               proveedores: proveedores,
-              crossAxisCount: 4,
+              crossAxisCount: 3,
               onEdit: (p) => _abrirFormulario(proveedor: p),
               onDelete: (p) => _eliminarProveedor(p),
             ),
@@ -202,17 +204,16 @@ class _ProveedorListTile extends StatelessWidget {
       onTap: onEdit,
       child: ListTile(
         title: Text(
-          proveedor.nombre,
+          proveedor.nombreComercial,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(proveedor.rfc_o_nit ?? 'Sin RFC/NIT'),
+        subtitle: Text(proveedor.nombreContacto ?? proveedor.tipoProveedor ?? 'Sin contacto asignado'),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               icon: const Icon(Icons.phone_outlined),
               onPressed: () {
-                // Acción de llamada (requiere url_launcher)
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('Llamando a ${proveedor.telefono}...')),
                 );
@@ -256,11 +257,13 @@ class _ProveedorGrid extends StatelessWidget {
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1.5,
+        childAspectRatio: 1.4,
       ),
       itemCount: proveedores.length,
       itemBuilder: (context, index) {
         final p = proveedores[index];
+        final colorScheme = Theme.of(context).colorScheme;
+        
         return PremiumCard(
           padding: const EdgeInsets.all(20),
           onTap: () => onEdit(p),
@@ -271,37 +274,70 @@ class _ProveedorGrid extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      p.nombre,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.nombreComercial,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (p.tipoProveedor != null)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer.withAlpha(100),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              p.tipoProveedor!,
+                              style: TextStyle(fontSize: 10, color: colorScheme.primary, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                     onPressed: () => onDelete(p),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                p.rfc_o_nit ?? 'Sin identificación',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
+              const SizedBox(height: 12),
+              if (p.nombreContacto != null)
+                Row(
+                  children: [
+                    Icon(Icons.person_outline, size: 14, color: colorScheme.outline),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        p.nombreContacto!,
+                        style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
               const Spacer(),
               Row(
                 children: [
                   Icon(Icons.phone_outlined, 
-                    size: 16, 
-                    color: Theme.of(context).colorScheme.primary
+                    size: 14, 
+                    color: colorScheme.primary
                   ),
                   const SizedBox(width: 8),
-                  Text(p.telefono),
+                  Text(p.telefono, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  if (p.diasVisita != null) ...[
+                    const Spacer(),
+                    Icon(Icons.calendar_today_outlined, size: 14, color: colorScheme.secondary),
+                    const SizedBox(width: 6),
+                    Text(p.diasVisita!, style: TextStyle(fontSize: 12, color: colorScheme.secondary)),
+                  ],
                 ],
               ),
             ],
@@ -325,83 +361,161 @@ class _ProveedorForm extends StatefulWidget {
 class _ProveedorFormState extends State<_ProveedorForm> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nombreCtrl;
+  late TextEditingController _razonSocialCtrl;
   late TextEditingController _telefonoCtrl;
+  late TextEditingController _correoCtrl;
   late TextEditingController _rfcCtrl;
+  late TextEditingController _contactoCtrl;
+  late TextEditingController _visitaCtrl;
   late TextEditingController _notasCtrl;
+  String? _tipoSeleccionado;
+  
+  final List<String> _tipos = ["Abarrotes", "Papelería", "Tecnología", "Servicios", "Bebidas", "Limpieza", "Otro"];
   bool _loading = false;
 
   @override
   void initState() {
     super.initState();
-    _nombreCtrl = TextEditingController(text: widget.proveedor?.nombre);
+    _nombreCtrl = TextEditingController(text: widget.proveedor?.nombreComercial);
+    _razonSocialCtrl = TextEditingController(text: widget.proveedor?.razonSocial);
     _telefonoCtrl = TextEditingController(text: widget.proveedor?.telefono);
+    _correoCtrl = TextEditingController(text: widget.proveedor?.correo);
     _rfcCtrl = TextEditingController(text: widget.proveedor?.rfc_o_nit);
+    _contactoCtrl = TextEditingController(text: widget.proveedor?.nombreContacto);
+    _visitaCtrl = TextEditingController(text: widget.proveedor?.diasVisita);
     _notasCtrl = TextEditingController(text: widget.proveedor?.notas);
+    _tipoSeleccionado = widget.proveedor?.tipoProveedor;
   }
 
   @override
   void dispose() {
     _nombreCtrl.dispose();
+    _razonSocialCtrl.dispose();
     _telefonoCtrl.dispose();
+    _correoCtrl.dispose();
     _rfcCtrl.dispose();
+    _contactoCtrl.dispose();
+    _visitaCtrl.dispose();
     _notasCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isDesktop = ResponsiveLayout.isDesktop(context);
+
     return Form(
       key: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextFormField(
-            controller: _nombreCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Nombre Comercial',
-              prefixIcon: Icon(Icons.business),
+          _buildResponsiveRow(isDesktop, [
+            TextFormField(
+              controller: _nombreCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Nombre Comercial *',
+                prefixIcon: Icon(Icons.business),
+              ),
+              validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
             ),
-            validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _telefonoCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Teléfono',
-              prefixIcon: Icon(Icons.phone),
+            TextFormField(
+              controller: _razonSocialCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Razón Social (Opcional)',
+                prefixIcon: Icon(Icons.gavel_outlined),
+              ),
             ),
-            keyboardType: TextInputType.phone,
-          ),
+          ]),
           const SizedBox(height: 16),
-          TextFormField(
-            controller: _rfcCtrl,
-            decoration: const InputDecoration(
-              labelText: 'RFC / NIT',
-              prefixIcon: Icon(Icons.badge_outlined),
+          
+          _buildResponsiveRow(isDesktop, [
+            TextFormField(
+              controller: _telefonoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Teléfono *',
+                prefixIcon: Icon(Icons.phone),
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (v) => v == null || v.isEmpty ? 'Requerido' : null,
             ),
-          ),
+            TextFormField(
+              controller: _correoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Correo Electrónico',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ]),
           const SizedBox(height: 16),
+
+          _buildResponsiveRow(isDesktop, [
+            TextFormField(
+              controller: _rfcCtrl,
+              decoration: const InputDecoration(
+                labelText: 'RFC / NIT',
+                prefixIcon: Icon(Icons.badge_outlined),
+              ),
+            ),
+            DropdownButtonFormField<String>(
+              value: _tipoSeleccionado,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de Proveedor',
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
+              items: _tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+              onChanged: (val) => setState(() => _tipoSeleccionado = val),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
+          _buildResponsiveRow(isDesktop, [
+            TextFormField(
+              controller: _contactoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Persona de Contacto',
+                prefixIcon: Icon(Icons.person_outline),
+                hintText: 'Ej. Don Luis el preventista',
+              ),
+            ),
+            TextFormField(
+              controller: _visitaCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Días de Visita',
+                prefixIcon: Icon(Icons.calendar_today_outlined),
+                hintText: 'Ej. Lunes y Jueves',
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
           TextFormField(
             controller: _notasCtrl,
             decoration: const InputDecoration(
               labelText: 'Notas adicionales',
               prefixIcon: Icon(Icons.notes),
             ),
-            maxLines: 3,
+            maxLines: 2,
           ),
+          
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: FilledButton(
               onPressed: _loading ? null : () async {
                 if (_formKey.currentState!.validate()) {
                   setState(() => _loading = true);
                   final p = Proveedor(
                     id: widget.proveedor?.id ?? '',
-                    nombre: _nombreCtrl.text,
+                    nombreComercial: _nombreCtrl.text,
+                    razonSocial: _razonSocialCtrl.text.isEmpty ? null : _razonSocialCtrl.text,
                     telefono: _telefonoCtrl.text,
-                    rfc_o_nit: _rfcCtrl.text,
+                    correo: _correoCtrl.text.isEmpty ? null : _correoCtrl.text,
+                    rfc_o_nit: _rfcCtrl.text.isEmpty ? null : _rfcCtrl.text,
+                    nombreContacto: _contactoCtrl.text.isEmpty ? null : _contactoCtrl.text,
+                    tipoProveedor: _tipoSeleccionado,
+                    diasVisita: _visitaCtrl.text.isEmpty ? null : _visitaCtrl.text,
                     notas: _notasCtrl.text,
                   );
                   await widget.onSave(p);
@@ -419,6 +533,28 @@ class _ProveedorFormState extends State<_ProveedorForm> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildResponsiveRow(bool isDesktop, List<Widget> children) {
+    if (!isDesktop) {
+      return Column(
+        children: children.asMap().entries.map((e) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: e.key == children.length - 1 ? 0 : 16),
+            child: e.value,
+          );
+        }).toList(),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children.map((w) => Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: w,
+        ),
+      )).toList(),
     );
   }
 }

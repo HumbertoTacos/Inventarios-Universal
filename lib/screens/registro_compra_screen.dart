@@ -177,7 +177,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
       final compra = Compra(
         id: '',
         proveedorId: proveedor.id,
-        proveedorNombre: proveedor.nombre,
+        proveedorNombre: proveedor.nombreComercial,
         fecha: DateTime.now(),
         costoTotal: _totalCompra,
         items: _itemsCompra,
@@ -236,7 +236,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
             ),
             items: proveedores.map<DropdownMenuItem<String>>((Proveedor p) => DropdownMenuItem<String>(
               value: p.id,
-              child: Text(p.nombre),
+              child: Text(p.nombreComercial),
             )).toList(),
             onChanged: (String? val) => setState(() => _idProveedorSeleccionado = val),
           );

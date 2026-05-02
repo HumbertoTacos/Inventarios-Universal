@@ -269,13 +269,13 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                               ),
                               items: proveedores.map((p) => DropdownMenuItem(
                                 value: p.id,
-                                child: Text(p.nombre),
+                                child: Text(p.nombreComercial),
                               )).toList(),
                               onChanged: (val) {
                                 final p = proveedores.firstWhere((element) => element.id == val);
                                 setState(() {
                                   _idProveedorSeleccionado = val;
-                                  _nombreProveedorSeleccionado = p.nombre;
+                                  _nombreProveedorSeleccionado = p.nombreComercial;
                                 });
                               },
                             );

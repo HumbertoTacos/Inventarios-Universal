@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class PermisosEmpleado {
   final bool puedeAjustarStock;
@@ -75,7 +76,10 @@ class UserData {
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal();
+  AuthService._internal() {
+    // Inicializar Google Sign-In una sola vez (Requerido para v7.0.0+)
+    GoogleSignIn.instance.initialize();
+  }
   
   // Constantes de roles para evitar errores de tipeo o codificación
   static const String rolDueno = 'dueño';
@@ -184,33 +188,52 @@ class AuthService {
     final String? codigoInvitacion = data['codigoInvitacion'];
 
     if (codigoInvitacion != null && codigoInvitacion.isNotEmpty) {
+      // REGISTRO COMO EMPLEADO
       final query = await _firestore.collection('negocios').where('codigoInvitacion', isEqualTo: codigoInvitacion).limit(1).get();
-      if (query.docs.isEmpty) throw Exception('El código de invitación ya no es válido');
+      if (query.docs.isEmpty) throw Exception('El código de invitación ya no es válido o no existe');
       
       final negocioDoc = query.docs.first;
+      final negocioId = negocioDoc.id;
+
+      // 1. Guardar el perfil del usuario como PENDIENTE y con rol de cajero
       await _firestore.collection('usuarios').doc(user.uid).set({
+        'uid': user.uid,
         'nombre': nombre,
         'email': email,
         'negocioNombre': negocioDoc['nombre'],
-        'negocioId': negocioDoc.id,
-        'estatus': 'aprobado',
-        'rol': rolEmpleado,
+        'negocioId': negocioId,
+        'estatus': 'pendiente',
+        'rol': 'cajero',
+        'fechaRegistro': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Crear la solicitud dentro del negocio para que el dueño la vea
+      await _firestore.collection('negocios').doc(negocioId).collection('solicitudes').doc(user.uid).set({
+        'uid': user.uid,
+        'nombre': nombre,
+        'email': email,
+        'fecha': FieldValue.serverTimestamp(),
+        'estatus': 'pendiente',
       });
     } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
+      // REGISTRO COMO DUEÑO
       final negocioRef = _firestore.collection('negocios').doc();
       await negocioRef.set({
         'nombre': negocioNombre,
         'creadoPor': user.uid,
         'codigoInvitacion': _generarCodigo(),
+        'fechaCreacion': FieldValue.serverTimestamp(),
       });
 
       await _firestore.collection('usuarios').doc(user.uid).set({
+        'uid': user.uid,
         'nombre': nombre,
         'email': email,
         'negocioNombre': negocioNombre,
         'negocioId': negocioRef.id,
         'estatus': 'pendiente',
         'rol': rolDueno,
+        'fechaRegistro': FieldValue.serverTimestamp(),
       });
     }
 
@@ -220,19 +243,38 @@ class AuthService {
   }
 
   Future<void> loginWithGoogle() async {
-    UserCredential? credential;
     try {
       if (kIsWeb) {
-        // Usamos Redirect en lugar de Popup para evitar bloqueos de seguridad COOP de los navegadores
+        // En Web seguimos usando Redirect (o Popup) según convenga
         await _auth.signInWithRedirect(GoogleAuthProvider());
-        // En Web, el flujo se detiene aquí porque la página se recarga
         return; 
       } else {
-        credential = await _auth.signInWithProvider(GoogleAuthProvider());
-      }
-      
-      if (credential.user != null) {
-        await reloadUserData();
+        // Flujo Nativo para Android e iOS (Migrado a API v7.0.0+)
+        // 1. Identidad (¿Quién eres?)
+        final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
+        
+        if (googleUser == null) {
+          // El usuario cerró el diálogo sin elegir cuenta
+          return;
+        }
+
+        // 2. Autorización (Permisos para obtener tokens)
+        // Para Firebase necesitamos explícitamente los scopes básicos para obtener el accessToken
+        final authClient = await googleUser.authorizationClient.authorizeScopes(['email', 'profile', 'openid']);
+        
+        // 3. Obtener tokens
+        final googleAuth = await googleUser.authentication;
+
+        final AuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: authClient.accessToken, // Obtenido del paso de autorización
+          idToken: googleAuth.idToken,        // Obtenido de la identidad
+        );
+
+        final UserCredential userCredential = await _auth.signInWithCredential(credential);
+        
+        if (userCredential.user != null) {
+          await reloadUserData();
+        }
       }
     } catch (e) {
       throw Exception('Error en Google Sign-In: $e');
@@ -247,17 +289,30 @@ class AuthService {
     if (user == null) throw Exception('No hay usuario autenticado');
 
     if (codigoInvitacion != null && codigoInvitacion.isNotEmpty) {
+      // REGISTRO GOOGLE COMO EMPLEADO
       final query = await _firestore.collection('negocios').where('codigoInvitacion', isEqualTo: codigoInvitacion).limit(1).get();
       if (query.docs.isEmpty) throw Exception('El código de invitación no existe o ya expiró');
       
       final negocioDoc = query.docs.first;
+      final negocioId = negocioDoc.id;
+
       await _firestore.collection('usuarios').doc(user.uid).set({
+        'uid': user.uid,
         'nombre': user.displayName ?? 'Usuario Google',
         'email': user.email ?? '',
         'negocioNombre': negocioDoc['nombre'],
-        'negocioId': negocioDoc.id,
-        'estatus': 'aprobado',
-        'rol': rolEmpleado,
+        'negocioId': negocioId,
+        'estatus': 'pendiente',
+        'rol': 'cajero',
+        'fechaRegistro': FieldValue.serverTimestamp(),
+      });
+
+      await _firestore.collection('negocios').doc(negocioId).collection('solicitudes').doc(user.uid).set({
+        'uid': user.uid,
+        'nombre': user.displayName ?? 'Usuario Google',
+        'email': user.email ?? '',
+        'fecha': FieldValue.serverTimestamp(),
+        'estatus': 'pendiente',
       });
     } else if (negocioNombre != null && negocioNombre.isNotEmpty) {
       final negocioRef = _firestore.collection('negocios').doc();

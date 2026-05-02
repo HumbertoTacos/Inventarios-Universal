@@ -943,7 +943,7 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
                 ),
                 items: [
                   const DropdownMenuItem<Proveedor>(value: null, child: Text('Todos los proveedores')),
-                  ...proveedores.map((p) => DropdownMenuItem(value: p, child: Text(p.nombre))),
+                  ...proveedores.map((p) => DropdownMenuItem(value: p, child: Text(p.nombreComercial))),
                 ],
                 onChanged: (p) => setState(() => _provSelect = p),
               );

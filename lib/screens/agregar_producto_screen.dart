@@ -31,7 +31,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   bool _guardando = false;
   bool _enPromocion = false;
   Categoria? _categoriaSeleccionada;
-  Proveedor? _proveedorSeleccionado;
+  String? _idProveedorSeleccionado;
+  String? _nombreProveedorSeleccionado;
 
   // Valores dinámicos por atributo: nombre → valor elegido/escrito
   final Map<String, String> _atributos = {};
@@ -131,7 +132,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
                       // ── Categoría ──
                       DropdownButtonFormField<Categoria>(
-                        initialValue: _categoriaSeleccionada,
+                        value: _categoriaSeleccionada,
                         decoration: const InputDecoration(
                           labelText: 'Categoría *',
                           prefixIcon: Icon(Icons.category_outlined),
@@ -154,18 +155,31 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                         stream: _firebaseService.getProveedores(),
                         builder: (context, provSnap) {
                           final proveedores = provSnap.data ?? [];
-                          return DropdownButtonFormField<Proveedor>(
-                            value: _proveedorSeleccionado,
+                          return DropdownButtonFormField<String>(
+                            value: _idProveedorSeleccionado,
                             decoration: const InputDecoration(
                               labelText: 'Proveedor Preferido (opcional)',
                               prefixIcon: Icon(Icons.local_shipping_outlined),
                               border: OutlineInputBorder(),
                             ),
                             items: proveedores.map((p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(p.nombre),
+                              value: p.id,
+                              child: Text(p.nombreComercial),
                             )).toList(),
-                            onChanged: (val) => setState(() => _proveedorSeleccionado = val),
+                            onChanged: (val) {
+                              if (val != null) {
+                                final p = proveedores.firstWhere((element) => element.id == val);
+                                setState(() {
+                                  _idProveedorSeleccionado = val;
+                                  _nombreProveedorSeleccionado = p.nombreComercial;
+                                });
+                              } else {
+                                setState(() {
+                                  _idProveedorSeleccionado = null;
+                                  _nombreProveedorSeleccionado = null;
+                                });
+                              }
+                            },
                           );
                         },
                       ),
@@ -415,7 +429,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
           padding: const EdgeInsets.only(bottom: 16),
           child: DropdownButtonFormField<String>(
             key: ValueKey('attr_${categoria.id}_${attr.nombre}'),
-            initialValue: _atributos[attr.nombre],
+            value: _atributos[attr.nombre],
             decoration: InputDecoration(
               labelText: '${attr.nombre} *',
               prefixIcon: const Icon(Icons.list_alt_outlined),
@@ -502,8 +516,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       precioMayoreo: double.tryParse(_precioMayoreoCtrl.text),
       enPromocion: _enPromocion,
       precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
-      proveedorId: _proveedorSeleccionado?.id,
-      proveedorNombre: _proveedorSeleccionado?.nombre,
+      proveedorId: _idProveedorSeleccionado,
+      proveedorNombre: _nombreProveedorSeleccionado,
     );
 
     try {
