@@ -6,9 +6,16 @@ import 'auth_gate.dart';
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
 
-  Future<void> _aprobarUsuario(BuildContext context, String uid, String nombreUsuario) async {
+  Future<void> _aprobarUsuario(
+    BuildContext context,
+    String uid,
+    String nombreUsuario,
+  ) async {
     try {
-      final userDoc = await FirebaseFirestore.instance.collection('usuarios').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(uid)
+          .get();
       if (!userDoc.exists) throw Exception('El usuario ya no existe.');
 
       final data = userDoc.data()!;
@@ -25,24 +32,34 @@ class AdminDashboardScreen extends StatelessWidget {
 
       // 2. Si es empleado, limpiar la solicitud del negocio
       if (negocioId != null && rol != AuthService.rolDueno) {
-        batch.delete(FirebaseFirestore.instance
-            .collection('negocios')
-            .doc(negocioId)
-            .collection('solicitudes')
-            .doc(uid));
+        batch.delete(
+          FirebaseFirestore.instance
+              .collection('negocios')
+              .doc(negocioId)
+              .collection('solicitudes')
+              .doc(uid),
+        );
       }
 
       await batch.commit();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Acceso para "$nombreUsuario" aprobado correctamente.'), backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(
+              'Acceso para "$nombreUsuario" aprobado correctamente.',
+            ),
+            backgroundColor: Colors.green,
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al aprobar: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al aprobar: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -51,7 +68,11 @@ class AdminDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (AuthService().currentUserData?.rol != AuthService.rolAdmin) {
-      return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo administradores de plataforma.')));
+      return const Scaffold(
+        body: Center(
+          child: Text('Acceso Denegado. Solo administradores de plataforma.'),
+        ),
+      );
     }
 
     return Scaffold(
@@ -64,11 +85,11 @@ class AdminDashboardScreen extends StatelessWidget {
               await AuthService().logout();
               if (context.mounted) {
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const AuthGate())
+                  MaterialPageRoute(builder: (_) => const AuthGate()),
                 );
               }
             },
-          )
+          ),
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -86,7 +107,10 @@ class AdminDashboardScreen extends StatelessWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: Text('Error de conexión: ${snapshot.error}', textAlign: TextAlign.center),
+                child: Text(
+                  'Error de conexión: ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
               ),
             );
           }
@@ -98,7 +122,11 @@ class AdminDashboardScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                  Icon(
+                    Icons.check_circle_outline,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   SizedBox(height: 16),
                   Text('No hay cuentas pendientes por aprobar.'),
                 ],
@@ -113,21 +141,30 @@ class AdminDashboardScreen extends StatelessWidget {
               final doc = docs[index];
               final data = doc.data() as Map<String, dynamic>? ?? {};
               final uid = doc.id;
-              
+
               final nombre = data['nombre'] ?? 'Sin nombre';
               final email = data['email'] ?? 'Sin correo';
               final negocio = data['negocioNombre'] ?? 'Negocio Desconocido';
-              final String rolRaw = (data['rol'] as String? ?? 'dueño').toLowerCase().trim();
+              final String rolRaw = (data['rol'] as String? ?? 'dueño')
+                  .toLowerCase()
+                  .trim();
               final bool esDueno = rolRaw == 'dueño' || rolRaw == 'dueno';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   leading: CircleAvatar(
-                    backgroundColor: esDueno ? Colors.blue.shade100 : Colors.orange.shade100,
+                    backgroundColor: esDueno
+                        ? Colors.blue.shade100
+                        : Colors.orange.shade100,
                     child: Icon(
                       esDueno ? Icons.business : Icons.person,
                       color: esDueno ? Colors.blue : Colors.orange,
@@ -143,13 +180,18 @@ class AdminDashboardScreen extends StatelessWidget {
                     '$negocio - $nombre (${esDueno ? 'Dueño' : 'Empleado'})',
                     style: const TextStyle(fontSize: 13),
                   ),
-                  trailing: ElevatedButton(
-                    onPressed: () => _aprobarUsuario(context, uid, nombre),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                  trailing: SizedBox(
+                    width: 100,
+                    height: 36,
+                    child: ElevatedButton(
+                      onPressed: () => _aprobarUsuario(context, uid, nombre),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Text('Aprobar'),
                     ),
-                    child: const Text('Aprobar'),
                   ),
                 ),
               );
