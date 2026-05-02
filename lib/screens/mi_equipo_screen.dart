@@ -82,6 +82,81 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
     }
   }
 
+  Future<void> _aprobarEmpleado(String uid, String nombreEmpleado) async {
+    try {
+      final negocioId = AuthService().currentNegocioId;
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Aprobar al usuario en la colección global
+      batch.update(FirebaseFirestore.instance.collection('usuarios').doc(uid), {
+        'estatus': 'aprobado',
+        'rol': 'cajero', // Rol por defecto para empleados aprobados
+      });
+
+      // 2. Eliminar la solicitud de la subcolección del negocio
+      batch.delete(FirebaseFirestore.instance
+          .collection('negocios')
+          .doc(negocioId)
+          .collection('solicitudes')
+          .doc(uid));
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Acceso para "$nombreEmpleado" aprobado.'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al aprobar: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _rechazarEmpleado(String uid, String nombreEmpleado) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Rechazar solicitud?'),
+        content: Text('¿Seguro que deseas rechazar la solicitud de $nombreEmpleado? No podrá entrar al sistema.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Sí, rechazar', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      final negocioId = AuthService().currentNegocioId;
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Marcar como rechazado o eliminar de usuarios
+      batch.delete(FirebaseFirestore.instance.collection('usuarios').doc(uid));
+
+      // 2. Eliminar la solicitud
+      batch.delete(FirebaseFirestore.instance
+          .collection('negocios')
+          .doc(negocioId)
+          .collection('solicitudes')
+          .doc(uid));
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud rechazada.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
   void _abrirPanelPermisos(String uid, String nombre, String email, Map<String, dynamic> data) {
     final permisosMap = data['permisos'] as Map<String, dynamic>?;
     final permisos = permisosMap != null
@@ -187,15 +262,89 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
                 ),
               ),
             // ── Lista de Empleados ───────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Row(children: [
-            Icon(Icons.people_outlined, color: cs.outline, size: 18),
-            const SizedBox(width: 8),
-            Text('Empleados activos',
-                style: TextStyle(fontWeight: FontWeight.w600, color: cs.outline)),
-          ]),
-        ),
+            // ── Solicitudes Pendientes ───────────────────────────────────────
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('negocios')
+                  .doc(currentNegocioId)
+                  .collection('solicitudes')
+                  .where('estatus', isEqualTo: 'pendiente')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                final requests = snapshot.data!.docs;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.pending_actions_outlined, color: cs.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Solicitudes Pendientes',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: cs.primary)),
+                        ],
+                      ),
+                    ),
+                    ...requests.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final uid = doc.id;
+                      final nombre = data['nombre'] ?? 'Sin nombre';
+                      final email = data['email'] ?? '';
+
+                      return PremiumCard(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        color: cs.primaryContainer.withAlpha(30),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: cs.primary,
+                            child: const Icon(Icons.person_add, color: Colors.white, size: 20),
+                          ),
+                          title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(email),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.red),
+                                onPressed: () => _rechazarEmpleado(uid, nombre),
+                                tooltip: 'Rechazar',
+                              ),
+                              const SizedBox(width: 4),
+                              FilledButton(
+                                onPressed: () => _aprobarEmpleado(uid, nombre),
+                                style: FilledButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                child: const Text('Aprobar'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                    const Divider(indent: 16, endIndent: 16, height: 32),
+                  ],
+                );
+              },
+            ),
+
+            // ── Lista de Empleados Activos ───────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Row(children: [
+                Icon(Icons.people_outlined, color: cs.outline, size: 18),
+                const SizedBox(width: 8),
+                Text('Empleados activos',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: cs.outline)),
+              ]),
+            ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance

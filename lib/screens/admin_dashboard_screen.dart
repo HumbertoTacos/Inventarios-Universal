@@ -100,61 +100,38 @@ class AdminDashboardScreen extends StatelessWidget {
               final nombre = data['nombre'] ?? 'Sin nombre';
               final email = data['email'] ?? 'Sin correo';
               final negocio = data['negocioNombre'] ?? 'Negocio Desconocido';
-              final rol = data['rol'] ?? 'Dueño';
+              final rol = data['rol'] ?? 'dueño';
 
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: (rol == 'dueño' || rol == 'dueno') ? Colors.blue.shade100 : Colors.orange.shade100,
-                        child: Icon(
-                          (rol == 'dueño' || rol == 'dueno') ? Icons.business : Icons.person,
-                          color: (rol == 'dueño' || rol == 'dueno') ? Colors.blue : Colors.orange,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              negocio,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$nombre ($rol)',
-                              style: const TextStyle(fontSize: 14),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              email,
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () => _aprobarUsuario(context, uid, nombre),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Aprobar'),
-                      ),
-                    ],
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: (rol == 'dueño' || rol == 'dueno') ? Colors.blue.shade100 : Colors.orange.shade100,
+                    child: Icon(
+                      (rol == 'dueño' || rol == 'dueno') ? Icons.business : Icons.person,
+                      color: (rol == 'dueño' || rol == 'dueno') ? Colors.blue : Colors.orange,
+                    ),
+                  ),
+                  title: Text(
+                    email,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    '$negocio - $nombre ($rol)',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  trailing: ElevatedButton(
+                    onPressed: () => _aprobarUsuario(context, uid, nombre),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Aprobar'),
                   ),
                 ),
               );

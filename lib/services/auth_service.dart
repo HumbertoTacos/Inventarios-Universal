@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter/services.dart';
 
 class PermisosEmpleado {
   final bool puedeAjustarStock;
@@ -76,10 +77,10 @@ class UserData {
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
-  AuthService._internal() {
-    // Inicializar Google Sign-In una sola vez (Requerido para v7.0.0+)
-    GoogleSignIn.instance.initialize();
-  }
+  AuthService._internal();
+  
+  // Instancia única de Google Sign-In para evitar reinicializaciones (Fix [GSI_LOGGER])
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   
   // Constantes de roles para evitar errores de tipeo o codificación
   static const String rolDueno = 'dueño';
@@ -245,13 +246,18 @@ class AuthService {
   Future<void> loginWithGoogle() async {
     try {
       if (kIsWeb) {
-        // En Web seguimos usando Redirect (o Popup) según convenga
-        await _auth.signInWithRedirect(GoogleAuthProvider());
+        // En Web, signInWithPopup de Firebase es la forma más estable y evita errores de GSI
+        final provider = GoogleAuthProvider();
+        final userCredential = await _auth.signInWithPopup(provider);
+        
+        if (userCredential.user != null) {
+          await reloadUserData();
+        }
         return; 
       } else {
-        // Flujo Nativo para Android e iOS (Migrado a API v7.0.0+)
+        // Flujo Nativo para Android e iOS (Usando la instancia compartida)
         // 1. Identidad (¿Quién eres?)
-        final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
+        final GoogleSignInAccount? googleUser = await _googleSignIn.authenticate();
         
         if (googleUser == null) {
           // El usuario cerró el diálogo sin elegir cuenta
@@ -277,6 +283,18 @@ class AuthService {
         }
       }
     } catch (e) {
+      // Manejar la cancelación de forma silenciosa
+      final errorString = e.toString().toLowerCase();
+      final isCanceled = errorString.contains('canceled') || 
+                         errorString.contains('cancelled') || 
+                         (e is PlatformException && e.code == 'canceled') ||
+                         (e is FirebaseAuthException && e.code == 'popup-closed-by-user');
+      
+      if (isCanceled) {
+        debugPrint('Google Sign-In cancelado por el usuario.');
+        return; // Retorno silencioso
+      }
+
       throw Exception('Error en Google Sign-In: $e');
     }
   }
