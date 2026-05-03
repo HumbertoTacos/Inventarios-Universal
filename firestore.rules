@@ -78,10 +78,16 @@ service cloud.firestore {
     // El dueño puede leer y actualizar los datos de SU negocio.
     // ─────────────────────────────────────────────────────────────────────────
     match /negocios/{negocioId} {
-      allow read: if esAdmin() || perteneceANegocio(negocioId);
+      allow read: if request.auth != null;
       allow create: if request.auth != null; // Se crea en el flujo de registro
       allow update: if esDueno(negocioId) || esAdmin();
       allow delete: if esAdmin();
+
+      // NUEVO: Permiso para que los empleados puedan enviar su solicitud
+      match /solicitudes/{solicitudId} {
+        allow create: if request.auth != null; // Cualquiera logueado puede enviar solicitud
+        allow read, update, delete: if perteneceANegocio(negocioId); // Solo los del negocio la gestionan
+      }
 
       // ─────────────────────────────────────────────────────────────────────
       // SUBCOLECCIÓN: productos
@@ -163,6 +169,11 @@ service cloud.firestore {
       match /compras/{id} {
         allow read, create: if perteneceANegocio(negocioId);
         allow update, delete: if false; // Compras inmutables
+      }
+
+      match /cuentas_por_pagar/{id} {
+        allow read: if perteneceANegocio(negocioId);
+        allow write: if esDueno(negocioId);
       }
     }
 

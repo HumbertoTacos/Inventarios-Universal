@@ -19,6 +19,7 @@ import '../services/impresion_service.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
+import 'package:firebase_storage/firebase_storage.dart';
 
 class InventarioScreen extends StatefulWidget {
   final bool modoSeleccion;
@@ -613,78 +614,36 @@ class _InventarioScreenState extends State<InventarioScreen> {
       );
 
       if (result == null || result.files.isEmpty) return;
-
       final file = result.files.first;
-      String csvContent;
 
-      if (file.bytes != null) {
-        // Web / bytes en memoria
-        csvContent = utf8.decode(file.bytes!);
-      } else if (file.path != null) {
-        // Desktop / Mobile: leer desde disco
-        csvContent = await File(file.path!).readAsString(encoding: utf8);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se pudo leer el archivo.'), backgroundColor: Colors.orange),
-          );
-        }
-        return;
-      }
-
-      // 2. Parsear CSV
-      final rows = const CsvToListConverter(eol: '\n').convert(csvContent);
-      if (rows.isEmpty) return;
-
-      // Primera fila = headers
-      final headers = rows.first.map((h) => h.toString().trim()).toList();
-      final filas = <Map<String, String>>[];
-
-      for (int i = 1; i < rows.length; i++) {
-        final row = rows[i];
-        final Map<String, String> fila = {};
-        for (int j = 0; j < headers.length && j < row.length; j++) {
-          fila[headers[j]] = row[j].toString().trim();
-        }
-        if (fila['Nombre']?.isNotEmpty == true) {
-          filas.add(fila);
-        }
-      }
-
-      if (filas.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('El CSV no tiene filas válidas.'), backgroundColor: Colors.orange),
-          );
-        }
-        return;
-      }
-
-      // 3. Mostrar confirmación
+      // 2. Confirmación
       if (!mounted) return;
       final confirmar = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Row(children: [
-            Icon(Icons.upload_file, color: Colors.blue),
+            Icon(Icons.cloud_upload_outlined, color: Colors.blue),
             SizedBox(width: 8),
-            Text('Importar CSV'),
+            Text('Importación Masiva'),
           ]),
-          content: Text(
-            'Se importarán ${filas.length} producto(s).\n\n'
-            'Las categorías nuevas serán creadas automáticamente.\n'
-            '¿Deseas continuar?',
+          content: const Text(
+            'El archivo será procesado de forma segura en el servidor.\n\n'
+            'Esto permite cargar grandes volúmenes de productos sin agotar los recursos de tu dispositivo.\n'
+            '¿Deseas subir el archivo ahora?',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Importar')),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Subir y Procesar'),
+            ),
           ],
         ),
       );
 
       if (confirmar != true || !mounted) return;
 
-      // 4. Mostrar loading
+      // 3. Mostrar loading
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -692,30 +651,42 @@ class _InventarioScreenState extends State<InventarioScreen> {
           content: Row(children: [
             CircularProgressIndicator(),
             SizedBox(width: 16),
-            Text('Importando productos...'),
+            Text('Subiendo archivo al servidor...'),
           ]),
         ),
       );
 
-      // 5. Subir a Firestore
-      final importados = await _firebaseService.importarProductosCSV(filas);
+      // 4. Subir a Firebase Storage
+      final negocioId = AuthService().currentNegocioId;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('importaciones/$negocioId/productos_$timestamp.csv');
+
+      if (file.bytes != null) {
+        // Para Web
+        await storageRef.putData(file.bytes!);
+      } else if (file.path != null) {
+        // Para Mobile/Desktop
+        await storageRef.putFile(File(file.path!));
+      }
 
       if (mounted) Navigator.pop(context); // Cerrar loading
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✓ $importados producto(s) importados correctamente.'),
-            backgroundColor: Colors.green,
+          const SnackBar(
+            content: Text('✓ El archivo se está procesando en el servidor. Los productos aparecerán en unos momentos.'),
+            backgroundColor: Colors.blue,
+            duration: Duration(seconds: 5),
           ),
         );
-        _fetchInitial();
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si quedó abierto
+        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si falló
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al importar CSV: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error al subir archivo: $e'), backgroundColor: Colors.red),
         );
       }
     }
