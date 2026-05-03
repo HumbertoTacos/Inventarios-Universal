@@ -41,6 +41,8 @@ class Compra {
   final double costoTotal;
   final List<DetalleCompra> items;
   final String notas;
+  final bool esCredito;
+  final DateTime? fechaVencimiento;
 
   Compra({
     required this.id,
@@ -50,6 +52,8 @@ class Compra {
     required this.costoTotal,
     required this.items,
     this.notas = '',
+    this.esCredito = false,
+    this.fechaVencimiento,
   });
 
   Map<String, dynamic> toMap() {
@@ -60,6 +64,8 @@ class Compra {
       'costoTotal': costoTotal,
       'items': items.map((i) => i.toMap()).toList(),
       'notas': notas,
+      'esCredito': esCredito,
+      'fechaVencimiento': fechaVencimiento?.toIso8601String(),
     };
   }
 
@@ -75,6 +81,8 @@ class Compra {
               .toList() ??
           [],
       notas: map['notas'] ?? '',
+      esCredito: map['esCredito'] as bool? ?? false,
+      fechaVencimiento: map['fechaVencimiento'] != null ? DateTime.parse(map['fechaVencimiento']) : null,
     );
   }
 }

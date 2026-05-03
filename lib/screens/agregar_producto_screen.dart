@@ -27,6 +27,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   final _cantMayoreoCtrl = TextEditingController();
   final _precioMayoreoCtrl = TextEditingController();
   final _precioPromocionCtrl = TextEditingController();
+  final _stockMinimoCtrl = TextEditingController();
 
   bool _guardando = false;
   bool _enPromocion = false;
@@ -50,6 +51,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     _cantMayoreoCtrl.dispose();
     _precioMayoreoCtrl.dispose();
     _precioPromocionCtrl.dispose();
+    _stockMinimoCtrl.dispose();
     for (final c in _atributoCtrl.values) {
       c.dispose();
     }
@@ -196,6 +198,25 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                           labelText: 'Cantidad *',
                           prefixIcon: Icon(Icons.numbers),
                           border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Requerido';
+                          if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Inválido';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // ── Stock Mínimo ──
+                      TextFormField(
+                        controller: _stockMinimoCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Stock Mínimo (Alerta de Reabastecimiento) *',
+                          prefixIcon: Icon(Icons.warning_amber_outlined),
+                          border: OutlineInputBorder(),
+                          hintText: 'Ej. 5.0',
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
@@ -518,6 +539,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
       proveedorId: _idProveedorSeleccionado,
       proveedorNombre: _nombreProveedorSeleccionado,
+      stockMinimo: double.tryParse(_stockMinimoCtrl.text.trim()) ?? 0.0,
     );
 
     try {

@@ -25,6 +25,8 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   
   String? _idProveedorSeleccionado;
   bool _procesando = false;
+  bool _esCredito = false;
+  DateTime? _fechaVencimiento;
 
   // Omni-Box logic
   final _barcodeFocusNode = FocusNode();
@@ -212,6 +214,8 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
         fecha: DateTime.now(),
         costoTotal: _totalCompra,
         items: _itemsCompra,
+        esCredito: _esCredito,
+        fechaVencimiento: _fechaVencimiento,
       );
 
       await _firebaseService.registrarCompra(compra);
@@ -477,15 +481,82 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Tipo de Pago:', style: TextStyle(fontWeight: FontWeight.w500)),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                      value: false, label: Text('Contado'), icon: Icon(Icons.payments_outlined)),
+                  ButtonSegment(
+                      value: true, label: Text('Crédito'), icon: Icon(Icons.credit_card_outlined)),
+                ],
+                selected: {_esCredito},
+                onSelectionChanged: (Set<bool> val) {
+                  setState(() {
+                    _esCredito = val.first;
+                    if (_esCredito && _fechaVencimiento == null) {
+                      _fechaVencimiento = DateTime.now().add(const Duration(days: 15));
+                    }
+                  });
+                },
+              ),
+            ],
+          ),
+          if (_esCredito) ...[
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _fechaVencimiento ?? DateTime.now().add(const Duration(days: 15)),
+                  firstDate: DateTime.now(),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (date != null) setState(() => _fechaVencimiento = date);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_month_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Fecha de Vencimiento', style: TextStyle(fontSize: 11)),
+                          Text(
+                            _fechaVencimiento == null
+                                ? 'Seleccionar fecha'
+                                : '${_fechaVencimiento!.day}/${_fechaVencimiento!.month}/${_fechaVencimiento!.year}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.edit_outlined, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             height: 54,
             child: FilledButton(
               onPressed: _procesando ? null : _registrarCompra,
               child: _procesando
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Registrar Entrada de Stock', style: TextStyle(fontSize: 16)),
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Registrar Entrada de Stock', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],

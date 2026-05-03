@@ -25,6 +25,7 @@ class Producto {
   // Promociones
   final bool enPromocion;
   final double? precioPromocion;
+  final double stockMinimo;
 
   Producto({
     required this.id,
@@ -49,6 +50,7 @@ class Producto {
     this.precioMayoreo,
     this.enPromocion = false,
     this.precioPromocion,
+    this.stockMinimo = 0.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -74,6 +76,7 @@ class Producto {
       'precioMayoreo': precioMayoreo,
       'enPromocion': enPromocion,
       'precioPromocion': precioPromocion,
+      'stockMinimo': stockMinimo,
     };
   }
 
@@ -101,6 +104,7 @@ class Producto {
       precioMayoreo: (map['precioMayoreo'] as num?)?.toDouble(),
       enPromocion: map['enPromocion'] ?? false,
       precioPromocion: (map['precioPromocion'] as num?)?.toDouble(),
+      stockMinimo: (map['stockMinimo'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -131,6 +135,7 @@ class Producto {
     String? proveedorNombre,
     DateTime? ultimaCompraFecha,
     double? ultimoCostoCompra,
+    double? stockMinimo,
   }) {
     return Producto(
       id: id,
@@ -155,6 +160,7 @@ class Producto {
       proveedorNombre: proveedorNombre ?? this.proveedorNombre,
       ultimaCompraFecha: ultimaCompraFecha ?? this.ultimaCompraFecha,
       ultimoCostoCompra: ultimoCostoCompra ?? this.ultimoCostoCompra,
+      stockMinimo: stockMinimo ?? this.stockMinimo,
     );
   }
 }

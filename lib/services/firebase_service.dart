@@ -16,6 +16,7 @@ import '../models/negocio.dart';
 import '../models/bitacora_log.dart';
 import '../models/proveedor.dart';
 import '../models/compra.dart';
+import '../models/cuenta_por_pagar.dart';
 import '../models/movimiento_kardex.dart';
 
 import 'auth_service.dart';
@@ -52,6 +53,9 @@ class FirebaseService {
 
   CollectionReference get _comprasRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('compras');
+
+  CollectionReference get _cuentasPorPagarRef =>
+      FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('cuentas_por_pagar');
 
   CollectionReference get _clientesRef =>
       FirebaseFirestore.instance.collection('negocios').doc(_negocioId).collection('clientes');
@@ -124,6 +128,16 @@ class FirebaseService {
       productos: onlineSnapshot.docs.map((doc) => Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id)).toList(),
       lastDoc: onlineSnapshot.docs.isNotEmpty ? onlineSnapshot.docs.last : null,
     );
+  }
+
+  Stream<List<Producto>> getProductos() {
+    return _productosRef
+        .where('activo', isEqualTo: true)
+        .where('esBase', isEqualTo: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+            .toList());
   }
 
 
@@ -853,7 +867,24 @@ class FirebaseService {
         final docCompra = _comprasRef.doc();
         transaction.set(docCompra, compra.toMap());
 
-        _inyectarLogTransaccional(transaction, 'COMPRAS', 'Registró una compra por \$${compra.costoTotal.toStringAsFixed(2)}');
+        // 4. Si es crédito, crear Cuenta por Pagar
+        if (compra.esCredito) {
+          final docCPP = _cuentasPorPagarRef.doc();
+          final cpp = CuentaPorPagar(
+            id: docCPP.id,
+            proveedorId: compra.proveedorId,
+            nombreProveedor: compra.proveedorNombre ?? 'Proveedor Desconocido',
+            compraId: docCompra.id,
+            montoTotal: compra.costoTotal,
+            saldoPendiente: compra.costoTotal,
+            fechaCompra: compra.fecha,
+            fechaVencimiento: compra.fechaVencimiento,
+            estado: 'pendiente',
+          );
+          transaction.set(docCPP, cpp.toMap());
+        }
+
+        _inyectarLogTransaccional(transaction, 'COMPRAS', 'Registró una compra por \$${compra.costoTotal.toStringAsFixed(2)}${compra.esCredito ? " (A CRÉDITO)" : ""}');
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar compra: ${e.message}');
@@ -861,6 +892,15 @@ class FirebaseService {
   }
 
   // ── Proveedores ───────────────────────────────────────────────────────────
+
+  Stream<List<CuentaPorPagar>> getCuentasPorPagar() {
+    return _cuentasPorPagarRef
+        .orderBy('fechaCompra', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => CuentaPorPagar.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+            .toList());
+  }
 
   Stream<List<Proveedor>> getProveedores() {
     return _proveedoresRef

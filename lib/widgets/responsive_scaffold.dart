@@ -17,6 +17,8 @@ import '../screens/configuracion_negocio_screen.dart';
 import '../screens/caja_screen.dart';
 import '../screens/gestion_proveedores_screen.dart';
 import '../screens/registro_compra_screen.dart';
+import '../screens/cuentas_por_pagar_screen.dart';
+import '../screens/sugerencias_compra_screen.dart';
 import '../controllers/configuracion_controller.dart';
 
 class ResponsiveScaffold extends StatelessWidget {
@@ -248,7 +250,9 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
       if (esDueno) ...[
         _RailItem('proveedores', 'Proveedores', Icons.local_shipping_outlined, const GestionProveedoresScreen()),
         _RailItem('registro_compra', 'Comprar', Icons.add_business_outlined, const RegistroCompraScreen()),
+        _RailItem('sugerencias_compra', 'Sugerencias', Icons.auto_graph_outlined, const SugerenciasCompraScreen()),
         _RailItem('categorias', 'Categorías', Icons.category_outlined, const GestionCategoriasScreen()),
+        _RailItem('cuentas_por_pagar', 'Cuentas por Pagar', Icons.money_off_csred_outlined, const CuentasPorPagarScreen()),
         _RailItem('equipo', 'Mi Equipo', Icons.people_alt_outlined, const MiEquipoScreen()),
         _RailItem('bitacora', 'Bitácora', Icons.manage_search_outlined, const BitacoraScreen()),
         _RailItem('configuracion', 'Configuración', Icons.settings_outlined, const ConfiguracionNegocioScreen()),

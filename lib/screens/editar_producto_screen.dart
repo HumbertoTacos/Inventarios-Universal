@@ -28,6 +28,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
   late final TextEditingController _cantMayoreoCtrl;
   late final TextEditingController _precioMayoreoCtrl;
   late final TextEditingController _precioPromocionCtrl;
+  late final TextEditingController _stockMinimoCtrl;
 
   bool _guardando = false;
   bool _enPromocion = false;
@@ -48,6 +49,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _precioPromocionCtrl = TextEditingController(text: widget.producto.precioPromocion?.toString() ?? '');
     _idProveedorSeleccionado = widget.producto.proveedorId;
     _nombreProveedorSeleccionado = widget.producto.proveedorNombre;
+    _stockMinimoCtrl = TextEditingController(text: widget.producto.stockMinimo.toString());
   }
 
   @override
@@ -60,6 +62,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _cantMayoreoCtrl.dispose();
     _precioMayoreoCtrl.dispose();
     _precioPromocionCtrl.dispose();
+    _stockMinimoCtrl.dispose();
     super.dispose();
   }
 
@@ -99,6 +102,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         precioPromocion: _enPromocion ? double.tryParse(_precioPromocionCtrl.text) : null,
         proveedorId: _idProveedorSeleccionado,
         proveedorNombre: _nombreProveedorSeleccionado,
+        stockMinimo: double.tryParse(_stockMinimoCtrl.text.trim()) ?? 0.0,
       );
 
       await _firebaseService.actualizarProducto(productoEditado);
@@ -349,6 +353,24 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Stock Mínimo
+                        TextFormField(
+                          controller: _stockMinimoCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'Stock Mínimo (Alerta de Reabastecimiento) *',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.warning_amber_outlined),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Requerido';
+                            if ((double.tryParse(v.trim()) ?? -1) < 0) return 'Invalido';
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16),
 

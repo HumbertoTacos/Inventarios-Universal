@@ -14,6 +14,8 @@ import '../screens/caja_screen.dart';
 import '../screens/gestion_proveedores_screen.dart';
 import '../screens/registro_compra_screen.dart';
 import '../screens/ajuste_inventario_screen.dart';
+import '../screens/cuentas_por_pagar_screen.dart';
+import '../screens/sugerencias_compra_screen.dart';
 import '../models/negocio.dart';
 import '../controllers/configuracion_controller.dart';
 
@@ -146,10 +148,22 @@ class _AppDrawerState extends State<AppDrawer> {
                     screen: const RegistroCompraScreen(),
                   ),
                   _buildMenuItem(
+                    icon: Icons.auto_graph_outlined,
+                    title: 'Sugerencias de Compra',
+                    routeName: '/sugerencias_compra',
+                    screen: const SugerenciasCompraScreen(),
+                  ),
+                  _buildMenuItem(
                     icon: Icons.category_outlined,
                     title: 'Gestionar Categorías',
                     routeName: 'categorias',
                     screen: const GestionCategoriasScreen(),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.money_off_csred_outlined,
+                    title: 'Cuentas por Pagar',
+                    routeName: '/cuentas_por_pagar',
+                    screen: const CuentasPorPagarScreen(),
                   ),
                   _buildMenuItem(
                     icon: Icons.people_alt_outlined,
