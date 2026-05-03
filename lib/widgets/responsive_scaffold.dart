@@ -304,12 +304,21 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
               children: [
                 // Fila superior con botón Hamburguesa
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: widget.extended
+                      ? MainAxisAlignment.spaceBetween
+                      : MainAxisAlignment.center,
                   children: [
                     if (widget.extended)
-                      const Text(
-                        'MENÚ',
-                        style: TextStyle(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                      const Expanded(
+                        child: Text(
+                          'MENÚ',
+                          style: TextStyle(
+                              color: Colors.white60,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     IconButton(
                       visualDensity: VisualDensity.compact,
@@ -471,8 +480,11 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                     child: Text(
                       item.title,
                       style: TextStyle(
-                        color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected
+                            ? colorScheme.primary
+                            : colorScheme.onSurface,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
                         fontSize: 14,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -518,12 +530,15 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                 const Icon(Icons.logout, color: Colors.red, size: 22),
                 if (widget.extended) ...[
                   const SizedBox(width: 14),
-                  const Text(
-                    'Cerrar Sesión',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+                  const Expanded(
+                    child: Text(
+                      'Cerrar Sesión',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

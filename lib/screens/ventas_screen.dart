@@ -147,6 +147,15 @@ class _VentasScreenState extends State<VentasScreen> {
             FilledButton(
               onPressed: () {
                 final c = double.tryParse(ctrl.text) ?? 0.0;
+                if (c > producto.cantidad) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(
+                      content: Text('Stock insuficiente: solo hay ${producto.cantidad.formatoInventario} disponibles'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
                 if (c > 0) {
                   Navigator.pop(ctx, c);
                 }
@@ -227,6 +236,15 @@ class _VentasScreenState extends State<VentasScreen> {
           FilledButton(
             onPressed: () {
               final val = double.tryParse(ctrl.text) ?? 0.0;
+              if (val > producto.cantidad) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text('Stock insuficiente: solo hay ${producto.cantidad.formatoInventario}'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
               Navigator.pop(ctx, val);
             }, 
             child: const Text('Actualizar')
@@ -509,32 +527,33 @@ class _VentasScreenState extends State<VentasScreen> {
 
       if (productosEnNegativo.isNotEmpty) {
         if (!mounted) return;
-        final continuar = await showDialog<bool>(
+        await showDialog<void>(
           context: context,
+          barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Text('Advertencia de Inventario'),
+            title: const Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Venta Bloqueada'),
+              ],
+            ),
             content: Text(
-              'El inventario de los siguientes productos quedará en negativo:\n\n'
+              'No se puede completar la venta porque el inventario de los siguientes productos es insuficiente:\n\n'
               '${productosEnNegativo.join(', ')}\n\n'
-              '¿Deseas continuar con la venta?'
+              'Por favor, ajusta las cantidades en el carrito.'
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Continuar'),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Entendido'),
               ),
             ],
           ),
         );
 
-        if (continuar != true) {
-          setState(() => _procesando = false);
-          return;
-        }
+        setState(() => _procesando = false);
+        return;
       }
       // --- FIN VALIDACIÓN ---
 
