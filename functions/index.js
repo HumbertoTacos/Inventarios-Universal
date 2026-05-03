@@ -32,10 +32,9 @@ exports.generarNombreLower = onDocumentWritten("negocios/{negocioId}/productos/{
  */
 exports.procesarImportacionCSV = onObjectFinalized({
     region: "us-east1",
-    bucket: "inventarios-universal.firebasestorage.app", // Asegúrate de que coincida con tu bucket
 }, async (event) => {
     const filePath = event.data.name;
-    
+
     // Solo procesar archivos en la carpeta de importaciones
     if (!filePath.startsWith("importaciones/")) return null;
 
@@ -61,7 +60,7 @@ exports.procesarImportacionCSV = onObjectFinalized({
             .on("data", (data) => results.push(data))
             .on("end", async () => {
                 logger.log(`Parseo completado. ${results.length} filas encontradas.`);
-                
+
                 try {
                     // Procesar en lotes de 500 (límite de Firestore)
                     const chunks = [];

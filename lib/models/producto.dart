@@ -56,6 +56,7 @@ class Producto {
   Map<String, dynamic> toMap() {
     return {
       'nombre': nombre,
+      'nombreLower': nombre.toLowerCase(),
       'categoria': categoria,
       'costoPromedio': costoPromedio,
       'costoActual': costoActual,

@@ -45,6 +45,27 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
   List<Producto> _resultadosBusqueda = [];
   bool _mostrandoBusqueda = false;
   final Map<String, Producto> _cacheProductos = {};
+  List<Producto> _productosGlobales = []; // Para búsqueda local
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCatalogoInicial();
+  }
+
+  Future<void> _cargarCatalogoInicial() async {
+    try {
+      final res = await _firebaseService.getProductosPaginados(limite: 50);
+      if (mounted) {
+        setState(() {
+          _productosGlobales = res.productos;
+          for (var p in res.productos) {
+            _cacheProductos[p.id] = p;
+          }
+        });
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -66,10 +87,10 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       return;
     }
 
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () async {
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
       final query = value.trim().toLowerCase();
       
-      // Búsqueda en locales primero
+      // 1. Búsqueda en locales primero (más flexible: contains)
       final locales = _cacheProductos.values
           .where((p) => p.nombre.toLowerCase().contains(query))
           .toList();
@@ -99,9 +120,22 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
   Future<void> _onSearchSubmitted(String code) async {
     if (code.trim().isEmpty) return;
     try {
+      // 1. Intentar por SKU
       final p = await _firebaseService.buscarVariantePorSKU(code.trim());
       if (p != null) {
         _seleccionarProducto(p);
+        return;
+      }
+
+      // 2. Si no es SKU, intentar por nombre en los resultados actuales
+      if (_resultadosBusqueda.isNotEmpty) {
+        _seleccionarProducto(_resultadosBusqueda.first);
+      } else {
+        // 3. O buscar remotamente por nombre si no hay resultados locales
+        final remotos = await _firebaseService.buscarProductosPorNombre(code.trim());
+        if (remotos.isNotEmpty) {
+          _seleccionarProducto(remotos.first);
+        }
       }
     } catch (e) {
       debugPrint('Error search: $e');

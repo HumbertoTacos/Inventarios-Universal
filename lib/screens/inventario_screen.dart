@@ -36,28 +36,39 @@ class _InventarioScreenState extends State<InventarioScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
 
   // Rol y permisos del usuario activo
-  String get _rol => AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
+  String get _rol =>
+      AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
   bool get _esDueno => _rol == AuthService.rolDueno;
 
-  bool get _puedeAjustarStock    => _esDueno || (AuthService().currentUserData?.permisos.puedeAjustarStock ?? true);
-  bool get _puedeEditarProductos => _esDueno || (AuthService().currentUserData?.permisos.puedeEditarProductos ?? false);
-  bool get _puedeEliminarProductos => _esDueno || (AuthService().currentUserData?.permisos.puedeEliminarProductos ?? false);
-  bool get _puedeVerEstadisticas => _esDueno || (AuthService().currentUserData?.permisos.puedeVerEstadisticas ?? false);
-  bool get _puedeVerHistorial    => _esDueno || (AuthService().currentUserData?.permisos.puedeVerHistorialVentas ?? true);
+  bool get _puedeAjustarStock =>
+      _esDueno ||
+      (AuthService().currentUserData?.permisos.puedeAjustarStock ?? true);
+  bool get _puedeEditarProductos =>
+      _esDueno ||
+      (AuthService().currentUserData?.permisos.puedeEditarProductos ?? false);
+  bool get _puedeEliminarProductos =>
+      _esDueno ||
+      (AuthService().currentUserData?.permisos.puedeEliminarProductos ?? false);
+  bool get _puedeVerEstadisticas =>
+      _esDueno ||
+      (AuthService().currentUserData?.permisos.puedeVerEstadisticas ?? false);
+  bool get _puedeVerHistorial =>
+      _esDueno ||
+      (AuthService().currentUserData?.permisos.puedeVerHistorialVentas ?? true);
   bool get _puedeAgregarProductos => _esDueno || _puedeEditarProductos;
-
 
   // Estado de Datos
   List<Producto> _productos = [];
-  List<Producto> _productosFiltradosNombre = []; // Resultados filtrados localmente por nombre
+  List<Producto> _productosFiltradosNombre =
+      []; // Resultados filtrados localmente por nombre
   DocumentSnapshot? _lastDoc;
   Producto? _searchResult; // Para mostrar un resultado exacto por SKU
-  
+
   // Estado de Carga
-  bool _isLoading = true;         // Carga inicial
-  bool _isFetchingMore = false;   // Cargando página siguiente
-  bool _hasMoreData = true;       // ¿Quedan más datos en Firebase?
-  bool _isSearching = false;      // ¿Estamos en modo búsqueda/SKU?
+  bool _isLoading = true; // Carga inicial
+  bool _isFetchingMore = false; // Cargando página siguiente
+  bool _hasMoreData = true; // ¿Quedan más datos en Firebase?
+  bool _isSearching = false; // ¿Estamos en modo búsqueda/SKU?
   bool _isSearchingNombre = false; // Búsqueda por nombre activa
 
   // Filtros
@@ -107,7 +118,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -119,7 +132,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
     try {
       final result = await _firebaseService.getProductosPaginados(
-        limite: 20, 
+        limite: 20,
         startAfter: _lastDoc,
         categoriaId: _filtroCategoria?.id,
         proveedorId: _filtroProveedor?.id,
@@ -141,7 +154,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
     if (!_scrollController.hasClients) return;
     final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
-    
+
     // Si llegamos al 90% del scroll, cargamos más
     if (currentScroll >= (maxScroll * 0.9)) {
       _fetchNext();
@@ -157,12 +170,16 @@ class _InventarioScreenState extends State<InventarioScreen> {
         if (idx != -1) {
           final prod = _productos[idx];
           // Restamos cantidad (Optimista)
-          _productos[idx] = prod.copyWith(cantidad: prod.cantidad - item.cantidad);
+          _productos[idx] = prod.copyWith(
+            cantidad: prod.cantidad - item.cantidad,
+          );
         }
-        
+
         // Buscar en resultado de búsqueda por si acaso
         if (_searchResult != null && _searchResult!.id == item.productoId) {
-          _searchResult = _searchResult!.copyWith(cantidad: _searchResult!.cantidad - item.cantidad);
+          _searchResult = _searchResult!.copyWith(
+            cantidad: _searchResult!.cantidad - item.cantidad,
+          );
         }
       }
     });
@@ -220,7 +237,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
       // 2. Si pocos resultados, buscar en Firestore
       if (locales.length < 5) {
         try {
-          final remotos = await _firebaseService.buscarProductosPorNombre(queryLower);
+          final remotos = await _firebaseService.buscarProductosPorNombre(
+            queryLower,
+          );
           if (mounted) {
             final ids = locales.map((p) => p.id).toSet();
             final fusionados = [...locales];
@@ -251,41 +270,58 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 controller: _searchCtrl,
                 onChanged: (v) {
                   // Búsqueda en tiempo real si tiene letras, o al submit si solo dígitos
-                  if (v.trim().isEmpty) { _fetchInitial(); return; }
-                  if (!RegExp(r'^\d+$').hasMatch(v.trim())) _ejecutarBusqueda(v);
+                  if (v.trim().isEmpty) {
+                    _fetchInitial();
+                    return;
+                  }
+                  if (!RegExp(r'^\d+$').hasMatch(v.trim()))
+                    _ejecutarBusqueda(v);
                 },
                 onSubmitted: _ejecutarBusqueda,
                 decoration: InputDecoration(
                   hintText: 'Buscar por nombre o código de barras...',
                   prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchCtrl.text.isNotEmpty 
-                    ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
-                        _searchCtrl.clear();
-                        setState(() {
-                          _isSearchingNombre = false;
-                          _productosFiltradosNombre = [];
-                        });
-                        _fetchInitial();
-                      })
-                    : IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        onPressed: _escanearParaBuscar,
-                      ),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() {
+                              _isSearchingNombre = false;
+                              _productosFiltradosNombre = [];
+                            });
+                            _fetchInitial();
+                          },
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _escanearParaBuscar,
+                        ),
                   filled: true,
                   fillColor: Theme.of(context).scaffoldBackgroundColor,
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Container(
               decoration: BoxDecoration(
-                color: (_filtroCategoria != null || _filtroProveedor != null) ? colorScheme.primary : Theme.of(context).scaffoldBackgroundColor,
+                color: (_filtroCategoria != null || _filtroProveedor != null)
+                    ? colorScheme.primary
+                    : Theme.of(context).scaffoldBackgroundColor,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
-                icon: Icon(Icons.filter_list, color: (_filtroCategoria != null || _filtroProveedor != null) ? colorScheme.onPrimary : colorScheme.onSurface),
+                icon: Icon(
+                  Icons.filter_list,
+                  color: (_filtroCategoria != null || _filtroProveedor != null)
+                      ? colorScheme.onPrimary
+                      : colorScheme.onSurface,
+                ),
                 onPressed: _mostrarModalFiltros,
               ),
             ),
@@ -320,7 +356,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
     if (widget.modoSeleccion) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Inventario',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           centerTitle: true,
           backgroundColor: colorScheme.primaryContainer,
           foregroundColor: colorScheme.onPrimaryContainer,
@@ -345,7 +384,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   Widget _buildBody({bool isDesktop = false, bool isTablet = false}) {
     Widget content;
-    
+
     Widget buildListOrGrid(int itemCount, Widget Function(int) itemBuilder) {
       if (isDesktop) {
         return GridView.builder(
@@ -374,48 +413,64 @@ class _InventarioScreenState extends State<InventarioScreen> {
       content = const Center(child: CircularProgressIndicator());
     } else if (_isSearchingNombre) {
       if (_productosFiltradosNombre.isEmpty) {
-        content = _buildEstadoVacio('Sin resultados', 'No hay productos que coincidan con "${_searchCtrl.text}".');
+        content = _buildEstadoVacio(
+          'Sin resultados',
+          'No hay productos que coincidan con "${_searchCtrl.text}".',
+        );
       } else {
         content = buildListOrGrid(
           _productosFiltradosNombre.length,
-          (index) => isDesktop ? _buildProductoGridCard(_productosFiltradosNombre[index]) : _buildProductoCard(_productosFiltradosNombre[index])
+          (index) => isDesktop
+              ? _buildProductoGridCard(_productosFiltradosNombre[index])
+              : _buildProductoCard(_productosFiltradosNombre[index]),
         );
       }
     } else if (_isSearching) {
       if (_searchResult == null) {
-        content = _buildEstadoVacio('No encontrado', 'No hay productos con ese código.');
+        content = _buildEstadoVacio(
+          'No encontrado',
+          'No hay productos con ese código.',
+        );
       } else {
         content = buildListOrGrid(
           1,
-          (index) => isDesktop ? _buildProductoGridCard(_searchResult!) : _buildProductoCard(_searchResult!)
+          (index) => isDesktop
+              ? _buildProductoGridCard(_searchResult!)
+              : _buildProductoCard(_searchResult!),
         );
       }
     } else if (_productos.isEmpty) {
-      content = _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar.');
+      content = _buildEstadoVacio(
+        'Sin productos',
+        'Toca el botón + para agregar.',
+      );
     } else {
       content = RefreshIndicator(
         onRefresh: _fetchInitial,
-        child: buildListOrGrid(
-          _productos.length + (_hasMoreData ? 1 : 0),
-          (index) {
-            if (index == _productos.length) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              );
-            }
-            return isDesktop ? _buildProductoGridCard(_productos[index]) : _buildProductoCard(_productos[index]);
+        child: buildListOrGrid(_productos.length + (_hasMoreData ? 1 : 0), (
+          index,
+        ) {
+          if (index == _productos.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
           }
-        ),
+          return isDesktop
+              ? _buildProductoGridCard(_productos[index])
+              : _buildProductoCard(_productos[index]);
+        }),
       );
     }
 
-    return isDesktop ? content : Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: content,
-      ),
-    );
+    return isDesktop
+        ? content
+        : Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: content,
+            ),
+          );
   }
 
   // ── Widgets de Estado y Cards ─────────────────────────────────────────────
@@ -440,7 +495,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
   Widget _buildProductoCard(Producto producto) {
     final colorScheme = Theme.of(context).colorScheme;
     final inStock = producto.cantidad > 0;
-    
+
     return PremiumCard(
       margin: const EdgeInsets.symmetric(vertical: 4),
       onTap: () => widget.modoSeleccion
@@ -448,18 +503,30 @@ class _InventarioScreenState extends State<InventarioScreen> {
           : _abrirMenuAcciones(producto),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: inStock ? colorScheme.secondaryContainer : Colors.red.shade50,
-          child: Text(producto.nombre[0].toUpperCase(),
-              style: TextStyle(color: inStock ? colorScheme.onSecondaryContainer : Colors.red.shade700, fontWeight: FontWeight.bold)),
+          backgroundColor: inStock
+              ? colorScheme.secondaryContainer
+              : Colors.red.shade50,
+          child: Text(
+            producto.nombre[0].toUpperCase(),
+            style: TextStyle(
+              color: inStock
+                  ? colorScheme.onSecondaryContainer
+                  : Colors.red.shade700,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
-        title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+        title: Text(
+          producto.nombre,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
         subtitle: Text('${producto.categoria} • ${producto.atributoVisual}'),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (producto.enPromocion && producto.precioPromocion != null) ...[
-               Text(
+              Text(
                 '\$${producto.precio.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 10,
@@ -471,20 +538,51 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.orange.shade700, borderRadius: BorderRadius.circular(4)),
-                    child: const Text('OFERTA', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade700,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'OFERTA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 4),
-                  Text('\$${producto.precioPromocion!.toStringAsFixed(2)}',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade700)),
+                  Text(
+                    '\$${producto.precioPromocion!.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
                 ],
               ),
             ] else
-              Text('\$${producto.precio.toStringAsFixed(2)}',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
-            Text('Stock: ${producto.cantidad.formatoInventario}',
-                style: TextStyle(fontSize: 12, fontWeight: inStock ? FontWeight.normal : FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
+              Text(
+                '\$${producto.precio.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: colorScheme.primary,
+                ),
+              ),
+            Text(
+              'Stock: ${producto.cantidad.formatoInventario}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: inStock ? FontWeight.normal : FontWeight.bold,
+                color: inStock ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+            ),
           ],
         ),
       ),
@@ -494,7 +592,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
   Widget _buildProductoGridCard(Producto producto) {
     final colorScheme = Theme.of(context).colorScheme;
     final inStock = producto.cantidad > 0;
-    
+
     return Card(
       elevation: 1,
       color: colorScheme.surfaceContainer,
@@ -511,12 +609,24 @@ class _InventarioScreenState extends State<InventarioScreen> {
               flex: 3,
               child: Container(
                 decoration: BoxDecoration(
-                  color: inStock ? colorScheme.secondaryContainer : Colors.red.shade50,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  color: inStock
+                      ? colorScheme.secondaryContainer
+                      : Colors.red.shade50,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                 ),
                 child: Center(
-                  child: Text(producto.nombre[0].toUpperCase(), 
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: inStock ? colorScheme.onSecondaryContainer : Colors.red.shade700)),
+                  child: Text(
+                    producto.nombre[0].toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: inStock
+                          ? colorScheme.onSecondaryContainer
+                          : Colors.red.shade700,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -531,9 +641,25 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Text(
+                          producto.nombre,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 4),
-                        Text((producto.codigoBarras?.isNotEmpty ?? false) ? 'SKU: ${producto.codigoBarras}' : 'Sin SKU', style: TextStyle(fontSize: 10, color: colorScheme.outline)),
+                        Text(
+                          (producto.codigoBarras?.isNotEmpty ?? false)
+                              ? 'SKU: ${producto.codigoBarras}'
+                              : 'Sin SKU',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colorScheme.outline,
+                          ),
+                        ),
                       ],
                     ),
                     Row(
@@ -544,19 +670,48 @@ class _InventarioScreenState extends State<InventarioScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Stock', style: TextStyle(fontSize: 10, color: colorScheme.outline)),
-                            Text(producto.cantidad.formatoInventario, 
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: inStock ? Colors.green.shade700 : Colors.red.shade700)),
+                            Text(
+                              'Stock',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: colorScheme.outline,
+                              ),
+                            ),
+                            Text(
+                              producto.cantidad.formatoInventario,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: inStock
+                                    ? Colors.green.shade700
+                                    : Colors.red.shade700,
+                              ),
+                            ),
                           ],
                         ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (producto.enPromocion && producto.precioPromocion != null)
-                              Text('\$${producto.precioPromocion!.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green.shade700))
+                            if (producto.enPromocion &&
+                                producto.precioPromocion != null)
+                              Text(
+                                '\$${producto.precioPromocion!.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.green.shade700,
+                                ),
+                              )
                             else
-                              Text('\$${producto.precio.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colorScheme.primary)),
+                              Text(
+                                '\$${producto.precio.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
                           ],
                         ),
                       ],
@@ -572,35 +727,43 @@ class _InventarioScreenState extends State<InventarioScreen> {
   }
 
   // ── Métodos de apoyo (Filtros, Modales, etc.) ──────────────────────────────
-  
+
   void _mostrarModalFiltros() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _FiltrosBottomSheet(
         filtroCategoriaInicial: _filtroCategoria,
         filtroProveedorInicial: _filtroProveedor,
-        onApply: (cat, prov) { 
+        onApply: (cat, prov) {
           setState(() {
             _filtroCategoria = cat;
             _filtroProveedor = prov;
-          }); 
-          _fetchInitial(); 
+          });
+          _fetchInitial();
         },
       ),
     );
   }
 
   Future<void> _escanearParaBuscar() async {
-    final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()));
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
     if (result != null) {
       _searchCtrl.text = result;
       _ejecutarBusqueda(result);
     }
   }
 
-  void _navegarAAgregarProducto() => Navigator.push(context, MaterialPageRoute(builder: (_) => const AgregarProductoScreen())).then((_) => _fetchInitial());
+  void _navegarAAgregarProducto() => Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => const AgregarProductoScreen()),
+  ).then((_) => _fetchInitial());
 
   // ── Importación Masiva CSV ─────────────────────────────────────────────────
 
@@ -621,18 +784,23 @@ class _InventarioScreenState extends State<InventarioScreen> {
       final confirmar = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Row(children: [
-            Icon(Icons.cloud_upload_outlined, color: Colors.blue),
-            SizedBox(width: 8),
-            Text('Importación Masiva'),
-          ]),
+          title: const Row(
+            children: [
+              Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Importación Masiva'),
+            ],
+          ),
           content: const Text(
             'El archivo será procesado de forma segura en el servidor.\n\n'
             'Esto permite cargar grandes volúmenes de productos sin agotar los recursos de tu dispositivo.\n'
             '¿Deseas subir el archivo ahora?',
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Subir y Procesar'),
@@ -648,20 +816,22 @@ class _InventarioScreenState extends State<InventarioScreen> {
         context: context,
         barrierDismissible: false,
         builder: (_) => const AlertDialog(
-          content: Row(children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Text('Subiendo archivo al servidor...'),
-          ]),
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Subiendo archivo al servidor...'),
+            ],
+          ),
         ),
       );
 
       // 4. Subir a Firebase Storage
       final negocioId = AuthService().currentNegocioId;
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('importaciones/$negocioId/productos_$timestamp.csv');
+      final storageRef = FirebaseStorage.instance.ref().child(
+        'importaciones/$negocioId/productos_$timestamp.csv',
+      );
 
       if (file.bytes != null) {
         // Para Web
@@ -676,7 +846,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✓ El archivo se está procesando en el servidor. Los productos aparecerán en unos momentos.'),
+            content: Text(
+              '✓ El archivo se está procesando en el servidor. Los productos aparecerán en unos momentos.',
+            ),
             backgroundColor: Colors.blue,
             duration: Duration(seconds: 5),
           ),
@@ -684,9 +856,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si falló
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(); // Cerrar loading si falló
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al subir archivo: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error al subir archivo: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -699,28 +877,46 @@ class _InventarioScreenState extends State<InventarioScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Stock: ${producto.nombre}'),
         content: TextField(
-          controller: ctrl, 
-          keyboardType: const TextInputType.numberWithOptions(decimal: true), 
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*'))],
-          decoration: const InputDecoration(labelText: 'Cantidad a ajustar (ej. -0.5 o 10)')
+          controller: ctrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+          ],
+          decoration: const InputDecoration(
+            labelText: 'Cantidad a ajustar (ej. -0.5 o 10)',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(onPressed: () async {
-            final val = double.tryParse(ctrl.text) ?? 0.0;
-            if (val == 0) return;
-            await _firebaseService.ajustarInventario(producto.id, val, 'Ajuste manual rápido');
-            if (mounted) { Navigator.pop(ctx); _fetchInitial(); }
-          }, child: const Text('Guardar'))
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final val = double.tryParse(ctrl.text) ?? 0.0;
+              if (val == 0) return;
+              await _firebaseService.ajustarInventario(
+                producto.id,
+                val,
+                'Ajuste manual rápido',
+              );
+              if (mounted) {
+                Navigator.pop(ctx);
+                _fetchInitial();
+              }
+            },
+            child: const Text('Guardar'),
+          ),
         ],
-      )
+      ),
     );
   }
 
   // ── Menú de Acciones por Permisos ──────────────────────────────────────────
 
   void _abrirMenuAcciones(Producto producto) {
-    final tieneAlgunaAccion = _puedeAjustarStock || _puedeEditarProductos || _puedeEliminarProductos;
+    final tieneAlgunaAccion =
+        _puedeAjustarStock || _puedeEditarProductos || _puedeEliminarProductos;
     if (!tieneAlgunaAccion) return;
 
     final cs = Theme.of(context).colorScheme;
@@ -728,7 +924,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -737,26 +934,43 @@ class _InventarioScreenState extends State<InventarioScreen> {
             children: [
               // Handle
               Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(2))),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
               const SizedBox(height: 12),
               // Info del producto
               ListTile(
                 leading: CircleAvatar(
-                    backgroundColor: cs.secondaryContainer,
-                    child: Text(producto.nombre[0].toUpperCase(),
-                        style: TextStyle(color: cs.onSecondaryContainer, fontWeight: FontWeight.bold))),
-                title: Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('\$${producto.precio.toStringAsFixed(2)} • Stock: ${producto.cantidad.formatoInventario}'),
+                  backgroundColor: cs.secondaryContainer,
+                  child: Text(
+                    producto.nombre[0].toUpperCase(),
+                    style: TextStyle(
+                      color: cs.onSecondaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  producto.nombre,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  '\$${producto.precio.toStringAsFixed(2)} • Stock: ${producto.cantidad.formatoInventario}',
+                ),
               ),
               const Divider(),
               if (_puedeAjustarStock)
                 ListTile(
                   leading: const Icon(Icons.add_circle_outline),
                   title: const Text('Ajustar Stock'),
-                  onTap: () { Navigator.pop(context); _mostrarDialogoRestock(producto); },
+                  onTap: () {
+                    Navigator.pop(context);
+                    _mostrarDialogoRestock(producto);
+                  },
                 ),
               if (_puedeEditarProductos)
                 ListTile(
@@ -764,18 +978,29 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   title: const Text('Editar Producto'),
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => EditarProductoScreen(producto: producto)))
-                        .then((_) => _fetchInitial());
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            EditarProductoScreen(producto: producto),
+                      ),
+                    ).then((_) => _fetchInitial());
                   },
                 ),
               if (_puedeEliminarProductos)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
-                  title: const Text('Eliminar Producto', style: TextStyle(color: Colors.red)),
-                  onTap: () { Navigator.pop(context); _confirmarEliminacion(producto); },
+                  title: const Text(
+                    'Eliminar Producto',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _confirmarEliminacion(producto);
+                  },
                 ),
-              if (producto.codigoBarras != null && producto.codigoBarras!.isNotEmpty)
+              if (producto.codigoBarras != null &&
+                  producto.codigoBarras!.isNotEmpty)
                 ListTile(
                   leading: const Icon(Icons.print_outlined),
                   title: const Text('Imprimir Etiqueta'),
@@ -786,7 +1011,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+                          SnackBar(
+                            content: Text(e.toString()),
+                            backgroundColor: Colors.red,
+                          ),
                         );
                       }
                     }
@@ -805,12 +1033,17 @@ class _InventarioScreenState extends State<InventarioScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar Producto'),
         content: Text(
-            '¿Deseas eliminar "${producto.nombre}" permanentemente?\nEsta acción no se puede deshacer.'),
+          '¿Deseas eliminar "${producto.nombre}" permanentemente?\nEsta acción no se puede deshacer.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Eliminar', style: TextStyle(color: Colors.red))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -820,11 +1053,17 @@ class _InventarioScreenState extends State<InventarioScreen> {
       if (mounted) {
         _fetchInitial();
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Producto eliminado'), backgroundColor: Colors.green));
+          const SnackBar(
+            content: Text('Producto eliminado'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
     }
   }
 }
@@ -837,9 +1076,9 @@ class _FiltrosBottomSheet extends StatefulWidget {
   final void Function(Categoria?, Proveedor?) onApply;
 
   const _FiltrosBottomSheet({
-    this.filtroCategoriaInicial, 
+    this.filtroCategoriaInicial,
     this.filtroProveedorInicial,
-    required this.onApply
+    required this.onApply,
   });
 
   @override
@@ -862,8 +1101,10 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
-        left: 24, right: 24, top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 32
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -873,11 +1114,16 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
             children: [
               const Icon(Icons.filter_alt_outlined),
               const SizedBox(width: 8),
-              Text('Filtrar Inventario', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Filtrar Inventario',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // Filtro de Categoría
           StreamBuilder<List<Categoria>>(
             stream: _firebaseService.getCategorias(),
@@ -886,17 +1132,23 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
               return DropdownButtonFormField<Categoria>(
                 value: _catSelect,
                 decoration: const InputDecoration(
-                  labelText: 'Categoría', 
+                  labelText: 'Categoría',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category_outlined),
                 ),
                 items: [
-                  const DropdownMenuItem<Categoria>(value: null, child: Text('Todas las categorías')),
-                  ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
+                  const DropdownMenuItem<Categoria>(
+                    value: null,
+                    child: Text('Todas las categorías'),
+                  ),
+                  ...categorias.map(
+                    (cat) =>
+                        DropdownMenuItem(value: cat, child: Text(cat.nombre)),
+                  ),
                 ],
                 onChanged: (cat) => setState(() => _catSelect = cat),
               );
-            }
+            },
           ),
           const SizedBox(height: 16),
 
@@ -908,17 +1160,25 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
               return DropdownButtonFormField<Proveedor>(
                 value: _provSelect,
                 decoration: const InputDecoration(
-                  labelText: 'Proveedor', 
+                  labelText: 'Proveedor',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.local_shipping_outlined),
                 ),
                 items: [
-                  const DropdownMenuItem<Proveedor>(value: null, child: Text('Todos los proveedores')),
-                  ...proveedores.map((p) => DropdownMenuItem(value: p, child: Text(p.nombreComercial))),
+                  const DropdownMenuItem<Proveedor>(
+                    value: null,
+                    child: Text('Todos los proveedores'),
+                  ),
+                  ...proveedores.map(
+                    (p) => DropdownMenuItem(
+                      value: p,
+                      child: Text(p.nombreComercial),
+                    ),
+                  ),
                 ],
                 onChanged: (p) => setState(() => _provSelect = p),
               );
-            }
+            },
           ),
 
           const SizedBox(height: 32),
@@ -926,16 +1186,26 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () { widget.onApply(null, null); Navigator.pop(context); },
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  onPressed: () {
+                    widget.onApply(null, null);
+                    Navigator.pop(context);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                   child: const Text('Limpiar Todo'),
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: FilledButton(
-                  onPressed: () { widget.onApply(_catSelect, _provSelect); Navigator.pop(context); },
-                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  onPressed: () {
+                    widget.onApply(_catSelect, _provSelect);
+                    Navigator.pop(context);
+                  },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                   child: const Text('Aplicar Filtros'),
                 ),
               ),
