@@ -41,7 +41,7 @@ class ExportacionService {
           .join(' | ');
 
       filas.add([
-        v.id.substring(0, 8).toUpperCase(),
+        v.id.length >= 8 ? v.id.substring(0, 8).toUpperCase() : v.id.toUpperCase(),
         _dateFmt.format(v.fecha),
         v.estado,
         _metodoPago(v.metodoPago),

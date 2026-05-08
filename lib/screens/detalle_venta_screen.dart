@@ -211,7 +211,7 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Pedido: ${venta.id.substring(0, 8).toUpperCase()}'),
+        title: Text('Pedido: ${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
       body: _procesando

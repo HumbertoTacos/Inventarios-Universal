@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/venta.dart';
 
 /// Servicio de impresión multiplataforma.
@@ -58,7 +59,7 @@ class ImpresoraService {
             pw.SizedBox(height: 4),
 
             // ── Datos de la venta ─────────────────────────────────────
-            pw.Text('Folio: ${venta.id.substring(0, 8).toUpperCase()}',
+            pw.Text('Folio: ${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
                 style: const pw.TextStyle(fontSize: 9)),
             pw.Text('Fecha: ${fechaFmt.format(venta.fecha)}',
                 style: const pw.TextStyle(fontSize: 9)),
@@ -128,10 +129,15 @@ class ImpresoraService {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (_) async => pdf.save(),
-      name: 'Ticket_${venta.id.substring(0, 8)}',
-    );
+    if (kIsWeb) {
+      final bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'Ticket_${venta.id}.pdf');
+    } else {
+      await Printing.layoutPdf(
+        onLayout: (_) async => pdf.save(),
+        name: 'Ticket_${venta.id.length >= 8 ? venta.id.substring(0, 8) : venta.id}',
+      );
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

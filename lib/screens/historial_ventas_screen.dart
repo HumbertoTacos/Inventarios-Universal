@@ -174,7 +174,7 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
           child: Icon(statusIcon, color: statusColor),
         ),
       title: Text(
-        'Venta: ${venta.id.substring(0, 8).toUpperCase()}',
+        'Venta: ${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(

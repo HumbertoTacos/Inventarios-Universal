@@ -5,6 +5,7 @@ import 'package:printing/printing.dart';
 import 'package:barcode/barcode.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/producto.dart';
 import '../models/venta.dart';
 import '../models/turno_caja.dart';
@@ -14,6 +15,17 @@ class ImpresionService {
   // Caché simple en memoria para el logo durante la sesión
   static Uint8List? _logoBytesCache;
   static String? _logoUrlCache;
+  static pw.Font? _fontCache;
+
+  static Future<pw.Font> _getFont() async {
+    _fontCache ??= await PdfGoogleFonts.robotoRegular();
+    return _fontCache!;
+  }
+
+  static String _getSafeId(String id) {
+    if (id.isEmpty) return 'N/A';
+    return id.length >= 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase();
+  }
 
   static Future<pw.MemoryImage?> _getLogoImage(String? logoUrl) async {
     if (logoUrl == null || logoUrl.isEmpty) return null;
@@ -89,7 +101,12 @@ class ImpresionService {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Etiqueta_${producto.nombre}');
+    if (kIsWeb) {
+      final bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'Etiqueta_${producto.nombre}.pdf');
+    } else {
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Etiqueta_${producto.nombre}');
+    }
   }
 
   /// Genera e imprime el Ticket de Venta para el cliente
@@ -101,12 +118,15 @@ class ImpresionService {
   }) async {
     final pdf = pw.Document();
     final DateFormat formatter = DateFormat('dd/MM/yyyy HH:mm');
+    final font = await _getFont();
+    final fontBold = await PdfGoogleFonts.robotoBold();
     
     final pw.MemoryImage? logoImage = await _getLogoImage(negocio.logoUrl);
 
     pdf.addPage(
       pw.Page(
         pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity, marginAll: 2 * PdfPageFormat.mm),
+        theme: pw.ThemeData.withFont(base: font, bold: fontBold),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -152,8 +172,8 @@ class ImpresionService {
               ],
 
               pw.SizedBox(height: 4),
-              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
-              pw.Text('Ticket: ${venta.id.substring(0, 8).toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
+              pw.Text(_linea, style: const pw.TextStyle(fontSize: 6)),
+              pw.Text('Ticket: ${_getSafeId(venta.id)}', style: const pw.TextStyle(fontSize: 8)),
               pw.Text('Fecha : ${formatter.format(venta.fecha)}', style: pw.TextStyle(fontSize: 8)),
               pw.Text('Pago  : ${venta.metodoPago.name.toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
               pw.SizedBox(height: 4),
@@ -250,19 +270,27 @@ class ImpresionService {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Ticket_${venta.id}');
+    if (kIsWeb) {
+      final bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'Ticket_${venta.id}.pdf');
+    } else {
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Ticket_${venta.id}');
+    }
   }
 
   /// Genera e imprime el Corte Z (Cierre de Caja) para el administrador
   static Future<void> imprimirCorteZ(TurnoCaja turno, Negocio negocio) async {
     final pdf = pw.Document();
     final DateFormat fmt = DateFormat('dd/MM/yy HH:mm');
+    final font = await _getFont();
+    final fontBold = await PdfGoogleFonts.robotoBold();
 
     final pw.MemoryImage? logoImage = await _getLogoImage(negocio.logoUrl);
 
     pdf.addPage(
       pw.Page(
         pageFormat: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity, marginAll: 3 * PdfPageFormat.mm),
+        theme: pw.ThemeData.withFont(base: font, bold: fontBold),
         build: (pw.Context context) {
           final double diferencia = turno.diferenciaEfectivo;
           String textoDiferencia = 'CUADRE EXACTO';
@@ -331,7 +359,12 @@ class ImpresionService {
       ),
     );
 
-    await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'CorteZ_${turno.id}');
+    if (kIsWeb) {
+      final bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'CorteZ_${turno.id}.pdf');
+    } else {
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'CorteZ_${turno.id}');
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

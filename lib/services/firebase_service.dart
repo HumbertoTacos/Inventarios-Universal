@@ -719,16 +719,20 @@ class FirebaseService {
       }
     }
 
-    // Si la venta es en efectivo, exigimos que nos pasen el ID del turno actual
-    if (venta.metodoPago == MetodoPago.efectivo && turnoCajaId == null) {
-      throw Exception(
-        'Se requiere una caja abierta para registrar ventas en efectivo.',
-      );
-    }
+    // El chequeo de caja abierta se movió dentro de la transacción 
+    // para validar si el negocio realmente la usa (FinOps/UX).
 
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         // 1. Lecturas obligatorias antes de escrituras
+        // a) Datos del negocio (para validar si usa caja)
+        final snapNegocio = await transaction.get(_negocioDataRef);
+        final usaCaja = snapNegocio.exists ? (snapNegocio.get('usaCajaRegistradora') ?? true) : true;
+
+        if (usaCaja && venta.metodoPago == MetodoPago.efectivo && turnoCajaId == null) {
+          throw Exception('Se requiere una caja abierta para registrar ventas en efectivo.');
+        }
+
         DocumentSnapshot? docTurnoSnapshot;
         if (turnoCajaId != null) {
           docTurnoSnapshot = await transaction.get(
@@ -969,7 +973,7 @@ class FirebaseService {
             cantidadAlterada: item.cantidad,
             stockResultante: newStock,
             motivo:
-                'Cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                'Cancelación de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
             fecha: DateTime.now(),
             usuarioId: _currentUserId,
           );
@@ -1009,7 +1013,7 @@ class FirebaseService {
             'tipo': 'egreso',
             'monto': venta.total,
             'concepto':
-                'Devolución por cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                'Devolución por cancelación de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
             'fecha': DateTime.now().toIso8601String(),
           });
 
@@ -1017,7 +1021,7 @@ class FirebaseService {
           historial.add({
             'monto': venta.total,
             'concepto':
-                'Devolución por cancelación de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                'Devolución por cancelación de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
             'hora': DateTime.now().toIso8601String(),
           });
           transaction.update(turnoActualSnap.reference, {
@@ -1030,7 +1034,7 @@ class FirebaseService {
         _inyectarLogTransaccional(
           transaction,
           'VENTAS',
-          'CANCELACIÓN: Venta #${venta.id.substring(0, 8).toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
+          'CANCELACIÓN: Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
               '${turnoActualSnap != null ? "Egreso registrado en caja." : "Sin afectación de caja."}',
         );
       });
@@ -1294,7 +1298,7 @@ class FirebaseService {
               cantidadAlterada: item.cantidad,
               stockResultante: newStock,
               motivo:
-                  'Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                  'Devolución de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
               fecha: DateTime.now(),
               usuarioId: _currentUserId,
             );
@@ -1337,7 +1341,7 @@ class FirebaseService {
             'tipo': 'egreso',
             'monto': totalEgreso,
             'concepto':
-                'Reembolso por Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                'Reembolso por Devolución de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
             'fecha': DateTime.now().toIso8601String(),
           });
 
@@ -1345,7 +1349,7 @@ class FirebaseService {
           historial.add({
             'monto': totalEgreso,
             'concepto':
-                'Reembolso por Devolución de Venta #${venta.id.substring(0, 8).toUpperCase()}',
+                'Reembolso por Devolución de Venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()}',
             'hora': DateTime.now().toIso8601String(),
           });
           transaction.update(turnoActualSnap.reference, {
@@ -1361,7 +1365,7 @@ class FirebaseService {
         _inyectarLogTransaccional(
           transaction,
           'VENTAS',
-          'DEVOLUCIÓN: $modo de la venta #${venta.id.substring(0, 8).toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
+          'DEVOLUCIÓN: $modo de la venta #${venta.id.length >= 8 ? venta.id.substring(0, 8).toUpperCase() : venta.id.toUpperCase()} por \$${venta.total.toStringAsFixed(2)}. '
               '${turnoActualSnap != null ? "Egreso registrado en caja." : "Sin afectación de caja."}',
         );
       });

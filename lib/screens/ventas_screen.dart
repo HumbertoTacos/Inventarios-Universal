@@ -5,6 +5,7 @@ import '../models/producto.dart';
 import '../models/venta.dart';
 import '../models/cliente.dart';
 import '../services/firebase_service.dart';
+import '../models/turno_caja.dart';
 import 'inventario_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'clientes_screen.dart';
@@ -15,8 +16,8 @@ import '../models/negocio.dart';
 import 'caja_screen.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
-import '../widgets/premium_widgets.dart'; // [UI Polish]
- // [UI Polish]
+import '../widgets/premium_widgets.dart';
+import '../controllers/configuracion_controller.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -57,8 +58,17 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void initState() {
     super.initState();
+    ConfiguracionController.instance.addListener(_onConfigChanged);
     _cargarNegocio();
     _cargarCatalogoInicial();
+  }
+
+  void _onConfigChanged() {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   Future<void> _cargarCatalogoInicial() async {
@@ -84,6 +94,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   @override
   void dispose() {
+    ConfiguracionController.instance.removeListener(_onConfigChanged);
     _debounceTimer?.cancel();
     _costoEnvioCtrl.dispose();
     _barcodeFocusNode.dispose();
@@ -474,10 +485,16 @@ class _VentasScreenState extends State<VentasScreen> {
     setState(() => _procesando = true);
 
     try {
-      final turno = await _firebaseService.getTurnoActivo();
+      // Usar la configuración centralizada para mayor precisión
+      final config = ConfiguracionController.instance;
+      final usaCaja = config.negocio?.usaCajaRegistradora ?? _negocio?.usaCajaRegistradora ?? true;
 
-      // Validar caja abierta solo si el negocio usa caja registradora
-      final usaCaja = _negocio?.usaCajaRegistradora ?? true;
+      // Solo buscar el turno si el negocio realmente usa caja
+      TurnoCaja? turno;
+      if (usaCaja) {
+        turno = await _firebaseService.getTurnoActivo();
+      }
+
       if (usaCaja && _metodoPago == MetodoPago.efectivo && turno == null) {
         setState(() => _procesando = false);
         if (mounted) {
@@ -600,8 +617,7 @@ class _VentasScreenState extends State<VentasScreen> {
           debugPrint('Error al imprimir ticket: $e');
         }
 
-        // Devolvemos el carrito a la pantalla anterior para actualización optimista
-        Navigator.pop(context, soldItems);
+        // El carrito ya se limpió en el setState anterior, permanecemos en la pantalla
       }
     } catch (e) {
       setState(() => _procesando = false);
@@ -668,7 +684,7 @@ class _VentasScreenState extends State<VentasScreen> {
           currentRoute: 'ventas',
           title: 'Punto de Venta',
           actions: [
-            if (_negocio?.usaCajaRegistradora ?? true)
+            if (ConfiguracionController.instance.usaCajaRegistradora)
               FutureBuilder(
                 future: _firebaseService.getTurnoActivo(),
                 builder: (context, snapshot) {
@@ -708,16 +724,29 @@ class _VentasScreenState extends State<VentasScreen> {
   // ── Layouts Responsivos ──────────────────────────────────────────────────
 
   Widget _buildMobileLayout() {
+    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 800),
         child: Column(
           children: [
             _buildOmniBox(),
-            if (_mostrandoBusqueda) _buildResultadosBusqueda(),
-            const SizedBox(height: 8),
-            Expanded(child: _buildCarritoList()),
-            _buildFooter(),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    if (_mostrandoBusqueda) _buildResultadosBusqueda(),
+                    const SizedBox(height: 8),
+                    _buildCarritoList(shrinkWrap: true, physics: const NeverScrollableScrollPhysics()),
+                    if (isKeyboardOpen) 
+                      _buildMiniFooter()
+                    else 
+                      _buildFooter(),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -867,7 +896,9 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   Widget _buildResultadosBusqueda() {
-    return Container(
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.4),
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
@@ -891,10 +922,9 @@ class _VentasScreenState extends State<VentasScreen> {
             ),
           ),
           const Divider(height: 1),
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _resultadosBusqueda.length,
+          Flexible(
+            child: ListView.builder(
+              itemCount: _resultadosBusqueda.length,
             itemBuilder: (context, i) {
               final prod = _resultadosBusqueda[i];
               return ListTile(
@@ -920,12 +950,14 @@ class _VentasScreenState extends State<VentasScreen> {
               );
             },
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  ),
+);
+}
 
-  Widget _buildCarritoList() {
+  Widget _buildCarritoList({bool shrinkWrap = false, ScrollPhysics? physics}) {
     return _carrito.isEmpty
         ? const PremiumEmptyState(
             icon: Icons.shopping_basket_outlined,
@@ -935,6 +967,8 @@ class _VentasScreenState extends State<VentasScreen> {
         : ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: _carrito.length,
+            shrinkWrap: shrinkWrap,
+            physics: physics,
             itemBuilder: (context, index) {
               final item = _carrito[index];
               return Padding(
@@ -992,7 +1026,7 @@ class _VentasScreenState extends State<VentasScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Subtotal:', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                const Text('Subtotal:', style: TextStyle(fontSize: 16, color: Colors.black54, fontWeight: FontWeight.w600)),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: Text(
@@ -1007,7 +1041,7 @@ class _VentasScreenState extends State<VentasScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total:', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const Text('TOTAL:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.black87, letterSpacing: 0.5)),
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: Text(
@@ -1024,7 +1058,7 @@ class _VentasScreenState extends State<VentasScreen> {
               ],
             ),
             // ── Sección de envíos (solo si el negocio la usa) ──
-            if (_negocio?.manejaEnvios ?? false) ...[
+            if (ConfiguracionController.instance.negocio?.manejaEnvios ?? _negocio?.manejaEnvios ?? false) ...[
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -1045,17 +1079,18 @@ class _VentasScreenState extends State<VentasScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text('Paga el envío:', style: TextStyle(fontSize: 12)),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
                             ChoiceChip(
-                              label: const Text('Vend.', style: TextStyle(fontSize: 10)),
+                              label: const Text('Vendedor', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                               selected: _envioPagadoPorVendedor,
                               onSelected: (v) => setState(() => _envioPagadoPorVendedor = true),
                               visualDensity: VisualDensity.compact,
                             ),
-                            const SizedBox(width: 8),
                             ChoiceChip(
-                              label: const Text('Clien.', style: TextStyle(fontSize: 10)),
+                              label: const Text('Cliente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                               selected: !_envioPagadoPorVendedor,
                               onSelected: (v) => setState(() => _envioPagadoPorVendedor = false),
                               visualDensity: VisualDensity.compact,
@@ -1085,7 +1120,7 @@ class _VentasScreenState extends State<VentasScreen> {
                         runSpacing: 4,
                         children: [
                           ChoiceChip(
-                            label: const Text('Ninguno', style: TextStyle(fontSize: 10)),
+                            label: const Text('Ninguno', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             selected: _tipoDescuento == TipoDescuento.ninguno,
                             onSelected: (_) {
                               setState(() {
@@ -1097,13 +1132,13 @@ class _VentasScreenState extends State<VentasScreen> {
                             visualDensity: VisualDensity.compact,
                           ),
                           ChoiceChip(
-                            label: const Text('Monto \$', style: TextStyle(fontSize: 10)),
+                            label: const Text('Monto \$', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             selected: _tipoDescuento == TipoDescuento.fijo,
                             onSelected: (_) => _intentarCambiarTipoDescuento(TipoDescuento.fijo),
                             visualDensity: VisualDensity.compact,
                           ),
                           ChoiceChip(
-                            label: const Text('Porcen. %', style: TextStyle(fontSize: 10)),
+                            label: const Text('Porcen. %', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                             selected: _tipoDescuento == TipoDescuento.porcentaje,
                             onSelected: (_) => _intentarCambiarTipoDescuento(TipoDescuento.porcentaje),
                             visualDensity: VisualDensity.compact,
@@ -1166,7 +1201,11 @@ class _VentasScreenState extends State<VentasScreen> {
                     child: Text(
                       _procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}',
                       key: ValueKey<bool>(_procesando),
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16, 
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                     ),
                   ),
                 ),
@@ -1207,7 +1246,7 @@ class _VentasScreenState extends State<VentasScreen> {
                 padding: const EdgeInsets.only(right: 8),
                 child: ChoiceChip(
                   avatar: Icon(icon, size: 16),
-                  label: Text(label),
+                  label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   selected: sel,
                   onSelected: (_) => setState(() {
                     _metodoPago = metodo;
@@ -1280,6 +1319,39 @@ class _VentasScreenState extends State<VentasScreen> {
                 icon: const Icon(Icons.close, size: 18),
                 onPressed: () => setState(() => _clienteSeleccionado = null),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniFooter() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(top: BorderSide(color: Theme.of(context).colorScheme.outline.withAlpha(50))),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, -2))],
+      ),
+      child: SafeArea(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('TOTAL:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey)),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '\$${_totalVenta.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
