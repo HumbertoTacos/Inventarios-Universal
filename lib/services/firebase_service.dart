@@ -412,6 +412,28 @@ class FirebaseService {
     }
   }
 
+  /// Actualiza una categoría existente y sus productos asociados si el nombre cambió.
+  Future<void> actualizarCategoria(Categoria categoria, {String? nombreAnterior}) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Actualizar el documento de la categoría
+      batch.update(_categoriasRef.doc(categoria.id), categoria.toMap());
+
+      // 2. Si el nombre cambió, actualizar todos los productos que usaban el nombre viejo
+      if (nombreAnterior != null && nombreAnterior != categoria.nombre) {
+        final productosSnap = await _productosRef.where('categoria', isEqualTo: nombreAnterior).get();
+        for (var doc in productosSnap.docs) {
+          batch.update(doc.reference, {'categoria': categoria.nombre});
+        }
+      }
+
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw Exception('Error al actualizar categoría: ${e.message}');
+    }
+  }
+
   /// Devuelve cuántos productos usan la categoría con ese [nombreCategoria].
   Future<int> contarProductosPorCategoria(String nombreCategoria) async {
     final snapshot = await _productosRef
@@ -642,6 +664,16 @@ class FirebaseService {
     );
   }
 
+  /// Helper privado para obtener el turno activo del usuario actual (si existe)
+  Future<DocumentSnapshot?> _obtenerTurnoActivoDoc() async {
+    final snapshot = await _turnosCajaRef
+        .where('estado', isEqualTo: EstadoTurno.abierto.name)
+        .where('usuarioId', isEqualTo: _currentUserId)
+        .limit(1)
+        .get();
+    return snapshot.docs.isEmpty ? null : snapshot.docs.first;
+  }
+
   /// Registra un movimiento de caja (ingreso o egreso) en el turno actual
   Future<void> registrarMovimientoCaja(MovimientoCaja mov) async {
     try {
@@ -729,19 +761,20 @@ class FirebaseService {
         final snapNegocio = await transaction.get(_negocioDataRef);
         final usaCaja = snapNegocio.exists ? (snapNegocio.get('usaCajaRegistradora') ?? true) : true;
 
-        if (usaCaja && venta.metodoPago == MetodoPago.efectivo && turnoCajaId == null) {
-          throw Exception('Se requiere una caja abierta para registrar ventas en efectivo.');
-        }
+        // b) Obtener turno de caja (opcional/flexible)
 
         DocumentSnapshot? docTurnoSnapshot;
         if (turnoCajaId != null) {
-          docTurnoSnapshot = await transaction.get(
-            _turnosCajaRef.doc(turnoCajaId),
-          );
-          if (!docTurnoSnapshot.exists)
-            throw Exception('El turno de caja no existe.');
-          if (docTurnoSnapshot.get('estado') != EstadoTurno.abierto.name) {
-            throw Exception('El turno de caja ya está cerrado.');
+          docTurnoSnapshot = await transaction.get(_turnosCajaRef.doc(turnoCajaId));
+        } else if (usaCaja) {
+          // Búsqueda flexible: si el negocio usa caja pero no se pasó ID, buscamos el turno activo del usuario
+          final activeQuery = await _turnosCajaRef
+              .where('estado', isEqualTo: EstadoTurno.abierto.name)
+              .where('usuarioId', isEqualTo: _currentUserId)
+              .limit(1)
+              .get();
+          if (activeQuery.docs.isNotEmpty) {
+            docTurnoSnapshot = await transaction.get(activeQuery.docs.first.reference);
           }
         }
 
@@ -860,31 +893,47 @@ class FirebaseService {
           });
         }
 
-        // d) Actualizar turno de caja según método de pago
-        if (turnoCajaId != null && docTurnoSnapshot != null) {
-          final refTurno = _turnosCajaRef.doc(turnoCajaId);
-          String campoActualizar;
-          switch (venta.metodoPago) {
-            case MetodoPago.efectivo:
-              campoActualizar = 'ventasEfectivo';
-              break;
-            case MetodoPago.tarjeta:
-              campoActualizar = 'ventasTarjeta';
-              break;
-            case MetodoPago.transferencia:
-              campoActualizar = 'ventasTransferencia';
-              break;
-            case MetodoPago.credito:
-              campoActualizar = 'ventasCredito';
-              break;
+        // d) Actualizar turno de caja según método de pago (INTEGRACIÓN FLEXIBLE)
+        if (docTurnoSnapshot != null && docTurnoSnapshot.exists) {
+          final refTurno = docTurnoSnapshot.reference;
+          
+          if (venta.metodoPago == MetodoPago.efectivo) {
+            // 1. Actualizar total de ventas en efectivo
+            final valorActual = (docTurnoSnapshot.data() as Map<String, dynamic>)['ventasEfectivo'] as num? ?? 0.0;
+            transaction.update(refTurno, {
+              'ventasEfectivo': valorActual + ventaParaGuardar.total,
+            });
+
+            // 2. Registrar el movimiento detallado
+            final docMov = refTurno.collection('movimientos').doc();
+            transaction.set(docMov, {
+              'turnoId': docTurnoSnapshot.id,
+              'tipo': 'ingreso',
+              'monto': ventaParaGuardar.total,
+              'concepto': 'Venta POS #${docVenta.id.substring(0, 5).toUpperCase()}',
+              'fecha': DateTime.now().toIso8601String(),
+            });
+          } else {
+            // Para otros métodos de pago, solo actualizamos el total estadístico del turno
+            String campoActualizar;
+            switch (venta.metodoPago) {
+              case MetodoPago.tarjeta:
+                campoActualizar = 'ventasTarjeta';
+                break;
+              case MetodoPago.transferencia:
+                campoActualizar = 'ventasTransferencia';
+                break;
+              case MetodoPago.credito:
+                campoActualizar = 'ventasCredito';
+                break;
+              default:
+                campoActualizar = 'ventasEfectivo';
+            }
+            final valorActual = (docTurnoSnapshot.data() as Map<String, dynamic>)[campoActualizar] as num? ?? 0.0;
+            transaction.update(refTurno, {
+              campoActualizar: valorActual + ventaParaGuardar.total,
+            });
           }
-          final valorActual =
-              (docTurnoSnapshot.data()
-                  as Map<String, dynamic>)[campoActualizar] ??
-              0.0;
-          transaction.update(refTurno, {
-            campoActualizar: valorActual + ventaParaGuardar.total,
-          });
         }
 
         _inyectarLogTransaccional(
@@ -1046,7 +1095,10 @@ class FirebaseService {
 
   // ── Compras ───────────────────────────────────────────────────────────────
 
-  Future<void> registrarCompra(Compra compra) async {
+  Future<void> registrarCompra(Compra compra, {double? nuevoPrecioVenta}) async {
+    // 1. Buscar turno activo fuera de la transacción (opcional)
+    final turnoDoc = await _obtenerTurnoActivoDoc();
+
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         // 1. Leer productos para actualizar stock y costo promedio
@@ -1085,13 +1137,20 @@ class FirebaseService {
           final double nuevoStock = stockActual + item.cantidad;
 
           // Actualizar producto con historial de compra
-          transaction.update(snap.reference, {
+          final Map<String, dynamic> updateData = {
             'cantidad': nuevoStock,
             'costoActual': nuevoCosto,
             'costoPromedio': nuevoCosto,
             'ultimaCompraFecha': compra.fecha.toIso8601String(),
             'ultimoCostoCompra': item.costoUnitario,
-          });
+          };
+
+          if (nuevoPrecioVenta != null && nuevoPrecioVenta > 0) {
+            updateData['precio'] = nuevoPrecioVenta;
+            updateData['nombreLower'] = data['nombre'].toString().toLowerCase(); // Aseguramos consistencia
+          }
+
+          transaction.update(snap.reference, updateData);
 
           // Registrar en Kardex
           final kardexDoc = _kardexRef.doc();
@@ -1127,6 +1186,34 @@ class FirebaseService {
             estado: 'pendiente',
           );
           transaction.set(docCPP, cpp.toMap());
+        }
+
+        // 5. Integración flexible con Caja (EGRESO por compra de contado)
+        if (turnoDoc != null && !compra.esCredito) {
+          final refTurno = _turnosCajaRef.doc(turnoDoc.id);
+          final snapTurno = await transaction.get(refTurno);
+
+          if (snapTurno.exists) {
+            final egresosActuales =
+                (snapTurno.data() as Map<String, dynamic>)['egresosEfectivo']
+                    as num? ??
+                0.0;
+            
+            // a) Actualizar total de egresos
+            transaction.update(refTurno, {
+              'egresosEfectivo': egresosActuales + compra.costoTotal,
+            });
+
+            // b) Registrar el movimiento detallado
+            final docMov = refTurno.collection('movimientos').doc();
+            transaction.set(docMov, {
+              'turnoId': turnoDoc.id,
+              'tipo': 'egreso',
+              'monto': compra.costoTotal,
+              'concepto': 'Compra: ${compra.proveedorNombre ?? "Proveedor"}',
+              'fecha': DateTime.now().toIso8601String(),
+            });
+          }
         }
 
         _inyectarLogTransaccional(

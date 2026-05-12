@@ -125,58 +125,72 @@ class _VentasScreenState extends State<VentasScreen> {
   // ── Agregar al carrito ──────────────────────────────────────────────────
 
   Future<void> _pedirCantidadYAgregar(Producto producto) async {
-    if (!mounted) return; // Fix para context across async gaps warning
-    final TextEditingController ctrl = TextEditingController(text: '1');
-    
-    final double? cantidad = await showDialog<double>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text('Vender: ${producto.nombre}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Stock disponible: ${producto.cantidad.formatoInventario}'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: ctrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Cantidad a vender',
-                  border: OutlineInputBorder(),
+    if (!mounted) return;
+
+    double? cantidad;
+
+    if (producto.permiteDecimales) {
+      final TextEditingController ctrl = TextEditingController(text: '1');
+      cantidad = await showDialog<double>(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('¿Qué cantidad deseas agregar?'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Producto: ${producto.nombre}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('Stock disponible: ${producto.cantidad.formatoInventario}'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: ctrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Cantidad',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final c = double.tryParse(ctrl.text) ?? 0.0;
+                  if (c > producto.cantidad) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('Stock insuficiente: solo hay ${producto.cantidad.formatoInventario} disponibles'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                    return;
+                  }
+                  if (c > 0) {
+                    Navigator.pop(ctx, c);
+                  }
+                },
+                child: const Text('Agregar'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final c = double.tryParse(ctrl.text) ?? 0.0;
-                if (c > producto.cantidad) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content: Text('Stock insuficiente: solo hay ${producto.cantidad.formatoInventario} disponibles'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                if (c > 0) {
-                  Navigator.pop(ctx, c);
-                }
-              },
-              child: const Text('Agregar'),
-            ),
-          ],
+          );
+        },
+      );
+    } else {
+      // Comportamiento estándar: agrega 1 unidad automáticamente
+      if (producto.cantidad < 1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Producto agotado'), backgroundColor: Colors.red),
         );
-      },
-    );
+        return;
+      }
+      cantidad = 1.0;
+    }
 
     if (cantidad != null && cantidad > 0) {
       setState(() {
@@ -184,7 +198,7 @@ class _VentasScreenState extends State<VentasScreen> {
         final existingIndex = _carrito.indexWhere((i) => i.productoId == producto.id);
         if (existingIndex >= 0) {
           final oldItem = _carrito[existingIndex];
-          final nuevaCant = oldItem.cantidad + cantidad;
+          final nuevaCant = oldItem.cantidad + cantidad!;
           
           double precioFinal = _calcularPrecioUnitario(producto, nuevaCant);
 
@@ -196,7 +210,7 @@ class _VentasScreenState extends State<VentasScreen> {
             cantidad: nuevaCant,
           );
         } else {
-          double precioFinal = _calcularPrecioUnitario(producto, cantidad);
+          double precioFinal = _calcularPrecioUnitario(producto, cantidad!);
 
           _carrito.add(VentaItem(
             productoId: producto.id,
@@ -479,17 +493,15 @@ class _VentasScreenState extends State<VentasScreen> {
 
   // ── Registrar Venta ───────────────────────────────────────────────────────
 
-  Future<void> _confirmarVenta() async {
+  Future<void> _confirmarVenta({double pagoCliente = 0}) async {
     if (_carrito.isEmpty) return;
 
     setState(() => _procesando = true);
 
     try {
-      // Usar la configuración centralizada para mayor precisión
       final config = ConfiguracionController.instance;
       final usaCaja = config.negocio?.usaCajaRegistradora ?? _negocio?.usaCajaRegistradora ?? true;
 
-      // Solo buscar el turno si el negocio realmente usa caja
       TurnoCaja? turno;
       if (usaCaja) {
         turno = await _firebaseService.getTurnoActivo();
@@ -513,25 +525,19 @@ class _VentasScreenState extends State<VentasScreen> {
         return;
       }
 
-      // Validar cliente si es crédito
       if (_metodoPago == MetodoPago.credito && _clienteSeleccionado == null) {
         setState(() => _procesando = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Selecciona un cliente para ventas a crédito.'),
-              backgroundColor: Colors.orange,
-            ),
+            const SnackBar(content: Text('Selecciona un cliente para ventas a crédito.'), backgroundColor: Colors.orange),
           );
         }
         return;
       }
 
-      // --- ARQUITECTURA OPTIMIZADA: VALIDACIÓN DE STOCK (FINOPS - EVITA N+1) ---
+      // Validación de stock
       List<String> productosEnNegativo = [];
       final idsCarrito = _carrito.map((i) => i.productoId).toSet().toList();
-      
-      // Consultamos los productos en un solo bloque (máximo 10 por whereIn en Lite, pero Flutter/Firestore soporta 30+)
       final listaProdsFresh = await _firebaseService.getProductosPorLote(idsCarrito);
       final mapFresh = {for (var p in listaProdsFresh) p.id: p};
 
@@ -543,36 +549,18 @@ class _VentasScreenState extends State<VentasScreen> {
       }
 
       if (productosEnNegativo.isNotEmpty) {
+        setState(() => _procesando = false);
         if (!mounted) return;
-        await showDialog<void>(
+        await showDialog(
           context: context,
-          barrierDismissible: false,
           builder: (ctx) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.warning_amber_rounded, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Venta Bloqueada'),
-              ],
-            ),
-            content: Text(
-              'No se puede completar la venta porque el inventario de los siguientes productos es insuficiente:\n\n'
-              '${productosEnNegativo.join(', ')}\n\n'
-              'Por favor, ajusta las cantidades en el carrito.'
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Entendido'),
-              ),
-            ],
+            title: const Text('Stock Insuficiente'),
+            content: Text('Los siguientes productos no tienen stock suficiente: ${productosEnNegativo.join(', ')}'),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar'))],
           ),
         );
-
-        setState(() => _procesando = false);
         return;
       }
-      // --- FIN VALIDACIÓN ---
 
       final nuevaVenta = Venta(
         id: '',
@@ -586,50 +574,155 @@ class _VentasScreenState extends State<VentasScreen> {
         valorDescuento: double.tryParse(_valorDescuentoCtrl.text) ?? 0.0,
       );
 
+      // Registro en Firebase
       await _firebaseService.registrarVenta(nuevaVenta, turnoCajaId: turno?.id);
 
-      final soldItems = List<VentaItem>.from(_carrito);
-      
+      // Guardamos datos para el ticket antes de limpiar
+      final ventaFinal = nuevaVenta;
+      final negocioFinal = await _firebaseService.getDatosNegocio();
+
       setState(() {
         _carrito.clear();
         _clienteSeleccionado = null;
         _metodoPago = MetodoPago.efectivo;
         _procesando = false;
+        _barcodeCtrl.clear();
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('¡Venta completada con éxito!'),
-            backgroundColor: Colors.green,
-          ),
+        // Mostrar Diálogo de Éxito y Cambio
+        await _mostrarDialogoExito(
+          venta: ventaFinal, 
+          negocio: negocioFinal, 
+          pago: pagoCliente,
+          turno: turno,
         );
-
-        // Imprimir Ticket automáticamente
-        try {
-          final negocio = await _firebaseService.getDatosNegocio();
-          await ImpresionService.imprimirTicketVenta(
-            nuevaVenta,
-            negocio,
-            nombreCliente: _clienteSeleccionado?.nombre,
-          );
-        } catch (e) {
-          debugPrint('Error al imprimir ticket: $e');
-        }
-
-        // El carrito ya se limpió en el setState anterior, permanecemos en la pantalla
       }
     } catch (e) {
       setState(() => _procesando = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al procesar la venta: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error al procesar la venta: $e'), backgroundColor: Colors.red),
         );
       }
     }
+  }
+
+  Future<void> _mostrarDialogoExito({
+    required Venta venta, 
+    required Negocio negocio, 
+    required double pago,
+    TurnoCaja? turno,
+  }) async {
+    final double cambio = (pago - venta.total).clamp(0.0, double.infinity);
+    
+    return showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Column(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 60),
+            SizedBox(height: 10),
+            Text('¡Venta Exitosa!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (pago > 0) ...[
+              const Text('Cambio a devolver:', style: TextStyle(fontSize: 16)),
+              Text(
+                '\$${cambio.toStringAsFixed(2)}',
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.green),
+              ),
+              const SizedBox(height: 20),
+            ],
+            const Text('¿Deseas imprimir el ticket de venta?'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cerrar'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              await ImpresionService.imprimirTicketVenta(
+                venta: venta,
+                negocio: negocio,
+                pagoCliente: pago,
+                turno: turno,
+              );
+            },
+            icon: const Icon(Icons.print),
+            label: const Text('Imprimir Ticket'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _prepararConfirmacion() async {
+    if (_metodoPago == MetodoPago.efectivo) {
+      final double? pago = await _mostrarDialogoCobroEfectivo();
+      if (pago != null) {
+        await _confirmarVenta(pagoCliente: pago);
+      }
+    } else {
+      await _confirmarVenta(pagoCliente: _totalVenta);
+    }
+  }
+
+  Future<double?> _mostrarDialogoCobroEfectivo() async {
+    final ctrl = TextEditingController();
+    return showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cobro en Efectivo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Total a cobrar: \$${_totalVenta.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              decoration: const InputDecoration(
+                labelText: 'Monto Recibido',
+                prefixText: '\$ ',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (val) {
+                final monto = double.tryParse(val) ?? 0.0;
+                if (monto >= _totalVenta) Navigator.pop(ctx, monto);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final monto = double.tryParse(ctrl.text) ?? 0.0;
+              if (monto < _totalVenta) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('El monto recibido es menor al total.'), backgroundColor: Colors.orange),
+                );
+                return;
+              }
+              Navigator.pop(ctx, monto);
+            },
+            child: const Text('Confirmar Cobro'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<bool> _intentarSalir() async {
@@ -1189,7 +1282,7 @@ class _VentasScreenState extends State<VentasScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  onPressed: (_carrito.isEmpty || _procesando) ? null : _confirmarVenta,
+                  onPressed: (_carrito.isEmpty || _procesando) ? null : _prepararConfirmacion,
                   icon: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 200),
                     child: _procesando
@@ -1201,10 +1294,10 @@ class _VentasScreenState extends State<VentasScreen> {
                     child: Text(
                       _procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}',
                       key: ValueKey<bool>(_procesando),
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16, 
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onPrimary,
+                        color: Colors.white,
                       ),
                     ),
                   ),

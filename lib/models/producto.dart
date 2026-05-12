@@ -26,6 +26,7 @@ class Producto {
   final bool enPromocion;
   final double? precioPromocion;
   final double stockMinimo;
+  final bool permiteDecimales;
 
   Producto({
     required this.id,
@@ -51,6 +52,7 @@ class Producto {
     this.enPromocion = false,
     this.precioPromocion,
     this.stockMinimo = 0.0,
+    this.permiteDecimales = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -78,6 +80,7 @@ class Producto {
       'enPromocion': enPromocion,
       'precioPromocion': precioPromocion,
       'stockMinimo': stockMinimo,
+      'permiteDecimales': permiteDecimales,
     };
   }
 
@@ -106,6 +109,7 @@ class Producto {
       enPromocion: map['enPromocion'] ?? false,
       precioPromocion: (map['precioPromocion'] as num?)?.toDouble(),
       stockMinimo: (map['stockMinimo'] as num?)?.toDouble() ?? 0.0,
+      permiteDecimales: map['permiteDecimales'] ?? false,
     );
   }
 
@@ -137,6 +141,7 @@ class Producto {
     DateTime? ultimaCompraFecha,
     double? ultimoCostoCompra,
     double? stockMinimo,
+    bool? permiteDecimales,
   }) {
     return Producto(
       id: id,
@@ -162,6 +167,7 @@ class Producto {
       ultimaCompraFecha: ultimaCompraFecha ?? this.ultimaCompraFecha,
       ultimoCostoCompra: ultimoCostoCompra ?? this.ultimoCostoCompra,
       stockMinimo: stockMinimo ?? this.stockMinimo,
+      permiteDecimales: permiteDecimales ?? this.permiteDecimales,
     );
   }
 }

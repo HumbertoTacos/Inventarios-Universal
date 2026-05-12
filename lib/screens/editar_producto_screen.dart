@@ -32,6 +32,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
 
   bool _guardando = false;
   bool _enPromocion = false;
+  bool _permiteDecimales = false;
   String? _idProveedorSeleccionado;
   String? _nombreProveedorSeleccionado;
 
@@ -50,6 +51,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
     _idProveedorSeleccionado = widget.producto.proveedorId;
     _nombreProveedorSeleccionado = widget.producto.proveedorNombre;
     _stockMinimoCtrl = TextEditingController(text: widget.producto.stockMinimo.toString());
+    _permiteDecimales = widget.producto.permiteDecimales;
   }
 
   @override
@@ -103,6 +105,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
         proveedorId: _idProveedorSeleccionado,
         proveedorNombre: _nombreProveedorSeleccionado,
         stockMinimo: double.tryParse(_stockMinimoCtrl.text.trim()) ?? 0.0,
+        permiteDecimales: _permiteDecimales,
       );
 
       await _firebaseService.actualizarProducto(productoEditado);
@@ -415,6 +418,20 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                                   ),
                                 ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Venta Fraccionada ──
+                        SwitchListTile(
+                          title: const Text('Venta fraccionada (permite decimales)', style: TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: const Text('Útil para vender por peso, metros o fracciones (ej. 0.5, 1.5)'),
+                          value: _permiteDecimales,
+                          onChanged: (v) => setState(() => _permiteDecimales = v),
+                          secondary: const Icon(Icons.scale_outlined),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Theme.of(context).colorScheme.outline.withAlpha(50)),
                           ),
                         ),
                         const SizedBox(height: 16),

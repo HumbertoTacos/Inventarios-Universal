@@ -31,6 +31,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
   bool _guardando = false;
   bool _enPromocion = false;
+  bool _permiteDecimales = false;
   Categoria? _categoriaSeleccionada;
   String? _idProveedorSeleccionado;
   String? _nombreProveedorSeleccionado;
@@ -364,6 +365,17 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                       ),
                       const SizedBox(height: 16),
 
+                      // ── Venta Fraccionada ──
+                      SwitchListTile(
+                        title: const Text('Venta fraccionada (permite decimales)', style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: const Text('Útil para vender por peso, metros o fracciones (ej. 0.5, 1.5)'),
+                        value: _permiteDecimales,
+                        onChanged: (v) => setState(() => _permiteDecimales = v),
+                        secondary: const Icon(Icons.scale_outlined),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: colorScheme.outline.withAlpha(50))),
+                      ),
+                      const SizedBox(height: 16),
+
                       // ── Código de barras ──
                       TextFormField(
                         controller: _codigoBarrasCtrl,
@@ -540,6 +552,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       proveedorId: _idProveedorSeleccionado,
       proveedorNombre: _nombreProveedorSeleccionado,
       stockMinimo: double.tryParse(_stockMinimoCtrl.text.trim()) ?? 0.0,
+      permiteDecimales: _permiteDecimales,
     );
 
     try {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:inventarios_universal/screens/inventario_screen.dart';
 import '../models/producto.dart';
 import '../models/movimiento_kardex.dart';
 import '../services/firebase_service.dart';
@@ -19,15 +20,15 @@ class AjusteInventarioScreen extends StatefulWidget {
 class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   final _formKey = GlobalKey<FormState>();
-  
+
   // Producto seleccionado
   Producto? _productoSeleccionado;
-  
+
   // Controladores del formulario
   final _cantidadCtrl = TextEditingController();
   final _notasCtrl = TextEditingController();
   String? _motivoSeleccionado;
-  
+
   final List<Map<String, String>> _motivos = [
     {'val': 'merma', 'label': 'Merma'},
     {'val': 'daño', 'label': 'Daño'},
@@ -89,7 +90,7 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
 
     _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
       final query = value.trim().toLowerCase();
-      
+
       // 1. Búsqueda en locales primero (más flexible: contains)
       final locales = _cacheProductos.values
           .where((p) => p.nombre.toLowerCase().contains(query))
@@ -132,7 +133,9 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
         _seleccionarProducto(_resultadosBusqueda.first);
       } else {
         // 3. O buscar remotamente por nombre si no hay resultados locales
-        final remotos = await _firebaseService.buscarProductosPorNombre(code.trim());
+        final remotos = await _firebaseService.buscarProductosPorNombre(
+          code.trim(),
+        );
         if (remotos.isNotEmpty) {
           _seleccionarProducto(remotos.first);
         }
@@ -194,7 +197,12 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+
+        // Redirigir al inventario para ver los cambios en lugar de hacer pop
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const InventarioScreen()),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -216,15 +224,17 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       title: 'Ajuste de Inventario (Mermas)',
       body: Center(
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: isDesktop ? 900 : double.infinity),
+          constraints: BoxConstraints(
+            maxWidth: isDesktop ? 900 : double.infinity,
+          ),
           child: Column(
             children: [
               _buildSearchSection(),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: _productoSeleccionado == null 
-                      ? _buildEmptyState() 
+                  child: _productoSeleccionado == null
+                      ? _buildEmptyState()
                       : (isDesktop ? _buildWideLayout() : _buildNarrowLayout()),
                 ),
               ),
@@ -249,9 +259,15 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
               hintText: 'Buscar producto por nombre o código...',
               prefixIcon: const Icon(Icons.search),
               border: const OutlineInputBorder(),
-              suffixIcon: _searchCtrl.text.isNotEmpty 
-                ? IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() { _searchCtrl.clear(); _mostrandoBusqueda = false; }))
-                : null,
+              suffixIcon: _searchCtrl.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => setState(() {
+                        _searchCtrl.clear();
+                        _mostrandoBusqueda = false;
+                      }),
+                    )
+                  : null,
             ),
             onChanged: _onSearchChanged,
             onSubmitted: _onSearchSubmitted,
@@ -263,7 +279,9 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(8),
-                boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 10)],
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 10),
+                ],
               ),
               child: ListView.builder(
                 shrinkWrap: true,
@@ -273,7 +291,9 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
                   return ListTile(
                     leading: const Icon(Icons.inventory_2_outlined),
                     title: Text(p.nombre),
-                    subtitle: Text('Stock: ${p.cantidad} ${p.atributos.isNotEmpty ? "- ${p.atributoVisual}" : ""}'),
+                    subtitle: Text(
+                      'Stock: ${p.cantidad} ${p.atributos.isNotEmpty ? "- ${p.atributoVisual}" : ""}',
+                    ),
                     onTap: () => _seleccionarProducto(p),
                   );
                 },
@@ -289,11 +309,18 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       padding: const EdgeInsets.only(top: 80),
       child: Column(
         children: [
-          Icon(Icons.search_rounded, size: 80, color: Theme.of(context).colorScheme.outline.withAlpha(100)),
+          Icon(
+            Icons.search_rounded,
+            size: 80,
+            color: Theme.of(context).colorScheme.outline.withAlpha(100),
+          ),
           const SizedBox(height: 16),
           Text(
             'Busca un producto para empezar',
-            style: TextStyle(fontSize: 18, color: Theme.of(context).colorScheme.outline),
+            style: TextStyle(
+              fontSize: 18,
+              color: Theme.of(context).colorScheme.outline,
+            ),
           ),
         ],
       ),
@@ -303,11 +330,7 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
   Widget _buildNarrowLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildProductCard(),
-        const SizedBox(height: 24),
-        _buildForm(),
-      ],
+      children: [_buildProductCard(), const SizedBox(height: 24), _buildForm()],
     );
   }
 
@@ -317,14 +340,20 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       children: [
         Expanded(flex: 2, child: _buildProductCard()),
         const SizedBox(width: 24),
-        Expanded(flex: 3, child: PremiumCard(padding: const EdgeInsets.all(24), child: _buildForm())),
+        Expanded(
+          flex: 3,
+          child: PremiumCard(
+            padding: const EdgeInsets.all(24),
+            child: _buildForm(),
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildProductCard() {
     if (_productoSeleccionado == null) return const SizedBox.shrink();
-    
+
     return PremiumCard(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -334,16 +363,33 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(12)),
-                  child: Icon(Icons.inventory_2_rounded, color: Theme.of(context).colorScheme.primary),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.inventory_2_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_productoSeleccionado!.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      Text(_productoSeleccionado!.categoria, style: TextStyle(color: Theme.of(context).colorScheme.outline)),
+                      Text(
+                        _productoSeleccionado!.nombre,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Text(
+                        _productoSeleccionado!.categoria,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -357,8 +403,16 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildInfoItem('Stock Actual', _productoSeleccionado!.cantidad.toString(), Icons.inventory_2_outlined),
-                _buildInfoItem('Precio', '\$${_productoSeleccionado!.precio.toStringAsFixed(2)}', Icons.payments_outlined),
+                _buildInfoItem(
+                  'Stock Actual',
+                  _productoSeleccionado!.cantidad.toString(),
+                  Icons.inventory_2_outlined,
+                ),
+                _buildInfoItem(
+                  'Precio',
+                  '\$${_productoSeleccionado!.precio.toStringAsFixed(2)}',
+                  Icons.payments_outlined,
+                ),
               ],
             ),
           ],
@@ -372,7 +426,10 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       children: [
         Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 8),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
     );
@@ -384,7 +441,10 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Detalles del Ajuste', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const Text(
+            'Detalles del Ajuste',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
           const SizedBox(height: 24),
           TextFormField(
             controller: _cantidadCtrl,
@@ -394,7 +454,9 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
               suffixText: 'Unidades',
             ),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+            ],
             validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
           ),
           const SizedBox(height: 16),
@@ -404,7 +466,14 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
               labelText: 'Motivo del ajuste',
               prefixIcon: Icon(Icons.report_problem_outlined),
             ),
-            items: _motivos.map((m) => DropdownMenuItem(value: m['val'], child: Text(m['label']!))).toList(),
+            items: _motivos
+                .map(
+                  (m) => DropdownMenuItem(
+                    value: m['val'],
+                    child: Text(m['label']!),
+                  ),
+                )
+                .toList(),
             onChanged: (val) => setState(() => _motivoSeleccionado = val),
             validator: (v) => v == null ? 'Selecciona un motivo' : null,
           ),
@@ -431,17 +500,33 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 10, offset: const Offset(0, -5))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
       ),
       child: SizedBox(
         width: double.infinity,
         height: 54,
         child: FilledButton.icon(
-          onPressed: (_procesando || _productoSeleccionado == null) ? null : _registrarAjuste,
-          icon: _procesando ? const SizedBox.shrink() : const Icon(Icons.check_circle_outline),
-          label: _procesando 
-            ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 3) 
-            : const Text('Procesar Ajuste', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          onPressed: (_procesando || _productoSeleccionado == null)
+              ? null
+              : _registrarAjuste,
+          icon: _procesando
+              ? const SizedBox.shrink()
+              : const Icon(Icons.check_circle_outline),
+          label: _procesando
+              ? const CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                )
+              : const Text(
+                  'Procesar Ajuste',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
         ),
       ),
     );

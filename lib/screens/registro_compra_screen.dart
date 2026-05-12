@@ -27,6 +27,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   bool _procesando = false;
   bool _esCredito = false;
   DateTime? _fechaVencimiento;
+  double? _nuevoPrecioVenta; // [New] Para actualización "en caliente"
 
   // Omni-Box logic
   final _barcodeFocusNode = FocusNode();
@@ -218,7 +219,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
         fechaVencimiento: _fechaVencimiento,
       );
 
-      await _firebaseService.registrarCompra(compra);
+      await _firebaseService.registrarCompra(compra, nuevoPrecioVenta: _nuevoPrecioVenta);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -444,6 +445,42 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
                     ),
                   ),
                 ],
+              ),
+              const Divider(),
+              // ── Actualizar Precio de Venta (Opcional) ──
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.sell_outlined, size: 16, color: Colors.blue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Actualizar precio de venta al público (Opcional)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          TextField(
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.all(8),
+                              border: const OutlineInputBorder(),
+                              prefixText: '\$ ',
+                              hintText: 'Actual: \$${(_cacheProductos[item.productoId]?.precio ?? 0.0).toStringAsFixed(2)}',
+                              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                            ),
+                            onChanged: (val) {
+                              setState(() {
+                                _nuevoPrecioVenta = double.tryParse(val);
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

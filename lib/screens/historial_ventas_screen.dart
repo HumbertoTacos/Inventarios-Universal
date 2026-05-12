@@ -206,7 +206,11 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
             onPressed: () async {
               try {
                 final negocio = await _firebaseService.getDatosNegocio();
-                await ImpresionService.imprimirTicketVenta(venta, negocio);
+                await ImpresionService.imprimirTicketVenta(
+                  venta: venta, 
+                  negocio: negocio, 
+                  pagoCliente: venta.total,
+                );
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

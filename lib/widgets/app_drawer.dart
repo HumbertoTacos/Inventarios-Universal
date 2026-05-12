@@ -16,6 +16,7 @@ import '../screens/registro_compra_screen.dart';
 import '../screens/ajuste_inventario_screen.dart';
 import '../screens/cuentas_por_pagar_screen.dart';
 import '../screens/sugerencias_compra_screen.dart';
+import '../screens/actualizacion_precios_screen.dart';
 import '../models/negocio.dart';
 import '../controllers/configuracion_controller.dart';
 
@@ -84,18 +85,8 @@ class _AppDrawerState extends State<AppDrawer> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _buildMenuItem(
-                  icon: Icons.inventory_2_outlined,
-                  title: 'Inventario',
-                  routeName: 'inventario',
-                  screen: const InventarioScreen(),
-                ),
-                _buildMenuItem(
-                  icon: Icons.auto_fix_high_outlined,
-                  title: 'Mermas y Ajustes',
-                  routeName: '/ajuste_inventario',
-                  screen: const AjusteInventarioScreen(),
-                ),
+                // ── VENTAS Y OPERACIÓN ──
+                _buildSectionHeader('Operaciones'),
                 _buildMenuItem(
                   icon: Icons.point_of_sale,
                   title: 'Punto de Venta',
@@ -123,18 +114,39 @@ class _AppDrawerState extends State<AppDrawer> {
                   screen: const ClientesScreen(),
                 ),
 
-                if (esDueno || puedeVerEstadisticas) ...[
-                  const Divider(),
+                const Divider(),
+                // ── INVENTARIO ──
+                _buildSectionHeader('Inventario'),
+                _buildMenuItem(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'Catálogo de Productos',
+                  routeName: 'inventario',
+                  screen: const InventarioScreen(),
+                ),
+                _buildMenuItem(
+                  icon: Icons.price_change_outlined,
+                  title: 'Actualización de Precios',
+                  routeName: '/actualizacion_precios',
+                  screen: const ActualizacionPreciosScreen(),
+                ),
+                _buildMenuItem(
+                  icon: Icons.auto_fix_high_outlined,
+                  title: 'Mermas y Ajustes',
+                  routeName: '/ajuste_inventario',
+                  screen: const AjusteInventarioScreen(),
+                ),
+                if (esDueno)
                   _buildMenuItem(
-                    icon: Icons.bar_chart,
-                    title: 'Estadísticas y Ganancias',
-                    routeName: 'estadisticas',
-                    screen: const EstadisticasScreen(),
+                    icon: Icons.category_outlined,
+                    title: 'Gestionar Categorías',
+                    routeName: 'categorias',
+                    screen: const GestionCategoriasScreen(),
                   ),
-                ],
 
                 if (esDueno) ...[
                   const Divider(),
+                  // ── COMPRAS ──
+                  _buildSectionHeader('Compras y Proveedores'),
                   _buildMenuItem(
                     icon: Icons.local_shipping_outlined,
                     title: 'Proveedores',
@@ -143,7 +155,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   ),
                   _buildMenuItem(
                     icon: Icons.add_business_outlined,
-                    title: 'Registrar Compra',
+                    title: 'Registrar Entrada (Compra)',
                     routeName: '/registro_compra',
                     screen: const RegistroCompraScreen(),
                   ),
@@ -154,17 +166,24 @@ class _AppDrawerState extends State<AppDrawer> {
                     screen: const SugerenciasCompraScreen(),
                   ),
                   _buildMenuItem(
-                    icon: Icons.category_outlined,
-                    title: 'Gestionar Categorías',
-                    routeName: 'categorias',
-                    screen: const GestionCategoriasScreen(),
-                  ),
-                  _buildMenuItem(
                     icon: Icons.money_off_csred_outlined,
                     title: 'Cuentas por Pagar',
                     routeName: '/cuentas_por_pagar',
                     screen: const CuentasPorPagarScreen(),
                   ),
+                ],
+
+                const Divider(),
+                // ── ADMINISTRACIÓN ──
+                _buildSectionHeader('Administración'),
+                if (esDueno || puedeVerEstadisticas)
+                  _buildMenuItem(
+                    icon: Icons.bar_chart,
+                    title: 'Estadísticas y Ganancias',
+                    routeName: 'estadisticas',
+                    screen: const EstadisticasScreen(),
+                  ),
+                if (esDueno) ...[
                   _buildMenuItem(
                     icon: Icons.people_alt_outlined,
                     title: 'Mi Equipo',
@@ -315,6 +334,21 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
         onTap: () => _navigateTo(screen, routeName),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+          letterSpacing: 1.2,
+        ),
       ),
     );
   }

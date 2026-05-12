@@ -104,12 +104,15 @@ class Venta {
                 _calcularDescuento(
                     _calcularSubtotal(items), tipoDescuento, valorDescuento),
                 !envioPagadoPorVendedor ? costoEnvio : 0.0),
-        utilidad = utilidadInyectado ?? 
-            ((totalInyectado ?? _calcularTotal(
-                _calcularSubtotal(items),
-                _calcularDescuento(
-                    _calcularSubtotal(items), tipoDescuento, valorDescuento),
-                !envioPagadoPorVendedor ? costoEnvio : 0.0)) - (costoTotalInyectado ?? _calcularCostoTotal(items)));
+        utilidad = utilidadInyectado ??
+            ((totalInyectado ??
+                    _calcularTotal(
+                        _calcularSubtotal(items),
+                        _calcularDescuento(_calcularSubtotal(items),
+                            tipoDescuento, valorDescuento),
+                        !envioPagadoPorVendedor ? costoEnvio : 0.0)) -
+                (costoTotalInyectado ?? _calcularCostoTotal(items)) -
+                (envioPagadoPorVendedor ? costoEnvio : 0.0));
 
   static double _calcularSubtotal(List<VentaItem> items) {
     return items.fold(0.0, (sum, item) => sum + item.subtotal);

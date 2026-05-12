@@ -10,6 +10,7 @@ import '../models/producto.dart';
 import '../models/venta.dart';
 import '../models/turno_caja.dart';
 import '../models/negocio.dart';
+import 'auth_service.dart';
 
 class ImpresionService {
   // Caché simple en memoria para el logo durante la sesión
@@ -68,34 +69,37 @@ class ImpresionService {
       pw.Page(
         pageFormat: format,
         build: (pw.Context context) {
-          return pw.Column(
-            mainAxisAlignment: pw.MainAxisAlignment.center,
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              pw.Text(
-                producto.nombre.toUpperCase(),
-                style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-                textAlign: pw.TextAlign.center,
-                maxLines: 2,
-                overflow: pw.TextOverflow.clip,
-              ),
-              pw.SizedBox(height: 2),
-              pw.Text(
-                '\$${producto.precio.toStringAsFixed(2)}',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Container(
-                height: 40,
-                width: 120,
-                child: pw.BarcodeWidget(
-                  barcode: Barcode.code128(),
-                  data: producto.codigoBarras!,
-                  drawText: true,
-                  textStyle: pw.TextStyle(fontSize: 8),
+          return pw.Center(
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  producto.nombre.toUpperCase(),
+                  style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                  maxLines: 2,
+                  overflow: pw.TextOverflow.clip,
                 ),
-              ),
-            ],
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  '\$${producto.precio.toStringAsFixed(2)}',
+                  style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 4),
+                pw.SizedBox(
+                  height: 40,
+                  width: 140, // Aumentamos un poco el ancho para el código de barras
+                  child: pw.BarcodeWidget(
+                    barcode: Barcode.code128(),
+                    data: producto.codigoBarras!,
+                    drawText: true,
+                    textStyle: pw.TextStyle(fontSize: 8),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -109,19 +113,21 @@ class ImpresionService {
     }
   }
 
-  /// Genera e imprime el Ticket de Venta para el cliente
-  /// [nombreCliente] se imprime si la venta es a CRÉDITO.
-  static Future<void> imprimirTicketVenta(
-    Venta venta,
-    Negocio negocio, {
-    String? nombreCliente,
+  /// Genera e imprime el Ticket de Venta Profesional para impresoras térmicas (58mm/80mm)
+  static Future<void> imprimirTicketVenta({
+    required Venta venta,
+    required Negocio negocio,
+    required double pagoCliente,
+    TurnoCaja? turno,
   }) async {
     final pdf = pw.Document();
     final DateFormat formatter = DateFormat('dd/MM/yyyy HH:mm');
     final font = await _getFont();
     final fontBold = await PdfGoogleFonts.robotoBold();
     
-    final pw.MemoryImage? logoImage = await _getLogoImage(negocio.logoUrl);
+    // Obtenemos el nombre del usuario actual para el pie de página
+    final String atendidoPor = AuthService().currentUserData?.nombre ?? 'Sistema';
+    final double cambio = (pagoCliente - venta.total).clamp(0.0, double.infinity);
 
     pdf.addPage(
       pw.Page(
@@ -131,139 +137,107 @@ class ImpresionService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // ── Logo ────────────────────────────────────────────────
-              if (logoImage != null)
-                pw.Center(
-                  child: pw.Container(
-                    width: 120,
-                    height: 70,
-                    margin: const pw.EdgeInsets.only(bottom: 5),
-                    child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                  ),
-                ),
-
-              // ── Datos del negocio ────────────────────────────────────
+              // ── CABECERA ───────────────────────────────────────────
               pw.Center(
                 child: pw.Column(
                   children: [
                     pw.Text(
                       negocio.nombre.toUpperCase(),
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14),
                       textAlign: pw.TextAlign.center,
                     ),
-                    if (negocio.rfc != null)
-                      pw.Text('RFC: ${negocio.rfc}', style: pw.TextStyle(fontSize: 7)),
-                    if (negocio.direccion != null)
+                    if (negocio.direccion != null && negocio.direccion!.isNotEmpty)
                       pw.Text(negocio.direccion!, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 7)),
-                    if (negocio.telefono != null)
+                    if (negocio.telefono != null && negocio.telefono!.isNotEmpty)
                       pw.Text('Tel: ${negocio.telefono}', style: pw.TextStyle(fontSize: 7)),
+                    pw.SizedBox(height: 4),
+                    pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Folio: ${_getSafeId(venta.id)}', style: pw.TextStyle(fontSize: 7)),
+                        pw.Text(formatter.format(venta.fecha), style: pw.TextStyle(fontSize: 7)),
+                      ],
+                    ),
+                    pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
                   ],
                 ),
               ),
 
-              // ── Cliente (solo ventas a crédito) ─────────────────────
-              if (venta.metodoPago == MetodoPago.credito && nombreCliente != null) ...[
-                pw.SizedBox(height: 4),
-                pw.Text(_lineaDelgada, style: pw.TextStyle(fontSize: 6)),
-                pw.Text(
-                  'Cliente: $nombreCliente',
-                  style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-                ),
-              ],
-
               pw.SizedBox(height: 4),
-              pw.Text(_linea, style: const pw.TextStyle(fontSize: 6)),
-              pw.Text('Ticket: ${_getSafeId(venta.id)}', style: const pw.TextStyle(fontSize: 8)),
-              pw.Text('Fecha : ${formatter.format(venta.fecha)}', style: pw.TextStyle(fontSize: 8)),
-              pw.Text('Pago  : ${venta.metodoPago.name.toUpperCase()}', style: pw.TextStyle(fontSize: 8)),
-              pw.SizedBox(height: 4),
-              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
 
-              // ── Encabezado tabla ────────────────────────────────────
+              // ── CUERPO (PRODUCTOS) ──────────────────────────────────
               pw.Row(
                 children: [
-                  pw.SizedBox(
-                    width: 24,
-                    child: pw.Text('CANT', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.Expanded(
-                    child: pw.Text('DESCRIPCIÓN', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold)),
-                  ),
-                  pw.SizedBox(
-                    width: 36,
-                    child: pw.Text('TOTAL', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right),
-                  ),
+                  pw.SizedBox(width: 20, child: pw.Text('CT', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.Expanded(child: pw.Text('DESCRIPCION', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold))),
+                  pw.SizedBox(width: 40, child: pw.Text('TOTAL', style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold), textAlign: pw.TextAlign.right)),
                 ],
               ),
               pw.Text(_lineaDelgada, style: pw.TextStyle(fontSize: 6)),
 
-              // ── Filas de productos ───────────────────────────────────
-              ...venta.items.map((item) => pw.Padding(
-                padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+              ...venta.items.map((item) {
+                // Truncamos el nombre si es muy largo para que no rompa la línea de forma desordenada
+                String nombreCorto = item.nombre;
+                if (nombreCorto.length > 22) {
+                  nombreCorto = '${nombreCorto.substring(0, 19)}...';
+                }
+
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.SizedBox(width: 20, child: pw.Text(_formatCantidad(item.cantidad), style: pw.TextStyle(fontSize: 7))),
+                      pw.Expanded(child: pw.Text(nombreCorto, style: pw.TextStyle(fontSize: 7))),
+                      pw.SizedBox(width: 40, child: pw.Text('\$${item.subtotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 7), textAlign: pw.TextAlign.right)),
+                    ],
+                  ),
+                );
+              }),
+
+              pw.SizedBox(height: 4),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+
+              // ── TOTALES ─────────────────────────────────────────────
+              _filaTotal('SUBTOTAL:', '\$${venta.subtotal.toStringAsFixed(2)}', size: 8),
+              if (venta.descuentoAplicado > 0)
+                _filaTotal('DESCUENTO:', '-\$${venta.descuentoAplicado.toStringAsFixed(2)}', size: 8),
+              if (venta.costoEnvio > 0)
+                _filaTotal('ENVÍO:', '\$${venta.costoEnvio.toStringAsFixed(2)}', size: 8),
+              
+              pw.SizedBox(height: 2),
+              _filaTotal('TOTAL A PAGAR:', '\$${venta.total.toStringAsFixed(2)}', boldness: pw.FontWeight.bold, size: 11),
+              
+              pw.SizedBox(height: 2),
+              pw.Text(_lineaDelgada, style: pw.TextStyle(fontSize: 6)),
+              _filaTotal('EFECTIVO RECIBIDO:', '\$${pagoCliente.toStringAsFixed(2)}', size: 8),
+              _filaTotal('CAMBIO:', '\$${cambio.toStringAsFixed(2)}', boldness: pw.FontWeight.bold, size: 9),
+              
+              pw.SizedBox(height: 4),
+              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
+
+              // ── PIE DE PÁGINA ───────────────────────────────────────
+              pw.SizedBox(height: 6),
+              pw.Center(
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Row(
-                      children: [
-                        pw.SizedBox(
-                          width: 24,
-                          child: pw.Text(
-                            _formatCantidad(item.cantidad),
-                            style: pw.TextStyle(fontSize: 7),
-                          ),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            item.nombre,
-                            style: pw.TextStyle(fontSize: 7),
-                            maxLines: 2,
-                            overflow: pw.TextOverflow.clip,
-                          ),
-                        ),
-                        pw.SizedBox(
-                          width: 36,
-                          child: pw.Text(
-                            '\$${item.subtotal.toStringAsFixed(2)}',
-                            style: pw.TextStyle(fontSize: 7),
-                            textAlign: pw.TextAlign.right,
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Precio unitario si aplica
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(left: 24),
-                      child: pw.Text(
-                        '@\$${item.precioUnitario.toStringAsFixed(2)} c/u',
-                        style: pw.TextStyle(fontSize: 6, color: PdfColors.grey600),
-                      ),
+                    pw.Text('¡GRACIAS POR SU COMPRA!', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                    pw.SizedBox(height: 2),
+                    pw.Text('Vuelva pronto', style: pw.TextStyle(fontSize: 7, fontStyle: pw.FontStyle.italic)),
+                    pw.SizedBox(height: 6),
+                    pw.Text('Atendido por: $atendidoPor', style: pw.TextStyle(fontSize: 7)),
+                    pw.SizedBox(height: 4),
+                    pw.BarcodeWidget(
+                      barcode: Barcode.qrCode(),
+                      data: 'Ticket-${venta.id}',
+                      width: 35,
+                      height: 35,
                     ),
                   ],
                 ),
-              )),
-
-              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
-
-              // ── Totales ──────────────────────────────────────────────
-              _filaTotal('Subtotal:', '\$${venta.subtotal.toStringAsFixed(2)}'),
-              if (venta.descuentoAplicado > 0)
-                _filaTotal('Descuento:', '-\$${venta.descuentoAplicado.toStringAsFixed(2)}'),
-              if (venta.costoEnvio > 0)
-                _filaTotal('Envío:', '\$${venta.costoEnvio.toStringAsFixed(2)}'),
-              pw.SizedBox(height: 2),
-              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
-              _filaTotal('TOTAL:', '\$${venta.total.toStringAsFixed(2)}', boldness: pw.FontWeight.bold, size: 12),
-              pw.Text(_linea, style: pw.TextStyle(fontSize: 6)),
-
-              pw.SizedBox(height: 8),
-              pw.Center(child: pw.BarcodeWidget(
-                barcode: Barcode.qrCode(),
-                data: venta.id,
-                width: 40,
-                height: 40,
-              )),
-              pw.SizedBox(height: 5),
-              pw.Center(child: pw.Text('¡Gracias por su compra!', style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic))),
+              ),
+              pw.SizedBox(height: 10),
             ],
           );
         },
@@ -274,7 +248,12 @@ class ImpresionService {
       final bytes = await pdf.save();
       await Printing.sharePdf(bytes: bytes, filename: 'Ticket_${venta.id}.pdf');
     } else {
-      await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Ticket_${venta.id}');
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(), 
+        name: 'Ticket_${venta.id}',
+        // Forzamos un formato de página que las impresoras térmicas entiendan bien si están instaladas como genéricas
+        format: const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity),
+      );
     }
   }
 

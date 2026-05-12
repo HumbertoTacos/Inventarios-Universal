@@ -98,7 +98,7 @@ class GestionCategoriasScreen extends StatelessWidget {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _AgregarCategoriaDialog(firebaseService: firebaseService),
+      builder: (ctx) => _CategoriaFormDialog(firebaseService: firebaseService),
     );
   }
 }
@@ -180,6 +180,17 @@ class _CategoriaCard extends StatelessWidget {
         );
       }
     }
+  }
+
+  Future<void> _mostrarDialogoEditar(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _CategoriaFormDialog(
+        firebaseService: firebaseService,
+        categoria: categoria,
+      ),
+    );
   }
 
   @override
@@ -305,6 +316,11 @@ class _CategoriaCard extends StatelessWidget {
                 ),
               ),
               IconButton(
+                icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                tooltip: 'Editar categoría',
+                onPressed: () => _mostrarDialogoEditar(context),
+              ),
+              IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                 tooltip: 'Eliminar categoría',
                 onPressed: () => _intentarEliminar(context),
@@ -317,24 +333,39 @@ class _CategoriaCard extends StatelessWidget {
   }
 }
 
-// ── Diálogo para agregar categoría ────────────────────────────────────────
+// ── Diálogo para agregar/editar categoría ───────────────────────────────────
 
-class _AgregarCategoriaDialog extends StatefulWidget {
+class _CategoriaFormDialog extends StatefulWidget {
   final FirebaseService firebaseService;
-  const _AgregarCategoriaDialog({required this.firebaseService});
+  final Categoria? categoria; // Si no es nulo, estamos editando
+
+  const _CategoriaFormDialog({
+    required this.firebaseService,
+    this.categoria,
+  });
 
   @override
-  State<_AgregarCategoriaDialog> createState() =>
-      _AgregarCategoriaDialogState();
+  State<_CategoriaFormDialog> createState() => _CategoriaFormDialogState();
 }
 
-class _AgregarCategoriaDialogState extends State<_AgregarCategoriaDialog> {
+class _CategoriaFormDialogState extends State<_CategoriaFormDialog> {
   final _nombreCtrl = TextEditingController();
-  final List<AtributoCategoria> _atributos = [];
+  List<AtributoCategoria> _atributos = [];
 
   bool _guardando = false;
   String? _errorNombre;
   String? _errorAtributos;
+
+  bool get _esEdicion => widget.categoria != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_esEdicion) {
+      _nombreCtrl.text = widget.categoria!.nombre;
+      _atributos = List<AtributoCategoria>.from(widget.categoria!.atributos);
+    }
+  }
 
   @override
   void dispose() {
@@ -373,17 +404,37 @@ class _AgregarCategoriaDialogState extends State<_AgregarCategoriaDialog> {
     setState(() => _guardando = true);
 
     try {
-      final nueva = Categoria(
-        id: '',
-        nombre: nombre,
-        atributos: List<AtributoCategoria>.from(_atributos),
-        orden: 0,
-      );
-      await widget.firebaseService.agregarCategoria(nueva);
+      if (_esEdicion) {
+        final editada = Categoria(
+          id: widget.categoria!.id,
+          nombre: nombre,
+          atributos: List<AtributoCategoria>.from(_atributos),
+          orden: widget.categoria!.orden,
+        );
+        await widget.firebaseService.actualizarCategoria(
+          editada,
+          nombreAnterior: widget.categoria!.nombre,
+        );
+      } else {
+        final nueva = Categoria(
+          id: '',
+          nombre: nombre,
+          atributos: List<AtributoCategoria>.from(_atributos),
+          orden: 0,
+        );
+        await widget.firebaseService.agregarCategoria(nueva);
+      }
+
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"$nombre" agregada correctamente.')),
+          SnackBar(
+            content: Text(
+              _esEdicion
+                  ? '"$nombre" actualizada correctamente.'
+                  : '"$nombre" agregada correctamente.',
+            ),
+          ),
         );
       }
     } catch (e) {
@@ -401,7 +452,7 @@ class _AgregarCategoriaDialogState extends State<_AgregarCategoriaDialog> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(
-      title: const Text('Nueva categoría'),
+      title: Text(_esEdicion ? 'Editar categoría' : 'Nueva categoría'),
       scrollable: true,
       content: SizedBox(
         width: 440,
