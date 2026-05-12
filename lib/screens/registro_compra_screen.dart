@@ -241,7 +241,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
   @override
   Widget build(BuildContext context) {
     return ResponsiveScaffold(
-      currentRoute: '/registro_compra',
+      currentRoute: 'registro_compra',
       title: 'Registrar Compra',
       body: Column(
         children: [

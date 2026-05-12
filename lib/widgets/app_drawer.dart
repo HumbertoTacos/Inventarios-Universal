@@ -126,13 +126,13 @@ class _AppDrawerState extends State<AppDrawer> {
                 _buildMenuItem(
                   icon: Icons.price_change_outlined,
                   title: 'Actualización de Precios',
-                  routeName: '/actualizacion_precios',
+                  routeName: 'actualizacion_precios',
                   screen: const ActualizacionPreciosScreen(),
                 ),
                 _buildMenuItem(
                   icon: Icons.auto_fix_high_outlined,
                   title: 'Mermas y Ajustes',
-                  routeName: '/ajuste_inventario',
+                  routeName: 'ajuste_inventario',
                   screen: const AjusteInventarioScreen(),
                 ),
                 if (esDueno)
@@ -150,25 +150,25 @@ class _AppDrawerState extends State<AppDrawer> {
                   _buildMenuItem(
                     icon: Icons.local_shipping_outlined,
                     title: 'Proveedores',
-                    routeName: '/proveedores',
+                    routeName: 'proveedores',
                     screen: const GestionProveedoresScreen(),
                   ),
                   _buildMenuItem(
                     icon: Icons.add_business_outlined,
                     title: 'Registrar Entrada (Compra)',
-                    routeName: '/registro_compra',
+                    routeName: 'registro_compra',
                     screen: const RegistroCompraScreen(),
                   ),
                   _buildMenuItem(
                     icon: Icons.auto_graph_outlined,
                     title: 'Sugerencias de Compra',
-                    routeName: '/sugerencias_compra',
+                    routeName: 'sugerencias_compra',
                     screen: const SugerenciasCompraScreen(),
                   ),
                   _buildMenuItem(
                     icon: Icons.money_off_csred_outlined,
                     title: 'Cuentas por Pagar',
-                    routeName: '/cuentas_por_pagar',
+                    routeName: 'cuentas_por_pagar',
                     screen: const CuentasPorPagarScreen(),
                   ),
                 ],

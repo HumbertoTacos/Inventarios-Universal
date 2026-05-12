@@ -40,6 +40,9 @@ class _VentasScreenState extends State<VentasScreen> {
   List<Producto> _productosGlobales = [];
   bool _mostrandoBusqueda = false;
 
+  // [FinOps] Suscripción al Bounded Stream del catálogo (máx 50 productos)
+  StreamSubscription<List<Producto>>? _catalogoSub;
+
   final _costoEnvioCtrl = TextEditingController(text: '0');
   bool _envioPagadoPorVendedor = true;
 
@@ -60,7 +63,17 @@ class _VentasScreenState extends State<VentasScreen> {
     super.initState();
     ConfiguracionController.instance.addListener(_onConfigChanged);
     _cargarNegocio();
-    _cargarCatalogoInicial();
+    // [FinOps] Bounded Stream: máximo 50 productos, actualizaciones en tiempo real
+    _catalogoSub = _firebaseService
+        .getProductosStreamLimitado(limite: 50)
+        .listen((productos) {
+      if (mounted) {
+        setState(() => _productosGlobales = productos);
+        for (var p in productos) {
+          _cacheProductos[p.id] = p;
+        }
+      }
+    });
   }
 
   void _onConfigChanged() {
@@ -71,21 +84,14 @@ class _VentasScreenState extends State<VentasScreen> {
     }
   }
 
-  Future<void> _cargarCatalogoInicial() async {
-    try {
-      final res = await _firebaseService.getProductosPaginados(limite: 50);
-      if (mounted) {
-        setState(() {
-          _productosGlobales = res.productos;
-        });
-        for (var p in res.productos) {
-          _cacheProductos[p.id] = p;
-        }
-      }
-    } catch (_) {}
-  }
 
   Future<void> _cargarNegocio() async {
+    // [FinOps] Usar el caché del ConfiguracionController — 0 lecturas si ya está cargado
+    final cached = ConfiguracionController.instance.negocio;
+    if (cached != null) {
+      if (mounted) setState(() => _negocio = cached);
+      return;
+    }
     try {
       final n = await _firebaseService.getDatosNegocio();
       if (mounted) setState(() => _negocio = n);
@@ -94,6 +100,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   @override
   void dispose() {
+    _catalogoSub?.cancel(); // [FinOps] Cancelar stream al salir de la pantalla
     ConfiguracionController.instance.removeListener(_onConfigChanged);
     _debounceTimer?.cancel();
     _costoEnvioCtrl.dispose();
@@ -320,7 +327,9 @@ class _VentasScreenState extends State<VentasScreen> {
 
   Future<bool> _solicitarPinAutorizacion() async {
     final TextEditingController pinCtrl = TextEditingController();
-    final negocio = await _firebaseService.getDatosNegocio();
+    // [FinOps] Lee el PIN desde el caché en memoria — 0 lecturas a Firestore
+    final negocio = _negocio ?? ConfiguracionController.instance.negocio;
+    if (negocio == null) return false;
     final pinCorrecto = negocio.pinAutorizacion;
 
     if (pinCorrecto == null || pinCorrecto.isEmpty) {
@@ -579,7 +588,8 @@ class _VentasScreenState extends State<VentasScreen> {
 
       // Guardamos datos para el ticket antes de limpiar
       final ventaFinal = nuevaVenta;
-      final negocioFinal = await _firebaseService.getDatosNegocio();
+      // [FinOps] Reutilizar el negocio ya cargado en _negocio — 0 lecturas extra
+      final negocioFinal = _negocio ?? await _firebaseService.getDatosNegocio();
 
       setState(() {
         _carrito.clear();

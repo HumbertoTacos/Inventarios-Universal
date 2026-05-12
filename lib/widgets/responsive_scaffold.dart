@@ -19,6 +19,8 @@ import '../screens/gestion_proveedores_screen.dart';
 import '../screens/registro_compra_screen.dart';
 import '../screens/cuentas_por_pagar_screen.dart';
 import '../screens/sugerencias_compra_screen.dart';
+import '../screens/actualizacion_precios_screen.dart';
+import '../screens/ajuste_inventario_screen.dart';
 import '../controllers/configuracion_controller.dart';
 
 class ResponsiveScaffold extends StatelessWidget {
@@ -238,15 +240,20 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     final colorScheme = Theme.of(context).colorScheme;
 
     final List<_RailItem> items = [
-      _RailItem('inventario', 'Inventario', Icons.inventory_2_outlined, const InventarioScreen()),
       _RailItem('ventas', 'Punto de Venta', Icons.point_of_sale, const VentasScreen()),
       if (usaCaja)
         _RailItem('caja', 'Caja y Turnos', Icons.point_of_sale_outlined, const CajaScreen()),
       if (puedeVerHistorial)
         _RailItem('historial', 'Historial', Icons.history, const HistorialVentasScreen()),
       _RailItem('clientes', 'Clientes', Icons.people_outlined, const ClientesScreen()),
+      
+      _RailItem('inventario', 'Inventario', Icons.inventory_2_outlined, const InventarioScreen()),
+      _RailItem('actualizacion_precios', 'Precios', Icons.price_change_outlined, const ActualizacionPreciosScreen()),
+      _RailItem('ajuste_inventario', 'Mermas', Icons.auto_fix_high_outlined, const AjusteInventarioScreen()),
+      
       if (esDueno || puedeVerEstadisticas)
         _RailItem('estadisticas', 'Estadísticas', Icons.bar_chart, const EstadisticasScreen()),
+      
       if (esDueno) ...[
         _RailItem('proveedores', 'Proveedores', Icons.local_shipping_outlined, const GestionProveedoresScreen()),
         _RailItem('registro_compra', 'Comprar', Icons.add_business_outlined, const RegistroCompraScreen()),
@@ -279,6 +286,14 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     VoidCallback? onToggle,
     Negocio? negocio,
   ) {
+    final String userRol = userData?.rol?.toLowerCase() ?? '';
+    final bool esDueno = userRol == 'dueño' || userRol == 'dueno' || userRol == 'admin';
+    final bool puedeVerHistorial =
+        esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
+    final bool puedeVerEstadisticas =
+        esDueno || (userData?.permisos.puedeVerEstadisticas ?? false);
+    final bool usaCaja = _configController.usaCajaRegistradora;
+
     return Container(
       color: colorScheme.surfaceContainerLow,
       child: Column(
@@ -429,14 +444,47 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
 
           // ── Lista de navegación ──────────────────────────────────────────
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: items.length,
-              itemBuilder: (context, i) {
-                final item = items[i];
-                final isSelected = i == selectedIndex;
-                return _buildNavItem(context, colorScheme, item, isSelected);
-              },
+              children: [
+                // ── OPERACIONES ──
+                _buildSectionHeader('Operaciones'),
+                _buildNavItemFromRoute(items, 'ventas'),
+                if (usaCaja) _buildNavItemFromRoute(items, 'caja'),
+                if (puedeVerHistorial) _buildNavItemFromRoute(items, 'historial'),
+                _buildNavItemFromRoute(items, 'clientes'),
+
+                const Divider(indent: 16, endIndent: 16, height: 24),
+
+                // ── INVENTARIO ──
+                _buildSectionHeader('Inventario'),
+                _buildNavItemFromRoute(items, 'inventario'),
+                _buildNavItemFromRoute(items, 'actualizacion_precios'),
+                _buildNavItemFromRoute(items, 'ajuste_inventario'),
+                if (esDueno) _buildNavItemFromRoute(items, 'categorias'),
+
+                if (esDueno) ...[
+                  const Divider(indent: 16, endIndent: 16, height: 24),
+                  // ── COMPRAS ──
+                  _buildSectionHeader('Compras'),
+                  _buildNavItemFromRoute(items, 'proveedores'),
+                  _buildNavItemFromRoute(items, 'registro_compra'),
+                  _buildNavItemFromRoute(items, 'sugerencias_compra'),
+                  _buildNavItemFromRoute(items, 'cuentas_por_pagar'),
+                ],
+
+                const Divider(indent: 16, endIndent: 16, height: 24),
+
+                // ── ADMINISTRACIÓN ──
+                _buildSectionHeader('Administración'),
+                if (esDueno || puedeVerEstadisticas)
+                  _buildNavItemFromRoute(items, 'estadisticas'),
+                if (esDueno) ...[
+                  _buildNavItemFromRoute(items, 'equipo'),
+                  _buildNavItemFromRoute(items, 'bitacora'),
+                  _buildNavItemFromRoute(items, 'configuracion'),
+                ],
+              ],
             ),
           ),
 
@@ -445,6 +493,31 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
           _buildLogoutTile(context, colorScheme),
           const SizedBox(height: 8),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNavItemFromRoute(List<_RailItem> items, String route) {
+    final i = items.indexWhere((it) => it.route == route);
+    if (i == -1) return const SizedBox.shrink();
+    final item = items[i];
+    final isSelected = widget.currentRoute == route;
+    return _buildNavItem(context, Theme.of(context).colorScheme, item, isSelected);
+  }
+
+  Widget _buildSectionHeader(String title) {
+    if (!widget.extended) return const SizedBox(height: 8);
+    
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+          letterSpacing: 1.1,
+        ),
       ),
     );
   }

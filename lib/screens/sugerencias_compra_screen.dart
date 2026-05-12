@@ -19,10 +19,12 @@ class _SugerenciasCompraScreenState extends State<SugerenciasCompraScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ResponsiveScaffold(
-      currentRoute: '/sugerencias_compra',
+      currentRoute: 'sugerencias_compra',
       title: 'Sugerencias de Compra',
       body: StreamBuilder<List<Producto>>(
-        stream: _firebaseService.getProductos(),
+        // [FinOps] Bounded Stream: límite de 200 para cubrir catálogos grandes.
+        // El filtrado a bajo stock se hace localmente — costo cero adicional.
+        stream: _firebaseService.getProductosStreamLimitado(limite: 200),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

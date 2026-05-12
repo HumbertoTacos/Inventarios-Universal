@@ -23,7 +23,7 @@ class _CuentasPorPagarScreenState extends State<CuentasPorPagarScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ResponsiveScaffold(
-      currentRoute: '/cuentas_por_pagar',
+      currentRoute: 'cuentas_por_pagar',
       title: 'Cuentas por Pagar',
       body: StreamBuilder<List<CuentaPorPagar>>(
         stream: _streamCuentas(),

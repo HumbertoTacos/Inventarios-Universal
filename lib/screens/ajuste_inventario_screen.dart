@@ -220,7 +220,7 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
     final bool isDesktop = ResponsiveLayout.isDesktop(context);
 
     return ResponsiveScaffold(
-      currentRoute: '/ajuste_inventario',
+      currentRoute: 'ajuste_inventario',
       title: 'Ajuste de Inventario (Mermas)',
       body: Center(
         child: ConstrainedBox(

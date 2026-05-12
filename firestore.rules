@@ -80,6 +80,9 @@ service cloud.firestore {
     match /negocios/{negocioId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null; // Se crea en el flujo de registro
+      // [FinOps Security] Solo el dueño puede actualizar el negocio.
+      // Los campos de caché (capitalInventarioCache) solo son modificables por el dueño
+      // (que es quien llama a getCapitalEnInventario desde el Dashboard).
       allow update: if esDueno(negocioId) || esAdmin();
       allow delete: if esAdmin();
 
@@ -186,13 +189,18 @@ service cloud.firestore {
     }
     
     match /bitacora/{logId} {
-  // Solo permite leer si el log pertenece al negocio del usuario autenticado
-  allow read: if request.auth != null && 
-    get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId == resource.data.negocioId;
-  
-  // Solo permite crear logs (no editar ni borrar para mantener integridad)
-  allow create: if request.auth != null;
-  allow update, delete: if false; 
-}
+      // [Security] Solo puede leer logs del propio negocio
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId == resource.data.negocioId;
+
+      // [Security] Solo permite crear si el negocioId del log coincide con el del usuario
+      // Esto previene inyección de logs entre inquilinos (cross-tenant log injection)
+      allow create: if request.auth != null
+        && request.resource.data.negocioId ==
+           get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId;
+
+      // Inmutable: la bitácora no se puede editar ni borrar
+      allow update, delete: if false;
+    }
   }
 }

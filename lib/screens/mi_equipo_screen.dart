@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
+import '../services/firebase_service.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
@@ -264,12 +265,7 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
             // ── Lista de Empleados ───────────────────────────────────────────
             // ── Solicitudes Pendientes ───────────────────────────────────────
             StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('negocios')
-                  .doc(currentNegocioId)
-                  .collection('solicitudes')
-                  .where('estatus', isEqualTo: 'pendiente')
-                  .snapshots(),
+              stream: FirebaseService().getSolicitudesPendientesStream(currentNegocioId ?? ''),
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const SizedBox.shrink();
@@ -355,11 +351,7 @@ class _MiEquipoScreenState extends State<MiEquipoScreen> {
             ),
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('usuarios')
-                .where('negocioId', isEqualTo: currentNegocioId)
-                .where('rol', isNotEqualTo: AuthService.rolDueno)
-                .snapshots(),
+            stream: FirebaseService().getEmpleadosActivosStream(currentNegocioId ?? ''),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());

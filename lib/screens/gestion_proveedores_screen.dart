@@ -129,7 +129,7 @@ class _GestionProveedoresScreenState extends State<GestionProveedoresScreen> {
   @override
   Widget build(BuildContext context) {
     return ResponsiveScaffold(
-      currentRoute: '/proveedores',
+      currentRoute: 'proveedores',
       title: 'Gestión de Proveedores',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _abrirFormulario(),

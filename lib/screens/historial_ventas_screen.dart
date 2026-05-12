@@ -8,6 +8,7 @@ import 'detalle_venta_screen.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
+import '../controllers/configuracion_controller.dart';
 
 class HistorialVentasScreen extends StatefulWidget {
   const HistorialVentasScreen({super.key});
@@ -205,7 +206,8 @@ class _HistorialVentasScreenState extends State<HistorialVentasScreen> {
             color: Colors.blue,
             onPressed: () async {
               try {
-                final negocio = await _firebaseService.getDatosNegocio();
+                // [FinOps] Reutilizamos el negocio en memoria si existe para no hacer lecturas extra a Firestore
+                final negocio = ConfiguracionController.instance.negocio ?? await _firebaseService.getDatosNegocio();
                 await ImpresionService.imprimirTicketVenta(
                   venta: venta, 
                   negocio: negocio, 

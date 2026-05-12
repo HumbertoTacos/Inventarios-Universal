@@ -181,6 +181,31 @@ class FirebaseService {
         );
   }
 
+  /// [FinOps] Stream limitado de productos — Bounded Stream para evitar sobrecostos.
+  /// Usa `.limit()` obligatorio. El filtrado avanzado se realiza localmente en la UI.
+  /// - [limite]: Número máximo de documentos a escuchar (default 50).
+  /// - [categoriaId]: Filtra por categoría en el servidor si se proporciona.
+  Stream<List<Producto>> getProductosStreamLimitado({
+    int limite = 50,
+    String? categoriaId,
+  }) {
+    Query query = _productosRef
+        .where('activo', isEqualTo: true)
+        .where('esBase', isEqualTo: true)
+        .orderBy('nombre')
+        .limit(limite); // ← Regla crítica FinOps: SIEMPRE presente
+
+    if (categoriaId != null && categoriaId.isNotEmpty) {
+      query = query.where('categoriaId', isEqualTo: categoriaId);
+    }
+
+    return query.snapshots().map(
+      (snap) => snap.docs
+          .map((doc) => Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .toList(),
+    );
+  }
+
   /// Busca variante plana por código de barras de manera eficiente limitando la respuesta a 1
   Future<Producto?> buscarVariantePorSKU(String codigo) async {
     final query = _productosRef
@@ -1497,23 +1522,49 @@ class FirebaseService {
         );
   }
 
-  /// Calcula el capital total congelado en el inventario
+  /// [FinOps] Lazy Cache — evita el Full Collection Scan en cada llamada.
+  /// - Caché válido 12 horas: costo = 1 lectura (doc del negocio).
+  /// - Caché expirado: Full Scan + escribe el nuevo valor (amortizado en el tiempo).
   Future<double> getCapitalEnInventario() async {
-    final snapshot = await _productosRef.get();
+    // Paso 1: Leer el documento del Negocio (1 lectura)
+    final negocioDoc = await _negocioDataRef.get();
+    if (negocioDoc.exists) {
+      final data = negocioDoc.data() as Map<String, dynamic>;
+      final cached = (data['capitalInventarioCache'] as num?)?.toDouble();
+      final ultimaStr = data['ultimaActualizacionCapital'] as String?;
+      final ultima = ultimaStr != null ? DateTime.tryParse(ultimaStr) : null;
+
+      // Paso 2: Si el caché es fresco (< 12 horas), devolver sin leer productos
+      if (cached != null && ultima != null) {
+        final age = DateTime.now().difference(ultima);
+        if (age.inHours < 12) {
+          return cached; // ✅ 1 lectura total
+        }
+      }
+    }
+
+    // Paso 3: Caché expirado o ausente — Full Scan
+    final snapshot = await _productosRef
+        .where('activo', isEqualTo: true)
+        .where('esBase', isEqualTo: true)
+        .get();
     double totalCapital = 0.0;
 
     for (final doc in snapshot.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final stock = (data['cantidad'] as num?)?.toInt() ?? 0;
+      final stock = (data['cantidad'] as num?)?.toDouble() ?? 0.0;
       final costoPromedio =
-          (data['costo_promedio'] as num? ?? data['costo'] as num?)
+          (data['costoPromedio'] as num? ?? data['costo_promedio'] as num? ?? data['costo'] as num?)
               ?.toDouble() ??
           0.0;
-
-      if (stock > 0) {
-        totalCapital += (stock * costoPromedio);
-      }
+      if (stock > 0) totalCapital += stock * costoPromedio;
     }
+
+    // Paso 4: Persistir el nuevo valor en caché (1 escritura merge)
+    await _negocioDataRef.set({
+      'capitalInventarioCache': totalCapital,
+      'ultimaActualizacionCapital': DateTime.now().toIso8601String(),
+    }, SetOptions(merge: true));
 
     return totalCapital;
   }
@@ -1683,10 +1734,11 @@ class FirebaseService {
     await _clientesRef.doc(clienteId).delete();
   }
 
-  /// Stream paginado de clientes ordenados por nombre.
+  /// [FinOps] Stream de clientes con límite de 100 — evita descargas completas.
   Stream<List<Cliente>> getClientesStream() {
     return _clientesRef
         .orderBy('nombre')
+        .limit(100) // FinOps: máx 100 docs en tiempo real
         .snapshots()
         .map(
           (snap) => snap.docs
@@ -1792,11 +1844,12 @@ class FirebaseService {
     }
   }
 
-  /// Historial de abonos de un cliente en tiempo real.
+  /// [FinOps] Historial de abonos de un cliente — limitado a los 50 más recientes.
   Stream<List<Abono>> getAbonosPorCliente(String clienteId) {
     return _abonosRef
         .where('clienteId', isEqualTo: clienteId)
         .orderBy('fecha', descending: true)
+        .limit(50) // FinOps: máx 50 abonos en tiempo real
         .snapshots()
         .map(
           (snap) => snap.docs
@@ -1980,5 +2033,30 @@ class FirebaseService {
     } on FirebaseException catch (e) {
       throw Exception('Error en la transacción de ajuste: ${e.message}');
     }
+  }
+
+  // ── Empleados y Solicitudes ──────────────────────────────────────────────
+
+  /// [FinOps] Stream de solicitudes de empleados con límite para evitar sobrecostos
+  Stream<QuerySnapshot> getSolicitudesPendientesStream(String negocioId) {
+    if (negocioId.isEmpty) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('negocios')
+        .doc(negocioId)
+        .collection('solicitudes')
+        .where('estatus', isEqualTo: 'pendiente')
+        .limit(50)
+        .snapshots();
+  }
+
+  /// [FinOps] Stream de empleados activos con límite para evitar sobrecostos
+  Stream<QuerySnapshot> getEmpleadosActivosStream(String negocioId) {
+    if (negocioId.isEmpty) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('usuarios')
+        .where('negocioId', isEqualTo: negocioId)
+        .where('rol', isNotEqualTo: 'dueño')
+        .limit(100)
+        .snapshots();
   }
 }

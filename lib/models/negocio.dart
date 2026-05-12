@@ -9,6 +9,10 @@ class Negocio {
   final bool usaCajaRegistradora;
   final bool manejaEnvios;
 
+  // [FinOps] Campos de Lazy Cache para getCapitalEnInventario()
+  final double? capitalInventarioCache;
+  final DateTime? ultimaActualizacionCapital;
+
   Negocio({
     required this.id,
     required this.nombre,
@@ -19,6 +23,8 @@ class Negocio {
     this.pinAutorizacion,
     this.usaCajaRegistradora = true,
     this.manejaEnvios = false,
+    this.capitalInventarioCache,
+    this.ultimaActualizacionCapital,
   });
 
   Map<String, dynamic> toMap() {
@@ -31,6 +37,10 @@ class Negocio {
       'pinAutorizacion': pinAutorizacion,
       'usaCajaRegistradora': usaCajaRegistradora,
       'manejaEnvios': manejaEnvios,
+      // Solo incluimos los campos de cache si no son nulos (no sobreescribir con null)
+      if (capitalInventarioCache != null) 'capitalInventarioCache': capitalInventarioCache,
+      if (ultimaActualizacionCapital != null)
+        'ultimaActualizacionCapital': ultimaActualizacionCapital!.toIso8601String(),
     };
   }
 
@@ -45,6 +55,10 @@ class Negocio {
       pinAutorizacion: map['pinAutorizacion'] as String?,
       usaCajaRegistradora: map['usaCajaRegistradora'] as bool? ?? true,
       manejaEnvios: map['manejaEnvios'] as bool? ?? false,
+      capitalInventarioCache: (map['capitalInventarioCache'] as num?)?.toDouble(),
+      ultimaActualizacionCapital: map['ultimaActualizacionCapital'] != null
+          ? DateTime.tryParse(map['ultimaActualizacionCapital'] as String)
+          : null,
     );
   }
 
@@ -57,6 +71,8 @@ class Negocio {
     String? pinAutorizacion,
     bool? usaCajaRegistradora,
     bool? manejaEnvios,
+    double? capitalInventarioCache,
+    DateTime? ultimaActualizacionCapital,
   }) {
     return Negocio(
       id: id,
@@ -68,6 +84,8 @@ class Negocio {
       pinAutorizacion: pinAutorizacion ?? this.pinAutorizacion,
       usaCajaRegistradora: usaCajaRegistradora ?? this.usaCajaRegistradora,
       manejaEnvios: manejaEnvios ?? this.manejaEnvios,
+      capitalInventarioCache: capitalInventarioCache ?? this.capitalInventarioCache,
+      ultimaActualizacionCapital: ultimaActualizacionCapital ?? this.ultimaActualizacionCapital,
     );
   }
 }
