@@ -124,10 +124,15 @@ class _InventarioScreenState extends State<InventarioScreen> {
         _lastDoc = result.lastDoc;
         _isLoading = false;
         if (result.productos.length < 20) _hasMoreData = false;
-        
+
         // Cálculo rápido de resumen (de la página actual)
-        _totalInventario = _productos.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
-        _productosBajoStock = _productos.where((p) => p.cantidad <= p.stockMinimo).length;
+        _totalInventario = _productos.fold(
+          0,
+          (sum, p) => sum + (p.precio * p.cantidad),
+        );
+        _productosBajoStock = _productos
+            .where((p) => p.cantidad <= p.stockMinimo)
+            .length;
       });
     } catch (e) {
       if (!mounted) return;
@@ -351,7 +356,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   // Lógica de ordenamiento rápida (Local)
                   setState(() {
                     if (val == 'stock') {
-                      _productos.sort((a, b) => a.cantidad.compareTo(b.cantidad));
+                      _productos.sort(
+                        (a, b) => a.cantidad.compareTo(b.cantidad),
+                      );
                     } else if (val == 'precio') {
                       _productos.sort((a, b) => b.precio.compareTo(a.precio));
                     } else {
@@ -360,9 +367,18 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   });
                 },
                 itemBuilder: (ctx) => [
-                  const PopupMenuItem(value: 'nombre', child: Text('Nombre (A-Z)')),
-                  const PopupMenuItem(value: 'stock', child: Text('Menor Stock')),
-                  const PopupMenuItem(value: 'precio', child: Text('Mayor Precio')),
+                  const PopupMenuItem(
+                    value: 'nombre',
+                    child: Text('Nombre (A-Z)'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'stock',
+                    child: Text('Menor Stock'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'precio',
+                    child: Text('Mayor Precio'),
+                  ),
                 ],
               ),
             ),
@@ -436,27 +452,49 @@ class _InventarioScreenState extends State<InventarioScreen> {
       if (_productosFiltradosNombre.isEmpty) {
         mainSliver = SliverFillRemaining(
           hasScrollBody: false,
-          child: _buildEstadoVacio('Sin resultados', 'No hay coincidencias para "${_searchCtrl.text}".'),
+          child: _buildEstadoVacio(
+            'Sin resultados',
+            'No hay coincidencias para "${_searchCtrl.text}".',
+          ),
         );
       } else {
-        mainSliver = _buildSliverGridOrList(_productosFiltradosNombre, isDesktop, isTablet);
+        mainSliver = _buildSliverGridOrList(
+          _productosFiltradosNombre,
+          isDesktop,
+          isTablet,
+        );
       }
     } else if (_isSearching) {
       if (_searchResult == null) {
         mainSliver = SliverFillRemaining(
           hasScrollBody: false,
-          child: _buildEstadoVacio('No encontrado', 'No existe el código buscado.'),
+          child: _buildEstadoVacio(
+            'No encontrado',
+            'No existe el código buscado.',
+          ),
         );
       } else {
-        mainSliver = _buildSliverGridOrList([_searchResult!], isDesktop, isTablet);
+        mainSliver = _buildSliverGridOrList(
+          [_searchResult!],
+          isDesktop,
+          isTablet,
+        );
       }
     } else if (_productos.isEmpty) {
       mainSliver = SliverFillRemaining(
         hasScrollBody: false,
-        child: _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar el primero.'),
+        child: _buildEstadoVacio(
+          'Sin productos',
+          'Toca el botón + para agregar el primero.',
+        ),
       );
     } else {
-      mainSliver = _buildSliverGridOrList(_productos, isDesktop, isTablet, hasMore: _hasMoreData);
+      mainSliver = _buildSliverGridOrList(
+        _productos,
+        isDesktop,
+        isTablet,
+        hasMore: _hasMoreData,
+      );
     }
 
     // 2. Componer el CustomScrollView con todas las secciones
@@ -468,7 +506,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
         slivers: [
           // Resumen de Inventario
           SliverToBoxAdapter(child: _buildInventorySummary(isDesktop)),
-          
+
           // Chips de Categorías (Solo si no estamos buscando por nombre/SKU)
           if (!_isSearching && !_isSearchingNombre)
             SliverToBoxAdapter(child: _buildCategoryChips()),
@@ -489,7 +527,12 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
-  Widget _buildSliverGridOrList(List<Producto> lista, bool isDesktop, bool isTablet, {bool hasMore = false}) {
+  Widget _buildSliverGridOrList(
+    List<Producto> lista,
+    bool isDesktop,
+    bool isTablet, {
+    bool hasMore = false,
+  }) {
     if (isDesktop) {
       return SliverGrid(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -498,26 +541,32 @@ class _InventarioScreenState extends State<InventarioScreen> {
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
         ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (index == lista.length) return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
-            return _buildProductoGridCard(lista[index]);
-          },
-          childCount: lista.length + (hasMore ? 1 : 0),
-        ),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          if (index == lista.length)
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          return _buildProductoGridCard(lista[index]);
+        }, childCount: lista.length + (hasMore ? 1 : 0)),
       );
     } else {
       return SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (index == lista.length) return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: _buildProductoCard(lista[index]),
+        delegate: SliverChildBuilderDelegate((context, index) {
+          if (index == lista.length)
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ),
             );
-          },
-          childCount: lista.length + (hasMore ? 1 : 0),
-        ),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: _buildProductoCard(lista[index]),
+          );
+        }, childCount: lista.length + (hasMore ? 1 : 0)),
       );
     }
   }
@@ -531,15 +580,35 @@ class _InventarioScreenState extends State<InventarioScreen> {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
         children: [
-          _summaryMiniCard('Total Variedades', '${_productos.length}', Icons.inventory_2, Colors.blue),
-          _summaryMiniCard('Valor Inventario', _totalInventario.formatoMoneda, Icons.payments, Colors.green),
-          _summaryMiniCard('Stock Crítico', '$_productosBajoStock', Icons.warning_amber_rounded, Colors.orange),
+          _summaryMiniCard(
+            'Total Variedades',
+            '${_productos.length}',
+            Icons.inventory_2,
+            Colors.blue,
+          ),
+          _summaryMiniCard(
+            'Valor Inventario',
+            _totalInventario.formatoMoneda,
+            Icons.payments,
+            Colors.green,
+          ),
+          _summaryMiniCard(
+            'Stock Crítico',
+            '$_productosBajoStock',
+            Icons.warning_amber_rounded,
+            Colors.orange,
+          ),
         ],
       ),
     );
   }
 
-  Widget _summaryMiniCard(String label, String value, IconData icon, Color color) {
+  Widget _summaryMiniCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     final cs = Theme.of(context).colorScheme;
     return PremiumCard(
       margin: const EdgeInsets.only(right: 12),
@@ -551,8 +620,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
-              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ],
@@ -578,6 +660,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 _fetchInitial();
               }
             },
+          ),
           const SizedBox(width: 8),
           ..._categorias.map((cat) {
             final isSelected = _filtroCategoria?.id == cat.id;
@@ -622,7 +705,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
     return PremiumCard(
       margin: EdgeInsets.zero,
-      onTap: () => widget.modoSeleccion ? Navigator.pop(context, producto) : _abrirMenuAcciones(producto),
+      onTap: () => widget.modoSeleccion
+          ? Navigator.pop(context, producto)
+          : _abrirMenuAcciones(producto),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -639,12 +724,18 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: (producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty)
+                  child:
+                      (producto.imagenUrl != null &&
+                          producto.imagenUrl!.isNotEmpty)
                       ? FadeInImage.assetNetwork(
-                          placeholder: 'assets/images/placeholder_prod.png', // Asegúrate de tener un placeholder
+                          placeholder:
+                              'assets/images/placeholder_prod.png', // Asegúrate de tener un placeholder
                           image: producto.imagenUrl!,
                           fit: BoxFit.cover,
-                          imageErrorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: cs.onSurfaceVariant),
+                          imageErrorBuilder: (_, __, ___) => Icon(
+                            Icons.image_not_supported,
+                            color: cs.onSurfaceVariant,
+                          ),
                         )
                       : Icon(Icons.inventory_2_outlined, color: cs.primary),
                 ),
@@ -656,9 +747,18 @@ class _InventarioScreenState extends State<InventarioScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  Text(
+                    producto.nombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(producto.categoria, style: TextStyle(color: cs.outline, fontSize: 12)),
+                  Text(
+                    producto.categoria,
+                    style: TextStyle(color: cs.outline, fontSize: 12),
+                  ),
                   const SizedBox(height: 8),
                   _stockBadge(producto.cantidad, agotado, bajoStock),
                 ],
@@ -670,7 +770,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
               children: [
                 Text(
                   producto.precio.formatoMoneda,
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.primary),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: cs.primary,
+                  ),
                 ),
                 if (_esDueno) ...[
                   const SizedBox(height: 2),
@@ -680,7 +784,11 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   ),
                   Text(
                     'MG: ${(((producto.precio - producto.costoActual) / (producto.precio != 0 ? producto.precio : 1)) * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(fontSize: 10, color: Colors.teal, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.teal,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -713,9 +821,20 @@ class _InventarioScreenState extends State<InventarioScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 6),
-          Text('$label: ${cantidad.formatoInventario}', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+          Text(
+            '$label: ${cantidad.formatoInventario}',
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -734,7 +853,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
         side: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
       ),
       child: InkWell(
-        onTap: () => widget.modoSeleccion ? Navigator.pop(context, producto) : _abrirMenuAcciones(producto),
+        onTap: () => widget.modoSeleccion
+            ? Navigator.pop(context, producto)
+            : _abrirMenuAcciones(producto),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -746,16 +867,30 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 children: [
                   Container(
                     color: cs.surfaceVariant.withOpacity(0.5),
-                    child: (producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty)
+                    child:
+                        (producto.imagenUrl != null &&
+                            producto.imagenUrl!.isNotEmpty)
                         ? FadeInImage.assetNetwork(
                             placeholder: 'assets/images/placeholder_prod.png',
                             image: producto.imagenUrl!,
                             fit: BoxFit.cover,
-                            imageErrorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: cs.onSurfaceVariant, size: 32),
+                            imageErrorBuilder: (_, __, ___) => Icon(
+                              Icons.image_not_supported,
+                              color: cs.onSurfaceVariant,
+                              size: 32,
+                            ),
                           )
-                        : Icon(Icons.inventory_2_outlined, color: cs.primary, size: 40),
+                        : Icon(
+                            Icons.inventory_2_outlined,
+                            color: cs.primary,
+                            size: 40,
+                          ),
                   ),
-                  Positioned(top: 8, right: 8, child: _stockBadge(producto.cantidad, agotado, bajoStock)),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: _stockBadge(producto.cantidad, agotado, bajoStock),
+                  ),
                 ],
               ),
             ),
@@ -771,19 +906,38 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        Text(
+                          producto.nombre,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 4),
                         if (_esDueno)
                           Text(
                             'MG: ${(((producto.precio - producto.costoActual) / (producto.precio != 0 ? producto.precio : 1)) * 100).toStringAsFixed(0)}% (${producto.costoActual.formatoMoneda})',
-                            style: const TextStyle(fontSize: 9, color: Colors.teal, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              color: Colors.teal,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                       ],
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(producto.precio.formatoMoneda, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.primary)),
+                        Text(
+                          producto.precio.formatoMoneda,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            color: cs.primary,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -876,7 +1030,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
                   children: [
                     const Text(
                       'Tip: Atributos Dinámicos',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     const Text(
@@ -949,10 +1106,12 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
       // 4. Procesar CSV localmente
       final csvString = utf8.decode(bytes);
-      final List<List<dynamic>> rowsAsListOfValues = const CsvToListConverter().convert(
-        csvString,
-        shouldParseNumbers: false, // Leemos todo como String para evitar problemas de tipos
-      );
+      final List<List<dynamic>> rowsAsListOfValues = const CsvToListConverter()
+          .convert(
+            csvString,
+            shouldParseNumbers:
+                false, // Leemos todo como String para evitar problemas de tipos
+          );
 
       if (rowsAsListOfValues.isEmpty) {
         if (mounted) Navigator.pop(context);
@@ -960,7 +1119,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
       }
 
       // Extraer cabeceras y mapear filas
-      final headers = rowsAsListOfValues[0].map((e) => e.toString().trim()).toList();
+      final headers = rowsAsListOfValues[0]
+          .map((e) => e.toString().trim())
+          .toList();
       final List<Map<String, String>> filasMapeadas = [];
 
       for (int i = 1; i < rowsAsListOfValues.length; i++) {
@@ -975,7 +1136,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
       }
 
       // 5. Enviar a FirebaseService (que usa WriteBatch)
-      final totalImportados = await _firebaseService.importarProductosCSV(filasMapeadas);
+      final totalImportados = await _firebaseService.importarProductosCSV(
+        filasMapeadas,
+      );
 
       if (mounted) Navigator.pop(context); // Cerrar loading
 
@@ -983,14 +1146,19 @@ class _InventarioScreenState extends State<InventarioScreen> {
         _fetchInitial();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ Se importaron $totalImportados productos exitosamente.'),
+            content: Text(
+              '✓ Se importaron $totalImportados productos exitosamente.',
+            ),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si falló
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(); // Cerrar loading si falló
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error en la importación: $e'),
