@@ -86,6 +86,15 @@ service cloud.firestore {
       allow update: if esDueno(negocioId) || esAdmin();
       allow delete: if esAdmin();
 
+      // ─────────────────────────────────────────────────────────────────────
+      // SUBCOLECCIÓN: bitacora
+      // ─────────────────────────────────────────────────────────────────────
+      match /bitacora/{logId} {
+        allow read: if perteneceANegocio(negocioId);
+        allow create: if perteneceANegocio(negocioId) && request.resource.data.negocioId == negocioId;
+        allow update, delete: if false;
+      }
+
       // NUEVO: Permiso para que los empleados puedan enviar su solicitud
       match /solicitudes/{solicitudId} {
         allow create: if request.auth != null; // Cualquiera logueado puede enviar solicitud
@@ -193,19 +202,5 @@ service cloud.firestore {
       allow read, write: if esAdmin();
     }
     
-    match /bitacora/{logId} {
-      // [Security] Solo puede leer logs del propio negocio
-      allow read: if request.auth != null &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId == resource.data.negocioId;
-
-      // [Security] Solo permite crear si el negocioId del log coincide con el del usuario
-      // Esto previene inyección de logs entre inquilinos (cross-tenant log injection)
-      allow create: if request.auth != null
-        && request.resource.data.negocioId ==
-           get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.negocioId;
-
-      // Inmutable: la bitácora no se puede editar ni borrar
-      allow update, delete: if false;
-    }
   }
 }
