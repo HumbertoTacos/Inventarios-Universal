@@ -16,6 +16,7 @@ import 'editar_producto_screen.dart';
 import '../services/auth_service.dart';
 import '../utils/formatters.dart';
 import '../services/impresion_service.dart';
+import '../services/exportacion_service.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
@@ -74,12 +75,21 @@ class _InventarioScreenState extends State<InventarioScreen> {
   // Filtros
   Categoria? _filtroCategoria;
   Proveedor? _filtroProveedor;
+  List<Categoria> _categorias = [];
+  double _totalInventario = 0;
+  int _productosBajoStock = 0;
 
   @override
   void initState() {
     super.initState();
     _fetchInitial();
+    _fetchCategorias();
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _fetchCategorias() async {
+    final cats = await _firebaseService.getCategorias().first;
+    if (mounted) setState(() => _categorias = cats);
   }
 
   @override
@@ -114,6 +124,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
         _lastDoc = result.lastDoc;
         _isLoading = false;
         if (result.productos.length < 20) _hasMoreData = false;
+        
+        // Cálculo rápido de resumen (de la página actual)
+        _totalInventario = _productos.fold(0, (sum, p) => sum + (p.precio * p.cantidad));
+        _productosBajoStock = _productos.where((p) => p.cantidad <= p.stockMinimo).length;
       });
     } catch (e) {
       if (!mounted) return;
@@ -325,6 +339,33 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 onPressed: _mostrarModalFiltros,
               ),
             ),
+            const SizedBox(width: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: PopupMenuButton<String>(
+                icon: const Icon(Icons.sort),
+                onSelected: (val) {
+                  // Lógica de ordenamiento rápida (Local)
+                  setState(() {
+                    if (val == 'stock') {
+                      _productos.sort((a, b) => a.cantidad.compareTo(b.cantidad));
+                    } else if (val == 'precio') {
+                      _productos.sort((a, b) => b.precio.compareTo(a.precio));
+                    } else {
+                      _productos.sort((a, b) => a.nombre.compareTo(b.nombre));
+                    }
+                  });
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'nombre', child: Text('Nombre (A-Z)')),
+                  const PopupMenuItem(value: 'stock', child: Text('Menor Stock')),
+                  const PopupMenuItem(value: 'precio', child: Text('Mayor Precio')),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -383,97 +424,179 @@ class _InventarioScreenState extends State<InventarioScreen> {
   }
 
   Widget _buildBody({bool isDesktop = false, bool isTablet = false}) {
-    Widget content;
+    // 1. Determinar el "Sliver Principal" según el estado
+    Widget mainSliver;
 
-    Widget buildListOrGrid(int itemCount, Widget Function(int) itemBuilder) {
-      if (isDesktop) {
-        return GridView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.all(16),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isTablet ? 3 : 5,
-            childAspectRatio: 0.8,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemCount: itemCount,
-          itemBuilder: (context, index) => itemBuilder(index),
-        );
-      } else {
-        return ListView.builder(
-          controller: _scrollController,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          itemCount: itemCount,
-          itemBuilder: (context, index) => itemBuilder(index),
-        );
-      }
-    }
-
-    if (_isLoading) {
-      content = const Center(child: CircularProgressIndicator());
+    if (_isLoading && _productos.isEmpty) {
+      mainSliver = const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
     } else if (_isSearchingNombre) {
       if (_productosFiltradosNombre.isEmpty) {
-        content = _buildEstadoVacio(
-          'Sin resultados',
-          'No hay productos que coincidan con "${_searchCtrl.text}".',
+        mainSliver = SliverFillRemaining(
+          hasScrollBody: false,
+          child: _buildEstadoVacio('Sin resultados', 'No hay coincidencias para "${_searchCtrl.text}".'),
         );
       } else {
-        content = buildListOrGrid(
-          _productosFiltradosNombre.length,
-          (index) => isDesktop
-              ? _buildProductoGridCard(_productosFiltradosNombre[index])
-              : _buildProductoCard(_productosFiltradosNombre[index]),
-        );
+        mainSliver = _buildSliverGridOrList(_productosFiltradosNombre, isDesktop, isTablet);
       }
     } else if (_isSearching) {
       if (_searchResult == null) {
-        content = _buildEstadoVacio(
-          'No encontrado',
-          'No hay productos con ese código.',
+        mainSliver = SliverFillRemaining(
+          hasScrollBody: false,
+          child: _buildEstadoVacio('No encontrado', 'No existe el código buscado.'),
         );
       } else {
-        content = buildListOrGrid(
-          1,
-          (index) => isDesktop
-              ? _buildProductoGridCard(_searchResult!)
-              : _buildProductoCard(_searchResult!),
-        );
+        mainSliver = _buildSliverGridOrList([_searchResult!], isDesktop, isTablet);
       }
     } else if (_productos.isEmpty) {
-      content = _buildEstadoVacio(
-        'Sin productos',
-        'Toca el botón + para agregar.',
+      mainSliver = SliverFillRemaining(
+        hasScrollBody: false,
+        child: _buildEstadoVacio('Sin productos', 'Toca el botón + para agregar el primero.'),
       );
     } else {
-      content = RefreshIndicator(
-        onRefresh: _fetchInitial,
-        child: buildListOrGrid(_productos.length + (_hasMoreData ? 1 : 0), (
-          index,
-        ) {
-          if (index == _productos.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          return isDesktop
-              ? _buildProductoGridCard(_productos[index])
-              : _buildProductoCard(_productos[index]);
-        }),
-      );
+      mainSliver = _buildSliverGridOrList(_productos, isDesktop, isTablet, hasMore: _hasMoreData);
     }
 
-    return isDesktop
-        ? content
-        : Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
-              child: content,
-            ),
-          );
+    // 2. Componer el CustomScrollView con todas las secciones
+    return RefreshIndicator(
+      onRefresh: _fetchInitial,
+      child: CustomScrollView(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          // Resumen de Inventario
+          SliverToBoxAdapter(child: _buildInventorySummary(isDesktop)),
+          
+          // Chips de Categorías (Solo si no estamos buscando por nombre/SKU)
+          if (!_isSearching && !_isSearchingNombre)
+            SliverToBoxAdapter(child: _buildCategoryChips()),
+
+          // Espaciado inicial
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+
+          // Lista o Grid de Productos
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: mainSliver,
+          ),
+
+          // Espaciado final para el FAB
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverGridOrList(List<Producto> lista, bool isDesktop, bool isTablet, {bool hasMore = false}) {
+    if (isDesktop) {
+      return SliverGrid(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isTablet ? 3 : 5,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index == lista.length) return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+            return _buildProductoGridCard(lista[index]);
+          },
+          childCount: lista.length + (hasMore ? 1 : 0),
+        ),
+      );
+    } else {
+      return SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            if (index == lista.length) return const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()));
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: _buildProductoCard(lista[index]),
+            );
+          },
+          childCount: lista.length + (hasMore ? 1 : 0),
+        ),
+      );
+    }
   }
 
   // ── Widgets de Estado y Cards ─────────────────────────────────────────────
+
+  Widget _buildInventorySummary(bool isDesktop) {
+    final cs = Theme.of(context).colorScheme;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          _summaryMiniCard('Total Variedades', '${_productos.length}', Icons.inventory_2, Colors.blue),
+          _summaryMiniCard('Valor Inventario', _totalInventario.formatoMoneda, Icons.payments, Colors.green),
+          _summaryMiniCard('Stock Crítico', '$_productosBajoStock', Icons.warning_amber_rounded, Colors.orange),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryMiniCard(String label, String value, IconData icon, Color color) {
+    final cs = Theme.of(context).colorScheme;
+    return PremiumCard(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChips() {
+    if (_categorias.isEmpty) return const SizedBox.shrink();
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          // Botón "Todo"
+          FilterChip(
+            selected: _filtroCategoria == null,
+            label: const Text('Todo'),
+            onSelected: (val) {
+              if (val) {
+                setState(() => _filtroCategoria = null);
+                _fetchInitial();
+              }
+            },
+          const SizedBox(width: 8),
+          ..._categorias.map((cat) {
+            final isSelected = _filtroCategoria?.id == cat.id;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterChip(
+                selected: isSelected,
+                label: Text(cat.nombre),
+                onSelected: (val) {
+                  setState(() => _filtroCategoria = val ? cat : null);
+                  _fetchInitial();
+                },
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
 
   Widget _buildEstadoVacio(String titulo, String subtitulo) {
     return PremiumEmptyState(
@@ -493,95 +616,75 @@ class _InventarioScreenState extends State<InventarioScreen> {
   }
 
   Widget _buildProductoCard(Producto producto) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final inStock = producto.cantidad > 0;
+    final cs = Theme.of(context).colorScheme;
+    final bool bajoStock = producto.cantidad <= producto.stockMinimo;
+    final bool agotado = producto.cantidad <= 0;
 
     return PremiumCard(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      onTap: () => widget.modoSeleccion
-          ? Navigator.pop(context, producto)
-          : _abrirMenuAcciones(producto),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: inStock
-              ? colorScheme.secondaryContainer
-              : Colors.red.shade50,
-          child: Text(
-            producto.nombre[0].toUpperCase(),
-            style: TextStyle(
-              color: inStock
-                  ? colorScheme.onSecondaryContainer
-                  : Colors.red.shade700,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(
-          producto.nombre,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Text('${producto.categoria} • ${producto.atributoVisual}'),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+      margin: EdgeInsets.zero,
+      onTap: () => widget.modoSeleccion ? Navigator.pop(context, producto) : _abrirMenuAcciones(producto),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            if (producto.enPromocion && producto.precioPromocion != null) ...[
-              Text(
-                '\$${producto.precio.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey,
-                  decoration: TextDecoration.lineThrough,
+            // Imagen o Placeholder
+            Hero(
+              tag: 'prod_${producto.id}',
+              child: Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  color: cs.surfaceVariant,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: (producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty)
+                      ? FadeInImage.assetNetwork(
+                          placeholder: 'assets/images/placeholder_prod.png', // Asegúrate de tener un placeholder
+                          image: producto.imagenUrl!,
+                          fit: BoxFit.cover,
+                          imageErrorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: cs.onSurfaceVariant),
+                        )
+                      : Icon(Icons.inventory_2_outlined, color: cs.primary),
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+            ),
+            const SizedBox(width: 16),
+            // Información
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade700,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'OFERTA',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '\$${producto.precioPromocion!.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.green.shade700,
-                    ),
-                  ),
+                  Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const SizedBox(height: 2),
+                  Text(producto.categoria, style: TextStyle(color: cs.outline, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  _stockBadge(producto.cantidad, agotado, bajoStock),
                 ],
               ),
-            ] else
-              Text(
-                '\$${producto.precio.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: colorScheme.primary,
+            ),
+            // Precio y Acciones
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  producto.precio.formatoMoneda,
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.primary),
                 ),
-              ),
-            Text(
-              'Stock: ${producto.cantidad.formatoInventario}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: inStock ? FontWeight.normal : FontWeight.bold,
-                color: inStock ? Colors.green.shade700 : Colors.red.shade700,
-              ),
+                if (_esDueno) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Costo: ${producto.costoActual.formatoMoneda}',
+                    style: TextStyle(fontSize: 10, color: cs.outline),
+                  ),
+                  Text(
+                    'MG: ${(((producto.precio - producto.costoActual) / (producto.precio != 0 ? producto.precio : 1)) * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 10, color: Colors.teal, fontWeight: FontWeight.bold),
+                  ),
+                ],
+                const SizedBox(height: 12),
+              ],
             ),
           ],
         ),
@@ -589,131 +692,98 @@ class _InventarioScreenState extends State<InventarioScreen> {
     );
   }
 
+  Widget _stockBadge(double cantidad, bool agotado, bool bajoStock) {
+    Color color = Colors.green;
+    String label = 'En Stock';
+    if (agotado) {
+      color = Colors.red;
+      label = 'Agotado';
+    } else if (bajoStock) {
+      color = Colors.orange;
+      label = 'Stock Bajo';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Text('$label: ${cantidad.formatoInventario}', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductoGridCard(Producto producto) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final inStock = producto.cantidad > 0;
+    final cs = Theme.of(context).colorScheme;
+    final bool bajoStock = producto.cantidad <= producto.stockMinimo;
+    final bool agotado = producto.cantidad <= 0;
 
     return Card(
-      elevation: 1,
-      color: colorScheme.surfaceContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () => widget.modoSeleccion
-            ? Navigator.pop(context, producto)
-            : _abrirMenuAcciones(producto),
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
+      ),
+      child: InkWell(
+        onTap: () => widget.modoSeleccion ? Navigator.pop(context, producto) : _abrirMenuAcciones(producto),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Imagen
             Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: inStock
-                      ? colorScheme.secondaryContainer
-                      : Colors.red.shade50,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
+              flex: 5,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    color: cs.surfaceVariant.withOpacity(0.5),
+                    child: (producto.imagenUrl != null && producto.imagenUrl!.isNotEmpty)
+                        ? FadeInImage.assetNetwork(
+                            placeholder: 'assets/images/placeholder_prod.png',
+                            image: producto.imagenUrl!,
+                            fit: BoxFit.cover,
+                            imageErrorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: cs.onSurfaceVariant, size: 32),
+                          )
+                        : Icon(Icons.inventory_2_outlined, color: cs.primary, size: 40),
                   ),
-                ),
-                child: Center(
-                  child: Text(
-                    producto.nombre[0].toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: inStock
-                          ? colorScheme.onSecondaryContainer
-                          : Colors.red.shade700,
-                    ),
-                  ),
-                ),
+                  Positioned(top: 8, right: 8, child: _stockBadge(producto.cantidad, agotado, bajoStock)),
+                ],
               ),
             ),
+            // Info
             Expanded(
-              flex: 4,
+              flex: 5,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(12),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          producto.nombre,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Text(producto.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 4),
-                        Text(
-                          (producto.codigoBarras?.isNotEmpty ?? false)
-                              ? 'SKU: ${producto.codigoBarras}'
-                              : 'Sin SKU',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colorScheme.outline,
+                        if (_esDueno)
+                          Text(
+                            'MG: ${(((producto.precio - producto.costoActual) / (producto.precio != 0 ? producto.precio : 1)) * 100).toStringAsFixed(0)}% (${producto.costoActual.formatoMoneda})',
+                            style: const TextStyle(fontSize: 9, color: Colors.teal, fontWeight: FontWeight.bold),
                           ),
-                        ),
                       ],
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Stock',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: colorScheme.outline,
-                              ),
-                            ),
-                            Text(
-                              producto.cantidad.formatoInventario,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: inStock
-                                    ? Colors.green.shade700
-                                    : Colors.red.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (producto.enPromocion &&
-                                producto.precioPromocion != null)
-                              Text(
-                                '\$${producto.precioPromocion!.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.green.shade700,
-                                ),
-                              )
-                            else
-                              Text(
-                                '\$${producto.precio.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: colorScheme.primary,
-                                ),
-                              ),
-                          ],
-                        ),
+                        Text(producto.precio.formatoMoneda, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.primary)),
                       ],
                     ),
                   ],
@@ -769,32 +839,61 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   Future<void> _importarCSV() async {
     try {
-      // 1. Abrir selector de archivos
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['csv'],
-        allowMultiple: false,
-      );
-
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.first;
-
-      // 2. Confirmación
+      // 1. Mostrar diálogo informativo y opción de descargar plantilla
       if (!mounted) return;
-      final confirmar = await showDialog<bool>(
+      final proceder = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Row(
             children: [
-              Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+              Icon(Icons.upload_file_outlined, color: Colors.blue),
               SizedBox(width: 8),
-              Text('Importación Masiva'),
+              Expanded(
+                child: Text(
+                  'Importación Masiva',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
-          content: const Text(
-            'El archivo será procesado de forma segura en el servidor.\n\n'
-            'Esto permite cargar grandes volúmenes de productos sin agotar los recursos de tu dispositivo.\n'
-            '¿Deseas subir el archivo ahora?',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Sube un archivo CSV para cargar productos masivamente. El procesamiento se realizará localmente en tu dispositivo para mayor privacidad y ahorro de recursos.',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tip: Atributos Dinámicos',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Usa la columna "Atributos" para detalles específicos separándolos por comas (ej. Talla:M, Color:Azul).',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('¿No tienes el formato?'),
+              TextButton.icon(
+                onPressed: () => ExportacionService.descargarPlantillaCSV(),
+                icon: const Icon(Icons.download_for_offline_outlined),
+                label: const Text('Descargar Plantilla CSV'),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -803,66 +902,98 @@ class _InventarioScreenState extends State<InventarioScreen> {
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Subir y Procesar'),
+              child: const Text('Seleccionar Archivo'),
             ),
           ],
         ),
       );
 
-      if (confirmar != true || !mounted) return;
+      if (proceder != true) return;
 
-      // 3. Mostrar loading
+      // 2. Abrir selector de archivos
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        allowMultiple: false,
+        withData: true, // Importante para Web y para leer el contenido
+      );
+
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final bytes = file.bytes;
+
+      if (bytes == null) {
+        throw Exception('No se pudo leer el contenido del archivo.');
+      }
+
+      // 3. Mostrar loading de procesamiento local
+      if (!mounted) return;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const AlertDialog(
+        builder: (_) => AlertDialog(
           content: Row(
             children: [
-              CircularProgressIndicator(),
-              SizedBox(width: 16),
-              Text('Subiendo archivo al servidor...'),
+              const CircularProgressIndicator(),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  'Procesando productos localmente...',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
             ],
           ),
         ),
       );
 
-      // 4. Subir a Firebase Storage
-      final negocioId = AuthService().currentNegocioId;
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final storageRef = FirebaseStorage.instance.ref().child(
-        'importaciones/$negocioId/productos_$timestamp.csv',
+      // 4. Procesar CSV localmente
+      final csvString = utf8.decode(bytes);
+      final List<List<dynamic>> rowsAsListOfValues = const CsvToListConverter().convert(
+        csvString,
+        shouldParseNumbers: false, // Leemos todo como String para evitar problemas de tipos
       );
 
-      if (file.bytes != null) {
-        // Para Web
-        await storageRef.putData(file.bytes!);
-      } else if (file.path != null) {
-        // Para Mobile/Desktop
-        await storageRef.putFile(File(file.path!));
+      if (rowsAsListOfValues.isEmpty) {
+        if (mounted) Navigator.pop(context);
+        throw Exception('El archivo CSV está vacío.');
       }
+
+      // Extraer cabeceras y mapear filas
+      final headers = rowsAsListOfValues[0].map((e) => e.toString().trim()).toList();
+      final List<Map<String, String>> filasMapeadas = [];
+
+      for (int i = 1; i < rowsAsListOfValues.length; i++) {
+        final row = rowsAsListOfValues[i];
+        final Map<String, String> filaMap = {};
+        for (int j = 0; j < headers.length; j++) {
+          if (j < row.length) {
+            filaMap[headers[j]] = row[j].toString().trim();
+          }
+        }
+        if (filaMap.isNotEmpty) filasMapeadas.add(filaMap);
+      }
+
+      // 5. Enviar a FirebaseService (que usa WriteBatch)
+      final totalImportados = await _firebaseService.importarProductosCSV(filasMapeadas);
 
       if (mounted) Navigator.pop(context); // Cerrar loading
 
       if (mounted) {
+        _fetchInitial();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '✓ El archivo se está procesando en el servidor. Los productos aparecerán en unos momentos.',
-            ),
-            backgroundColor: Colors.blue,
-            duration: Duration(seconds: 5),
+          SnackBar(
+            content: Text('✓ Se importaron $totalImportados productos exitosamente.'),
+            backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(
-          context,
-          rootNavigator: true,
-        ).pop(); // Cerrar loading si falló
+        Navigator.of(context, rootNavigator: true).pop(); // Cerrar loading si falló
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al subir archivo: $e'),
+            content: Text('Error en la importación: $e'),
             backgroundColor: Colors.red,
           ),
         );

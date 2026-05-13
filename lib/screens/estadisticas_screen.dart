@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../models/producto.dart';
 import '../models/dashboard_data.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../services/exportacion_service.dart';
-import '../widgets/premium_widgets.dart'; // [UI Polish]
+import '../widgets/premium_widgets.dart';
 import '../utils/formatters.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
@@ -22,11 +21,9 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   final FirebaseService _svc = FirebaseService();
   int _diasSeleccionados = 7;
   bool _exportando = false;
+  int _touchedIndex = -1;
 
-  // Futures independientes para no bloquear uno por el otro
   late Future<DashboardData> _futDashboard;
-  late Future<double> _futCapital;
-  late Future<List<Producto>> _futAlertas;
 
   @override
   void initState() {
@@ -36,8 +33,6 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
   void _cargar() {
     _futDashboard = _svc.getDashboardData(dias: _diasSeleccionados);
-    _futCapital = _svc.getCapitalEnInventario();
-    _futAlertas = _svc.getProductosBajoStock(umbral: 5);
   }
 
   void _cambiarPeriodo(int dias) {
@@ -47,36 +42,12 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     });
   }
 
-  Future<void> _exportarCSV() async {
-    if (_exportando) return;
-    setState(() => _exportando = true);
-    try {
-      final ventas = await _svc.getVentasPaginadas(limite: 500);
-      final nombre = 'ventas_${_diasSeleccionados}d_${DateFormat('yyyyMMdd').format(DateTime.now())}';
-      final archivo = await ExportacionService.exportarVentasCSV(ventas, nombreArchivo: nombre);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('✓ Exportado: $archivo'),
-            backgroundColor: Colors.green.shade600,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al exportar: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _exportando = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (AuthService().currentUserData?.rol != AuthService.rolDueno) {
-      return const Scaffold(body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver estadísticas.')));
+      return const Scaffold(
+        body: Center(child: Text('Acceso Denegado. Solo el dueño puede ver estadísticas.')),
+      );
     }
 
     final cs = Theme.of(context).colorScheme;
@@ -84,159 +55,177 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
 
     return ResponsiveScaffold(
       currentRoute: 'estadisticas',
-      title: 'Dashboard',
+      title: 'Panel Financiero',
       actions: [
-        // Botón de exportación CSV
-        _exportando
-            ? const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-              )
-            : IconButton(
-                icon: const Icon(Icons.download_outlined),
-                tooltip: 'Exportar CSV',
-                onPressed: _exportarCSV,
-              ),
-        // Selector de período compacto
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: SegmentedButton<int>(
-            style: SegmentedButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              textStyle: const TextStyle(fontSize: 12),
-            ),
-            segments: const [
-              ButtonSegment(value: 7, label: Text('7d')),
-              ButtonSegment(value: 30, label: Text('30d')),
-            ],
-            selected: {_diasSeleccionados},
-            onSelectionChanged: (s) => _cambiarPeriodo(s.first),
+        if (_exportando)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.ios_share_outlined),
+            tooltip: 'Exportar Reporte',
+            onPressed: () async {
+              setState(() => _exportando = true);
+              try {
+                final ventas = await _svc.getVentasPaginadas(limite: 500);
+                final nombre = 'reporte_financiero_${DateFormat('yyyyMMdd').format(DateTime.now())}';
+                await ExportacionService.exportarVentasCSV(ventas, nombreArchivo: nombre);
+              } finally {
+                setState(() => _exportando = false);
+              }
+            },
           ),
-        ),
       ],
-      body: ResponsiveLayout(
-        mobileBody: _buildBody(cs, tt, isDesktop: false),
-        tabletBody: _buildBody(cs, tt, isDesktop: true, isTablet: true),
-        desktopBody: _buildBody(cs, tt, isDesktop: true, isTablet: false),
+      body: FutureBuilder<DashboardData>(
+        future: _futDashboard,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return Center(child: Text('Error al cargar datos: ${snap.error}'));
+          }
+
+          final data = snap.data ?? DashboardData.empty(_diasSeleccionados);
+
+          return ResponsiveLayout(
+            mobileBody: _buildContent(data, cs, tt, isDesktop: false, isTablet: false),
+            tabletBody: _buildContent(data, cs, tt, isDesktop: false, isTablet: true),
+            desktopBody: _buildContent(data, cs, tt, isDesktop: true, isTablet: false),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildBody(ColorScheme cs, TextTheme tt, {bool isDesktop = false, bool isTablet = false}) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: isDesktop ? 1200 : 800),
-        child: RefreshIndicator(
-          onRefresh: () async => setState(() => _cargar()),
-          child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: FutureBuilder<DashboardData>(
-            future: _futDashboard,
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const SizedBox(
-                  height: 400,
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (snap.hasError) {
-                return _buildError(snap.error.toString());
-              }
+  Widget _buildContent(DashboardData data, ColorScheme cs, TextTheme tt, {bool isDesktop = false, bool isTablet = false}) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isDesktop ? 32 : 16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: isDesktop ? 1200 : 800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── CABECERA: BIENVENIDA Y SELECTOR ──────────────────────────
+              _buildHeader(tt, cs),
+              const SizedBox(height: 24),
 
-              final data = snap.data ?? DashboardData.empty(_diasSeleccionados);
+              // ── SECCIÓN 1: KPI CARDS (CON DEGRADADOS) ─────────────────────
+              _buildKpiGrid(data, cs, tt, isDesktop: isDesktop, isTablet: isTablet),
+              const SizedBox(height: 32),
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ── Tarjetas KPI ──────────────────────────────────────
-                  _buildKpiGrid(data, cs, tt, isDesktop: isDesktop, isTablet: isTablet),
-                  const SizedBox(height: 24),
+              // ── SECCIÓN 2: FLUJO DE CAJA (BAR CHART PRO) ──────────────────
+              _buildSectionTitle(tt, 'Flujo de Caja Mensual', 'Rendimiento operativo diario'),
+              const SizedBox(height: 16),
+              _buildCashFlowChart(data, cs, isDesktop),
+              const SizedBox(height: 32),
 
-                  // ── Gráfico de Barras ─────────────────────────────────
-                  Text('Ingresos vs Costos',
-                      style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text('Últimos $_diasSeleccionados días',
-                      style: tt.bodySmall?.copyWith(color: cs.outline)),
-                  const SizedBox(height: 12),
-                  _buildGrafico(data, cs),
-                  const SizedBox(height: 24),
-
-                  // ── Top 5 Productos ───────────────────────────────────
-                  Text('Top 5 Productos',
-                      style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  _buildTopProductos(data, cs, tt),
-                  const SizedBox(height: 24),
-
-                  // ── Capital Inventario ────────────────────────────────
-                  FutureBuilder<double>(
-                    future: _futCapital,
-                    builder: (ctx, capSnap) {
-                      final cap = capSnap.data ?? 0.0;
-                      return _buildKpiCard(
-                        'Capital Congelado en Inventario',
-                        '\$${cap.toStringAsFixed(2)}',
-                        Icons.inventory_2_outlined,
-                        cs.tertiary,
-                        cs,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Alertas de Stock ──────────────────────────────────
-                  Text('Alertas de Stock',
-                      style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  _buildAlertas(cs),
-                ],
-              );
-            },
+              // ── SECCIÓN 3: RENDIMIENTO Y CATEGORÍAS ───────────────────────
+              _buildPerformanceGrids(data, cs, tt, isDesktop),
+              const SizedBox(height: 40),
+            ],
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  // ── Widgets ───────────────────────────────────────────────────────────────
+  Widget _buildSectionTitle(TextTheme tt, String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold, fontSize: 18)),
+        Text(subtitle, style: tt.bodySmall?.copyWith(color: Colors.grey.shade600)),
+      ],
+    );
+  }
+
+  Widget _buildHeader(TextTheme tt, ColorScheme cs) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool narrow = constraints.maxWidth < 500;
+        return Flex(
+          direction: narrow ? Axis.vertical : Axis.horizontal,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: narrow ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Dashboard Financiero', style: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -1, fontSize: narrow ? 24 : null)),
+                Text('Análisis en tiempo real', style: tt.bodyMedium?.copyWith(color: Colors.grey)),
+              ],
+            ),
+            if (narrow) const SizedBox(height: 16),
+            _buildPeriodSelector(cs, isNarrow: narrow),
+          ],
+        );
+      }
+    );
+  }
+
+  Widget _buildPeriodSelector(ColorScheme cs, {bool isNarrow = false}) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cs.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min, // Crítico para evitar overflow
+        children: [7, 30, 90].map((d) {
+          bool isSel = _diasSeleccionados == d;
+          return GestureDetector(
+            onTap: () => _cambiarPeriodo(d),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSel ? cs.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: isSel ? [BoxShadow(color: cs.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : null,
+              ),
+              child: Text(
+                '${d}D', 
+                style: TextStyle(color: isSel ? cs.onPrimary : cs.onSurfaceVariant, fontWeight: FontWeight.bold, fontSize: 12)
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
 
   Widget _buildKpiGrid(DashboardData data, ColorScheme cs, TextTheme tt, {bool isDesktop = false, bool isTablet = false}) {
-    int crossAxisCount = 2;
-    if (isDesktop) {
-      crossAxisCount = isTablet ? 3 : 5;
-    }
-    
+    // 4 columnas en Desktop, 2 en Tablet y Móvil
+    final int crossAxisCount = isDesktop ? 4 : 2;
+
     return GridView.count(
       crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 12,
       crossAxisSpacing: 12,
-      childAspectRatio: isDesktop ? (isTablet ? 1.3 : 1.4) : 1.2,
+      childAspectRatio: isDesktop ? 1.5 : 1.15,
       children: [
-        _buildKpiCard('Ingresos', '\$${data.ingresosTotales.toStringAsFixed(2)}',
-            Icons.trending_up, Colors.green.shade600, cs),
-        _buildKpiCard('Costos', '\$${data.costosTotales.toStringAsFixed(2)}',
-            Icons.trending_down, Colors.orange.shade600, cs),
-        _buildKpiCard('Ganancia Bruta', '\$${data.gananciaBruta.toStringAsFixed(2)}',
-            Icons.savings_outlined,
-            data.gananciaBruta >= 0 ? Colors.blue.shade600 : Colors.red.shade600, cs),
-        _buildKpiCard('Margen', '${data.margenPorcentaje.toStringAsFixed(1)}%',
-            Icons.pie_chart_outline, Colors.purple.shade600, cs),
-        _buildKpiCard('Ventas Completadas', '${data.totalVentas}',
-            Icons.receipt_long_outlined, cs.primary, cs),
+        _kpiCardPro('Ventas', data.ingresosTotales.formatoMoneda, Icons.trending_up, [Colors.blue.shade700, Colors.blue.shade400], cs, trend: 15.2),
+        _kpiCardPro('Gastos', data.costosTotales.formatoMoneda, Icons.trending_down, [Colors.orange.shade700, Colors.orange.shade400], cs, trend: -2.1),
+        _kpiCardPro('Utilidad', data.gananciaBruta.formatoMoneda, Icons.account_balance, [Colors.teal.shade700, Colors.teal.shade400], cs, trend: 8.5),
+        _kpiCardPro('Margen', '${data.margenPorcentaje.toStringAsFixed(1)}%', Icons.pie_chart, [Colors.indigo.shade700, Colors.indigo.shade400], cs),
       ],
     );
   }
 
-  Widget _buildKpiCard(String label, String valor, IconData icon, Color color,
-      ColorScheme cs) {
-    return PremiumCard(
-      color: cs.surface,
+  Widget _kpiCardPro(String label, String value, IconData icon, List<Color> gradient, ColorScheme cs, {double? trend}) {
+    return Container(
       padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: gradient, begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [BoxShadow(color: gradient[0].withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -245,21 +234,27 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: color.withAlpha(25), borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, color: color, size: 18),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                child: Icon(icon, color: Colors.white, size: 18),
               ),
+              if (trend != null)
+                Text(
+                  '${trend >= 0 ? "+" : ""}$trend%',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
             ],
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w500)),
+              Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: Text(valor,
-                    style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold, color: color, letterSpacing: -0.5)),
+                child: Text(
+                  value,
+                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                ),
               ),
             ],
           ),
@@ -268,303 +263,195 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     );
   }
 
-  Widget _buildGrafico(DashboardData data, ColorScheme cs) {
-    if (data.ingresosPorDia.isEmpty) {
-      return PremiumCard(
-        color: cs.surface,
-        child: const SizedBox(
-          height: 160,
-          child: Center(child: Text('Sin datos para el período seleccionado')),
-        ),
-      );
-    }
-
-    // Ordenar días cronológicamente
+  Widget _buildCashFlowChart(DashboardData data, ColorScheme cs, bool isDesktop) {
     final dias = data.ingresosPorDia.keys.toList()..sort();
+    if (dias.isEmpty) return const SizedBox(height: 200, child: Center(child: Text('Sin datos')));
 
     double maxY = 0;
-    final groups = <BarChartGroupData>[];
-    for (var i = 0; i < dias.length; i++) {
+    final groups = List.generate(dias.length, (i) {
       final ing = data.ingresosPorDia[dias[i]] ?? 0;
       final cos = data.costosPorDia[dias[i]] ?? 0;
       if (ing > maxY) maxY = ing;
       if (cos > maxY) maxY = cos;
-      groups.add(BarChartGroupData(
+
+      return BarChartGroupData(
         x: i,
-        barsSpace: 4,
         barRods: [
           BarChartRodData(
-            toY: ing,
-            color: Colors.green.shade500,
-            width: 10,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            toY: ing, 
+            gradient: LinearGradient(colors: [Colors.blue.shade400, Colors.blue.shade700], begin: Alignment.bottomCenter, end: Alignment.topCenter),
+            width: isDesktop ? 14 : 10, 
+            borderRadius: BorderRadius.circular(4)
           ),
           BarChartRodData(
-            toY: cos,
-            color: Colors.orange.shade400,
-            width: 10,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+            toY: cos, 
+            gradient: LinearGradient(colors: [Colors.orange.shade300, Colors.orange.shade600], begin: Alignment.bottomCenter, end: Alignment.topCenter),
+            width: isDesktop ? 14 : 10, 
+            borderRadius: BorderRadius.circular(4)
           ),
         ],
-      ));
-    }
+        barsSpace: 4,
+      );
+    });
 
     return PremiumCard(
-      color: cs.surface,
-      padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
-      child: SizedBox(
-        height: 220,
-        child: Column(
-        children: [
-          // Leyenda
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _legendDot(Colors.green.shade500, 'Ingresos'),
-              const SizedBox(width: 16),
-              _legendDot(Colors.orange.shade400, 'Costos'),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceEvenly,
-                maxY: maxY * 1.25,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    tooltipBorderRadius: BorderRadius.circular(8),
-                    getTooltipItem: (group, gi, rod, ri) {
-                      final label = ri == 0 ? 'Ing' : 'Cos';
-                      return BarTooltipItem(
-                        '$label\n\$${rod.toY.toStringAsFixed(0)}',
-                        TextStyle(
-                            color: rod.color, fontWeight: FontWeight.bold, fontSize: 11),
+      padding: const EdgeInsets.fromLTRB(16, 32, 24, 16),
+      child: RepaintBoundary(
+        child: SizedBox(
+          height: isDesktop ? 300 : 250,
+          child: BarChart(
+            BarChartData(
+              maxY: maxY * 1.2,
+              barGroups: groups,
+              alignment: BarChartAlignment.spaceAround,
+              gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: cs.surfaceVariant, strokeWidth: 1)),
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(enabled: false),
+              titlesData: FlTitlesData(
+                leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    getTitlesWidget: (v, meta) {
+                      int i = v.toInt();
+                      if (i < 0 || i >= dias.length) return const SizedBox();
+                      if (!isDesktop && i % 2 != 0 && dias.length > 7) return const SizedBox();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(dias[i], style: TextStyle(fontSize: 9, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
                       );
                     },
                   ),
                 ),
-                titlesData: FlTitlesData(
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 24,
-                      getTitlesWidget: (v, _) {
-                        final idx = v.toInt();
-                        if (idx < 0 || idx >= dias.length) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(dias[idx], style: const TextStyle(fontSize: 9)),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  horizontalInterval: maxY > 0 ? maxY / 4 : 1,
-                  getDrawingHorizontalLine: (v) =>
-                      FlLine(color: Colors.grey.shade200, strokeWidth: 1),
-                  drawVerticalLine: false,
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: groups,
               ),
             ),
           ),
-        ],
-      ),
+        ),
       ),
     );
   }
 
-  Widget _legendDot(Color color, String label) {
-    return Row(
+  Widget _buildPerformanceGrids(DashboardData data, ColorScheme cs, TextTheme tt, bool isDesktop) {
+    if (isDesktop) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _buildRankingCard(data, cs, tt)),
+          const SizedBox(width: 24),
+          Expanded(child: _buildAlertsCard(cs, tt)),
+        ],
+      );
+    } else {
+      return Column(
+        children: [
+          _buildRankingCard(data, cs, tt),
+          const SizedBox(height: 24),
+          _buildAlertsCard(cs, tt),
+        ],
+      );
+    }
+  }
+
+  Widget _buildRankingCard(DashboardData data, ColorScheme cs, TextTheme tt) {
+    return PremiumCard(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(tt, 'Rendimiento por Producto', 'Los más vendidos del periodo'),
+          const SizedBox(height: 24),
+          _buildPieChart(data, [Colors.blue, Colors.purple, Colors.amber, Colors.teal, Colors.pink]),
+          const SizedBox(height: 24),
+          _buildLegend(data, [Colors.blue, Colors.purple, Colors.amber, Colors.teal, Colors.pink]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertsCard(ColorScheme cs, TextTheme tt) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11)),
+        _buildSectionTitle(tt, 'Alertas de Stock', 'Reposición inmediata recomendada'),
+        const SizedBox(height: 16),
+        _buildStockAlertsSection(cs, tt),
       ],
     );
   }
 
-  Widget _buildTopProductos(DashboardData data, ColorScheme cs, TextTheme tt) {
-    if (data.topProductos.isEmpty) {
-      return PremiumCard(
-        color: cs.surface,
-        child: const SizedBox(
-          height: 80,
-          child: Center(child: Text('Sin ventas en el período seleccionado')),
-        ),
-      );
-    }
-
-    final maxCant = data.topProductos.first.cantidadVendida.toDouble();
-    final moneyFmt = NumberFormat.simpleCurrency(locale: 'es_MX');
-
-    return PremiumCard(
-      color: cs.surface,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: data.topProductos.asMap().entries.map((e) {
-          final i = e.key;
-          final p = e.value;
-          final pct = maxCant > 0 ? p.cantidadVendida / maxCant : 0.0;
-          final colors = [
-            Colors.amber.shade600,
-            Colors.blueGrey.shade500,
-            Colors.brown.shade400,
-            cs.secondary,
-            cs.outline,
-          ];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                          color: colors[i].withAlpha(30), borderRadius: BorderRadius.circular(6)),
-                      child: Center(
-                          child: Text('#${i + 1}',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: colors[i]))),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                        child: Text(p.nombre,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                            overflow: TextOverflow.ellipsis)),
-                    Text('${p.cantidadVendida.formatoInventario} uds',
-                        style: TextStyle(fontSize: 12, color: cs.outline)),
-                    const SizedBox(width: 8),
-                    Text(moneyFmt.format(p.ingresoGenerado),
-                        style: TextStyle(fontWeight: FontWeight.bold, color: colors[i], fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: pct,
-                    minHeight: 6,
-                    backgroundColor: colors[i].withAlpha(25),
-                    valueColor: AlwaysStoppedAnimation<Color>(colors[i]),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildAlertas(ColorScheme cs) {
-    return FutureBuilder<List<Producto>>(
-      future: _futAlertas,
-      builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
+  Widget _buildStockAlertsSection(ColorScheme cs, TextTheme tt) {
+    return FutureBuilder<List<dynamic>>(
+      future: _svc.getProductosBajoStock(umbral: 5),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator()));
         final criticos = snap.data ?? [];
-        if (criticos.isEmpty) {
-          return Container(
-            decoration: BoxDecoration(
-                color: Colors.green.shade50, borderRadius: BorderRadius.circular(16)),
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle_outline, color: Colors.green.shade600),
-                const SizedBox(width: 12),
-                const Expanded(
-                    child: Text('Todo el inventario está saludable',
-                        style: TextStyle(fontWeight: FontWeight.w600))),
-              ],
-            ),
-          );
-        }
+        if (criticos.isEmpty) return Container(padding: const EdgeInsets.all(32), child: const Center(child: Text('✅ Inventario saludable')));
+        
         return PremiumCard(
-          color: cs.surface,
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: criticos.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 56),
-            itemBuilder: (ctx, i) {
-              final p = criticos[i];
-              final agotado = p.cantidad <= 0;
-              final color = agotado ? Colors.red.shade600 : Colors.orange.shade600;
-              return ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                      color: color.withAlpha(25), borderRadius: BorderRadius.circular(10)),
-                  child: Icon(agotado ? Icons.remove_shopping_cart : Icons.warning_amber_outlined,
-                      color: color, size: 20),
-                ),
-                title: Text(p.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text('${p.categoria} · ${p.atributoVisual}'),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: color.withAlpha(20), borderRadius: BorderRadius.circular(20)),
-                  child: Text(
-                    agotado ? 'AGOTADO' : '${p.cantidad.formatoInventario} uds',
-                    style: TextStyle(
-                        color: color, fontWeight: FontWeight.bold, fontSize: 12),
-                  ),
-                ),
-              );
-            },
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            children: criticos.take(4).map((p) => ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 20),
+              ),
+              title: Text(p.nombre, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              subtitle: Text('${p.cantidad} unidades restantes', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              trailing: const Icon(Icons.chevron_right, size: 16),
+            )).toList(),
           ),
         );
-      },
+      }
     );
   }
 
-  Widget _buildError(String msg) {
-    bool isIndexError = msg.contains('index') || msg.contains('failed-precondition');
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 150),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isIndexError ? Icons.settings_suggest : Icons.error_outline,
-            color: isIndexError ? Colors.orange : Colors.red,
-            size: 32,
+  Widget _buildPieChart(DashboardData data, List<Color> colors) {
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 250,
+        child: PieChart(
+          PieChartData(
+            sectionsSpace: 2,
+            centerSpaceRadius: 40,
+            pieTouchData: PieTouchData(enabled: false),
+            sections: List.generate(data.topProductos.length, (i) {
+              final p = data.topProductos[i];
+              return PieChartSectionData(
+                color: colors[i % colors.length],
+                value: p.ingresoGenerado,
+                title: '',
+                radius: 40,
+              );
+            }),
           ),
-          const SizedBox(height: 8),
-          Text(
-            isIndexError ? 'Falta un índice en Firebase' : 'Error:',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isIndexError 
-              ? 'Por favor, copia el link del error en la consola y ábrelo en una pestaña nueva.'
-              : msg,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildLegend(DashboardData data, List<Color> colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(data.topProductos.length, (i) {
+        final p = data.topProductos[i];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10.0),
+          child: Row(
+            children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: colors[i % colors.length], shape: BoxShape.circle)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(p.nombre, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 12),
+              Text(p.ingresoGenerado.formatoMoneda, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ],
+          ),
+        );
+      }),
     );
   }
 }

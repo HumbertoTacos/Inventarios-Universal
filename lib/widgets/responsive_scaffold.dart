@@ -23,6 +23,9 @@ import '../screens/actualizacion_precios_screen.dart';
 import '../screens/ajuste_inventario_screen.dart';
 import '../controllers/configuracion_controller.dart';
 
+// Notificador global para el estado del sidebar - Esto garantiza persistencia total
+final ValueNotifier<bool> g_sidebarNotifier = ValueNotifier<bool>(true);
+
 class ResponsiveScaffold extends StatelessWidget {
   final String currentRoute;
   final String title;
@@ -63,7 +66,6 @@ class ResponsiveScaffold extends StatelessWidget {
         appBarBottom: appBarBottom,
         floatingActionButton: floatingActionButton,
         hideDrawer: hideDrawer,
-        startExpanded: false,  // Tablet: empieza compacto
         body: body,
       ),
       desktopBody: _DesktopShell(
@@ -73,15 +75,13 @@ class ResponsiveScaffold extends StatelessWidget {
         appBarBottom: appBarBottom,
         floatingActionButton: floatingActionButton,
         hideDrawer: hideDrawer,
-        startExpanded: true,  // Desktop: empieza expandido
         body: body,
       ),
     );
   }
 }
 
-/// Shell de escritorio con sidebar togglable.
-class _DesktopShell extends StatefulWidget {
+class _DesktopShell extends StatelessWidget {
   final String currentRoute;
   final String title;
   final Widget body;
@@ -89,7 +89,6 @@ class _DesktopShell extends StatefulWidget {
   final Widget? floatingActionButton;
   final PreferredSizeWidget? appBarBottom;
   final bool hideDrawer;
-  final bool startExpanded;
 
   const _DesktopShell({
     required this.currentRoute,
@@ -99,69 +98,62 @@ class _DesktopShell extends StatefulWidget {
     this.floatingActionButton,
     this.appBarBottom,
     this.hideDrawer = false,
-    this.startExpanded = true,
   });
-
-  @override
-  State<_DesktopShell> createState() => _DesktopShellState();
-}
-
-class _DesktopShellState extends State<_DesktopShell> {
-  late bool _expanded;
-
-  @override
-  void initState() {
-    super.initState();
-    _expanded = widget.startExpanded;
-  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      body: Row(
-        children: [
-          if (!widget.hideDrawer)
-            AppNavigationRail(
-              currentRoute: widget.currentRoute,
-              extended: _expanded,
-              onToggle: () => setState(() => _expanded = !_expanded),
-            ),
-          Expanded(
-            child: Column(
-              children: [
-                // Custom Desktop Header
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  color: colorScheme.surface,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.title,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
+    return ValueListenableBuilder<bool>(
+      valueListenable: g_sidebarNotifier,
+      builder: (context, isExtended, child) {
+        return Scaffold(
+          body: Row(
+            children: [
+              if (!hideDrawer)
+                AppNavigationRail(
+                  currentRoute: currentRoute,
+                  extended: isExtended,
+                  onToggle: () {
+                    g_sidebarNotifier.value = !g_sidebarNotifier.value;
+                  },
+                ),
+              Expanded(
+                child: Column(
+                  children: [
+                    // Custom Desktop Header
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      color: colorScheme.surface,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (actions != null)
+                            ...actions!,
+                        ],
                       ),
-                      if (widget.actions != null)
-                        ...widget.actions!,
-                    ],
-                  ),
+                    ),
+                    if (appBarBottom != null)
+                      appBarBottom!,
+                    Expanded(
+                      child: body,
+                    ),
+                  ],
                 ),
-                if (widget.appBarBottom != null)
-                  widget.appBarBottom!,
-                Expanded(
-                  child: widget.body,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-      floatingActionButton: widget.floatingActionButton,
+          floatingActionButton: floatingActionButton,
+        );
+      },
     );
   }
 }
@@ -286,14 +278,6 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     VoidCallback? onToggle,
     Negocio? negocio,
   ) {
-    final String userRol = userData?.rol?.toLowerCase() ?? '';
-    final bool esDueno = userRol == 'dueño' || userRol == 'dueno' || userRol == 'admin';
-    final bool puedeVerHistorial =
-        esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
-    final bool puedeVerEstadisticas =
-        esDueno || (userData?.permisos.puedeVerEstadisticas ?? false);
-    final bool usaCaja = _configController.usaCajaRegistradora;
-
     return Container(
       color: colorScheme.surfaceContainerLow,
       child: Column(
@@ -450,8 +434,8 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                 // ── OPERACIONES ──
                 _buildSectionHeader('Operaciones'),
                 _buildNavItemFromRoute(items, 'ventas'),
-                if (usaCaja) _buildNavItemFromRoute(items, 'caja'),
-                if (puedeVerHistorial) _buildNavItemFromRoute(items, 'historial'),
+                if (_configController.usaCajaRegistradora) _buildNavItemFromRoute(items, 'caja'),
+                _buildNavItemFromRoute(items, 'historial'),
                 _buildNavItemFromRoute(items, 'clientes'),
 
                 const Divider(indent: 16, endIndent: 16, height: 24),
@@ -461,29 +445,25 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                 _buildNavItemFromRoute(items, 'inventario'),
                 _buildNavItemFromRoute(items, 'actualizacion_precios'),
                 _buildNavItemFromRoute(items, 'ajuste_inventario'),
-                if (esDueno) _buildNavItemFromRoute(items, 'categorias'),
+                _buildNavItemFromRoute(items, 'categorias'),
 
-                if (esDueno) ...[
-                  const Divider(indent: 16, endIndent: 16, height: 24),
-                  // ── COMPRAS ──
-                  _buildSectionHeader('Compras'),
-                  _buildNavItemFromRoute(items, 'proveedores'),
-                  _buildNavItemFromRoute(items, 'registro_compra'),
-                  _buildNavItemFromRoute(items, 'sugerencias_compra'),
-                  _buildNavItemFromRoute(items, 'cuentas_por_pagar'),
-                ],
+                const Divider(indent: 16, endIndent: 16, height: 24),
+
+                // ── COMPRAS ──
+                _buildSectionHeader('Compras'),
+                _buildNavItemFromRoute(items, 'proveedores'),
+                _buildNavItemFromRoute(items, 'registro_compra'),
+                _buildNavItemFromRoute(items, 'sugerencias_compra'),
+                _buildNavItemFromRoute(items, 'cuentas_por_pagar'),
 
                 const Divider(indent: 16, endIndent: 16, height: 24),
 
                 // ── ADMINISTRACIÓN ──
                 _buildSectionHeader('Administración'),
-                if (esDueno || puedeVerEstadisticas)
-                  _buildNavItemFromRoute(items, 'estadisticas'),
-                if (esDueno) ...[
-                  _buildNavItemFromRoute(items, 'equipo'),
-                  _buildNavItemFromRoute(items, 'bitacora'),
-                  _buildNavItemFromRoute(items, 'configuracion'),
-                ],
+                _buildNavItemFromRoute(items, 'estadisticas'),
+                _buildNavItemFromRoute(items, 'equipo'),
+                _buildNavItemFromRoute(items, 'bitacora'),
+                _buildNavItemFromRoute(items, 'configuracion'),
               ],
             ),
           ),

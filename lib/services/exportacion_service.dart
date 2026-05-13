@@ -116,6 +116,45 @@ class ExportacionService {
     return '$archivo.csv';
   }
 
+  /// Genera y descarga una plantilla CSV vacía para la importación de productos.
+  static Future<void> descargarPlantillaCSV() async {
+    final filas = <List<dynamic>>[
+      [
+        'Nombre',
+        'Categoria',
+        'Precio',
+        'Costo Base',
+        'Cantidad',
+        'Unidad',
+        'CodigoBarras',
+        'Atributos',
+        'Proveedor',
+      ],
+      [
+        'Ejemplo Producto',
+        'General',
+        '150.00',
+        '100.00',
+        '10',
+        'pza',
+        '123456789',
+        'Talla:M, Color:Rojo',
+        'Proveedor Ejemplo SA',
+      ],
+    ];
+
+    const converter = ListToCsvConverter();
+    final csvString = converter.convert(filas);
+    final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csvString)]);
+
+    await FileSaver.instance.saveFile(
+      name: 'plantilla_importacion_productos',
+      bytes: bytes,
+      ext: 'csv',
+      mimeType: MimeType.csv,
+    );
+  }
+
   static String _metodoPago(MetodoPago m) {
     return switch (m) {
       MetodoPago.efectivo => 'Efectivo',

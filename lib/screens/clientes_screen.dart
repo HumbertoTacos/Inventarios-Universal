@@ -25,6 +25,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   List<Cliente> _resultadosBusqueda = [];
   bool _buscando = false;
   bool _enModoBusqueda = false;
+  String _filtroActivo = 'Todos'; // 'Todos' o 'Deudores'
 
   // Rol y permisos del usuario activo
   String get _rol => AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
@@ -143,21 +144,97 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   Widget _buildBody({bool isDesktop = false}) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
-        child: _enModoBusqueda
-            ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
-            : StreamBuilder<List<Cliente>>(
-                stream: _svc.getClientesStream(),
-                builder: (ctx, snap) {
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final clientes = snap.data ?? [];
-                  return _buildListaClientes(clientes);
-                },
-              ),
+    return Column(
+      children: [
+        // Dashboard de Clientes
+        if (!widget.modoSeleccion) _buildSummaryBoard(),
+        
+        // Chips de Filtro
+        if (!widget.modoSeleccion) _buildFilterChips(),
+
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: isDesktop ? 1000 : 800),
+              child: _enModoBusqueda
+                  ? _buildListaClientes(_resultadosBusqueda, loading: _buscando)
+                  : StreamBuilder<List<Cliente>>(
+                      stream: _svc.getClientesStream(),
+                      builder: (ctx, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        final clientes = snap.data ?? [];
+                        return _buildListaClientes(clientes);
+                      },
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryBoard() {
+    return StreamBuilder<List<Cliente>>(
+      stream: _svc.getClientesStream(),
+      builder: (context, snap) {
+        final clientes = snap.data ?? [];
+        final deudores = clientes.where((c) => c.tieneDeuda).length;
+        final totalDeuda = clientes.fold(0.0, (sum, c) => sum + c.saldoDeudor);
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              _summaryCard('Total Clientes', '${clientes.length}', Icons.people, Colors.blue),
+              _summaryCard('Deudores', '$deudores', Icons.warning_amber_rounded, Colors.orange),
+              _summaryCard('Total por Cobrar', '\$${totalDeuda.toStringAsFixed(0)}', Icons.monetization_on, Colors.green),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _summaryCard(String label, String value, IconData icon, Color color) {
+    return PremiumCard(
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('Todos'),
+            selected: _filtroActivo == 'Todos',
+            onSelected: (val) => setState(() => _filtroActivo = 'Todos'),
+          ),
+          const SizedBox(width: 8),
+          FilterChip(
+            label: const Text('Solo con Deuda'),
+            selected: _filtroActivo == 'Deudores',
+            onSelected: (val) => setState(() => _filtroActivo = 'Deudores'),
+          ),
+        ],
       ),
     );
   }
@@ -173,8 +250,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
       );
     }
 
+    // Aplicar Filtro de Chips
+    final filtrados = _filtroActivo == 'Deudores'
+        ? clientes.where((c) => c.tieneDeuda).toList()
+        : clientes;
+
     // Clientes con deuda al inicio
-    final ordenados = [...clientes]
+    final ordenados = [...filtrados]
       ..sort((a, b) {
         if (a.tieneDeuda && !b.tieneDeuda) return -1;
         if (!a.tieneDeuda && b.tieneDeuda) return 1;
@@ -191,86 +273,106 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
   Widget _buildClienteCard(Cliente c) {
     final cs = Theme.of(context).colorScheme;
-    final moneyFmt = NumberFormat.simpleCurrency(locale: 'es_MX');
-
     final tieneDeuda = c.tieneDeuda;
-    final bloqueado = c.creditoBloqueado;
-
-    Color cardColor = cs.surface;
-    Color deudaColor = Colors.green.shade700;
-    IconData trailingIcon = Icons.check_circle_outline;
-
-    if (bloqueado) {
-      deudaColor = Colors.grey.shade600;
-      trailingIcon = Icons.block;
-    } else if (tieneDeuda) {
-      final pct = c.saldoDeudor / c.limiteCredito;
-      if (pct >= 0.9) {
-        cardColor = Colors.red.shade50;
-        deudaColor = Colors.red.shade700;
-        trailingIcon = Icons.warning_amber_rounded;
-      } else if (pct >= 0.6) {
-        cardColor = Colors.orange.shade50;
-        deudaColor = Colors.orange.shade700;
-        trailingIcon = Icons.warning_outlined;
-      } else {
-        cardColor = Colors.amber.shade50;
-        deudaColor = Colors.amber.shade800;
-        trailingIcon = Icons.info_outline;
-      }
-    }
-
-    if (!tieneDeuda && !bloqueado) {
-      cardColor = cs.surfaceContainerHighest.withAlpha(76); // 0.3 opacity
-    }
+    final bool bajoLimite = tieneDeuda && (c.saldoDeudor >= c.limiteCredito * 0.8);
 
     return PremiumCard(
       margin: const EdgeInsets.symmetric(vertical: 4),
-      color: cardColor,
       onTap: () => _abrirDetalleOSeleccionar(c),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: tieneDeuda ? deudaColor.withAlpha(30) : cs.secondaryContainer,
-          child: Text(c.nombre[0].toUpperCase(),
-              style: TextStyle(
-                  color: tieneDeuda ? deudaColor : cs.onSecondaryContainer,
-                  fontWeight: FontWeight.bold)),
-        ),
-        title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(c.telefono.isEmpty ? 'Sin teléfono' : c.telefono),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
           children: [
-            if (bloqueado)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12)),
-                child: Text('Sin crédito',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-              )
-            else if (tieneDeuda) ...[
+            // Avatar con inicial y color dinámico
+            CircleAvatar(
+              radius: 24,
+              backgroundColor: tieneDeuda ? (bajoLimite ? Colors.red.shade100 : Colors.orange.shade100) : cs.primaryContainer,
+              child: Text(
+                c.nombre[0].toUpperCase(),
+                style: TextStyle(
+                  color: tieneDeuda ? (bajoLimite ? Colors.red : Colors.orange.shade900) : cs.onPrimaryContainer,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.phone_outlined, size: 12, color: cs.outline),
+                      const SizedBox(width: 4),
+                      Text(c.telefono.isEmpty ? 'Sin teléfono' : c.telefono, style: TextStyle(color: cs.outline, fontSize: 12)),
+                    ],
+                  ),
+                  if (tieneDeuda) ...[
+                    const SizedBox(height: 8),
+                    _deudaBadge(c.saldoDeudor, bajoLimite),
+                  ],
+                ],
+              ),
+            ),
+            // Acciones Rápidas (Solo si no es modo selección)
+            if (!widget.modoSeleccion)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(trailingIcon, size: 14, color: deudaColor),
-                  const SizedBox(width: 4),
-                  Text('Debe', style: TextStyle(fontSize: 11, color: deudaColor)),
+                  _actionIcon(Icons.message, Colors.green, () {
+                    // Lógica para WhatsApp (opcional)
+                  }),
+                  const SizedBox(width: 8),
+                  _actionIcon(Icons.call, Colors.blue, () {
+                    // Lógica para Llamada (opcional)
+                  }),
                 ],
-              ),
-              Text(
-                moneyFmt.format(c.saldoDeudor),
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: deudaColor),
-              ),
-            ] else
-              Icon(trailingIcon, color: deudaColor, size: 20),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _deudaBadge(double deuda, bool critico) {
+    final color = critico ? Colors.red : Colors.orange.shade800;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.account_balance_wallet, size: 12, color: color),
+          const SizedBox(width: 6),
+          Text(
+            'Debe: \$${deuda.toStringAsFixed(2)}',
+            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionIcon(IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 20),
       ),
     );
   }

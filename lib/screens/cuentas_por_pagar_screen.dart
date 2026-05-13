@@ -168,12 +168,7 @@ class _CuentasPorPagarScreenState extends State<CuentasPorPagarScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            // TODO: Implementar lógica de abonos
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Módulo de abonos próximamente...')),
-                            );
-                          },
+                          onPressed: () => _mostrarDialogoAbono(cpp),
                           icon: const Icon(Icons.payments_outlined, size: 18),
                           label: const Text('Registrar Abono / Pago'),
                         ),
@@ -185,6 +180,101 @@ class _CuentasPorPagarScreenState extends State<CuentasPorPagarScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  void _mostrarDialogoAbono(CuentaPorPagar cpp) {
+    final TextEditingController montoCtrl = TextEditingController();
+    bool procesando = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Registrar Abono'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Proveedor: ${cpp.nombreProveedor}',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('Saldo Pendiente: \$${cpp.saldoPendiente.toStringAsFixed(2)}',
+                  style: const TextStyle(color: Colors.blue)),
+              const Divider(height: 24),
+              TextField(
+                controller: montoCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Monto del Abono',
+                  prefixText: '\$ ',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: procesando ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: procesando
+                  ? null
+                  : () async {
+                      final monto = double.tryParse(montoCtrl.text) ?? 0;
+                      if (monto <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Ingresa un monto válido')),
+                        );
+                        return;
+                      }
+                      if (monto > cpp.saldoPendiente) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('El abono no puede superar el saldo')),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => procesando = true);
+                      try {
+                        await _firebaseService.registrarAbonoProveedor(
+                            cpp.id, monto);
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Abono registrado con éxito'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setDialogState(() => procesando = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: procesando
+                  ? const SizedBox(
+                      width: 20, height: 20, child: CircularProgressIndicator())
+                  : const Text('Confirmar Pago'),
+            ),
+          ],
+        ),
       ),
     );
   }

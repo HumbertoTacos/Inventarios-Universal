@@ -1496,6 +1496,88 @@ class FirebaseService {
         );
   }
 
+  /// Registra un abono a una cuenta por pagar de proveedor.
+  /// Afecta de forma atómica el saldo de la deuda y los egresos de caja si hay un turno abierto.
+  Future<void> registrarAbonoProveedor(
+    String cuentaId,
+    double montoAbono,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // 1. Leer Cuenta por Pagar
+        final cppRef = _cuentasPorPagarRef.doc(cuentaId);
+        final cppSnap = await transaction.get(cppRef);
+        if (!cppSnap.exists) throw Exception('La cuenta por pagar no existe.');
+
+        final cppData = cppSnap.data() as Map<String, dynamic>;
+        final double saldoActual =
+            (cppData['saldoPendiente'] as num?)?.toDouble() ?? 0.0;
+
+        if (montoAbono <= 0) throw Exception('El monto debe ser mayor a cero.');
+        if (montoAbono > saldoActual) {
+          throw Exception(
+            'El abono (\$${montoAbono.toStringAsFixed(2)}) supera el saldo pendiente (\$${saldoActual.toStringAsFixed(2)}).',
+          );
+        }
+
+        final double nuevoSaldo = saldoActual - montoAbono;
+        final String nuevoEstado = nuevoSaldo <= 0 ? 'pagada' : 'parcial';
+
+        // 2. Actualizar Cuenta por Pagar
+        transaction.update(cppRef, {
+          'saldoPendiente': nuevoSaldo,
+          'estado': nuevoEstado,
+        });
+
+        // 3. Integración con Caja (EGRESO por abono)
+        // Buscamos si el usuario actual tiene un turno abierto
+        final activeQuery = await _turnosCajaRef
+            .where('estado', isEqualTo: EstadoTurno.abierto.name)
+            .where('usuarioId', isEqualTo: _currentUserId)
+            .limit(1)
+            .get();
+
+        if (activeQuery.docs.isNotEmpty) {
+          final turnoSnap = await transaction.get(
+            activeQuery.docs.first.reference,
+          );
+          if (turnoSnap.exists) {
+            final refTurno = turnoSnap.reference;
+            final double egresosActuales =
+                ((turnoSnap.data() as Map<String, dynamic>)['egresosEfectivo']
+                            as num? ??
+                        0.0)
+                    .toDouble();
+
+            // a) Actualizar turno (Egresos)
+            transaction.update(refTurno, {
+              'egresosEfectivo': egresosActuales + montoAbono,
+            });
+
+            // b) Registrar movimiento detallado de caja
+            final docMov = refTurno.collection('movimientos').doc();
+            transaction.set(docMov, {
+              'turnoId': turnoSnap.id,
+              'tipo': 'egreso',
+              'monto': montoAbono,
+              'concepto': 'Abono a proveedor: ${cppData['nombreProveedor']}',
+              'fecha': DateTime.now().toIso8601String(),
+            });
+          }
+        }
+
+        // 4. Registrar en Bitácora
+        _inyectarLogTransaccional(
+          transaction,
+          'COMPRAS',
+          'Abono a proveedor "${cppData['nombreProveedor']}" por \$${montoAbono.toStringAsFixed(2)}. Saldo restante: \$${nuevoSaldo.toStringAsFixed(2)}',
+        );
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al registrar abono: ${e.message}');
+    }
+  }
+
   Stream<List<Proveedor>> getProveedores() {
     return _proveedoresRef
         .orderBy('nombre')
@@ -2138,6 +2220,17 @@ class FirebaseService {
     // 2. Pre-calcular el orden máximo para nuevas categorías
     int ordenMax = catSnap.docs.length;
 
+    // 3. Cargar proveedores existentes (nombre → {id, nombreComercial})
+    final provSnap = await _proveedoresRef.get();
+    final Map<String, Map<String, String>> provMap = {};
+    for (final doc in provSnap.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final nombre = data['nombreComercial'] as String? ?? '';
+      if (nombre.isNotEmpty) {
+        provMap[nombre.toLowerCase()] = {'id': doc.id, 'nombre': nombre};
+      }
+    }
+
     int importados = 0;
     const int tamLote = 400; // margen por debajo del límite 500 de Firestore
 
@@ -2171,10 +2264,46 @@ class FirebaseService {
 
         // 2b. Construir el producto
         final precio = double.tryParse(fila['Precio'] ?? '0') ?? 0.0;
-        final costo = double.tryParse(fila['Costo'] ?? '0') ?? 0.0;
+
+        // Aceptar tanto "Costo" como "Costo Base"
+        final costoStr = fila['Costo Base'] ?? fila['Costo'] ?? '0';
+        final costo = double.tryParse(costoStr) ?? 0.0;
+
         final cantidad = double.tryParse(fila['Cantidad'] ?? '0') ?? 0.0;
         final unidad = (fila['Unidad'] ?? 'pza').trim();
         final codigo = (fila['CodigoBarras'] ?? '').trim();
+        final atributosStr = (fila['Atributos'] ?? '').trim();
+        final proveedorNombreCSV = (fila['Proveedor'] ?? '').trim();
+
+        // Búsqueda de proveedor
+        String? proveedorId;
+        String? proveedorNombreFinal;
+        if (proveedorNombreCSV.isNotEmpty) {
+          final pMatch = provMap[proveedorNombreCSV.toLowerCase()];
+          if (pMatch != null) {
+            proveedorId = pMatch['id'];
+            proveedorNombreFinal = pMatch['nombre'];
+          } else {
+            // Requerimiento: Si no existe, marcar error
+            throw Exception(
+              'El proveedor "$proveedorNombreCSV" no existe en el sistema. Créalo primero o deja la columna vacía.',
+            );
+          }
+        }
+
+        // Parseo de atributos dinámicos (Clave:Valor, Clave:Valor)
+        Map<String, dynamic> atributosMap = {};
+        if (atributosStr.isNotEmpty) {
+          final pares = atributosStr.split(',');
+          for (var par in pares) {
+            final partes = par.split(':');
+            if (partes.length >= 2) {
+              final clave = partes[0].trim();
+              final valor = partes[1].trim();
+              if (clave.isNotEmpty) atributosMap[clave] = valor;
+            }
+          }
+        }
 
         final prodRef = _productosRef.doc();
         final nombreLower = nombre.toLowerCase();
@@ -2183,10 +2312,14 @@ class FirebaseService {
           'nombreLower': nombreLower,
           'categoria': categoriaNombre,
           'precio': precio,
-          'costo_promedio': costo,
+          'costoPromedio': costo, // Llave correcta para el modelo
+          'costoActual': costo, // Inicializamos también el costo actual
           'cantidad': cantidad,
           'unidad': unidad,
           'codigoBarras': codigo.isNotEmpty ? codigo : null,
+          'atributos': atributosMap,
+          'proveedorId': proveedorId,
+          'proveedorNombre': proveedorNombreFinal,
           'activo': true,
           'esBase': true,
           'enPromocion': false,
