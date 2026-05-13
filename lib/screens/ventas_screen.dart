@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/producto.dart';
@@ -42,6 +43,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   // [FinOps] Suscripción al Bounded Stream del catálogo (máx 50 productos)
   StreamSubscription<List<Producto>>? _catalogoSub;
+  String? _categoriaSeleccionada;
 
   final _costoEnvioCtrl = TextEditingController(text: '0');
   bool _envioPagadoPorVendedor = true;
@@ -502,7 +504,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
   // ── Registrar Venta ───────────────────────────────────────────────────────
 
-  Future<void> _confirmarVenta({double pagoCliente = 0}) async {
+  Future<void> _confirmarVenta({double pagoCliente = 0, String estado = 'completada'}) async {
     if (_carrito.isEmpty) return;
 
     setState(() => _procesando = true);
@@ -516,7 +518,7 @@ class _VentasScreenState extends State<VentasScreen> {
         turno = await _firebaseService.getTurnoActivo();
       }
 
-      if (usaCaja && _metodoPago == MetodoPago.efectivo && turno == null) {
+      if (usaCaja && _metodoPago == MetodoPago.efectivo && turno == null && estado != 'pendiente') {
         setState(() => _procesando = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -579,6 +581,7 @@ class _VentasScreenState extends State<VentasScreen> {
         envioPagadoPorVendedor: _envioPagadoPorVendedor,
         metodoPago: _metodoPago,
         clienteId: _metodoPago == MetodoPago.credito ? _clienteSeleccionado?.id : null,
+        estado: estado,
         tipoDescuento: _tipoDescuento,
         valorDescuento: double.tryParse(_valorDescuentoCtrl.text) ?? 0.0,
       );
@@ -600,13 +603,18 @@ class _VentasScreenState extends State<VentasScreen> {
       });
 
       if (mounted) {
-        // Mostrar Diálogo de Éxito y Cambio
-        await _mostrarDialogoExito(
-          venta: ventaFinal, 
-          negocio: negocioFinal, 
-          pago: pagoCliente,
-          turno: turno,
-        );
+        // Mostrar Diálogo de Éxito y Cambio o Ticket Pausado
+        if (estado == 'pendiente') {
+          await ImpresionService.imprimirTicketVenta(venta: ventaFinal, negocio: negocioFinal, pagoCliente: ventaFinal.total);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Venta en espera registrada y ticket impreso'), backgroundColor: Colors.blue));
+        } else {
+          await _mostrarDialogoExito(
+            venta: ventaFinal, 
+            negocio: negocioFinal, 
+            pago: pagoCliente,
+            turno: turno,
+          );
+        }
       }
     } catch (e) {
       setState(() => _procesando = false);
@@ -688,50 +696,84 @@ class _VentasScreenState extends State<VentasScreen> {
     final ctrl = TextEditingController();
     return showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cobro en Efectivo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Total a cobrar: \$${_totalVenta.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              decoration: const InputDecoration(
-                labelText: 'Monto Recibido',
-                prefixText: '\$ ',
-                border: OutlineInputBorder(),
+      builder: (ctx) {
+        double montoRecibido = 0.0;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final cambio = (montoRecibido - _totalVenta).clamp(0.0, double.infinity);
+            return AlertDialog(
+              title: const Text('Cobro en Efectivo'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total a cobrar: \$${_totalVenta.toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: ctrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    decoration: const InputDecoration(
+                      labelText: 'Monto Recibido',
+                      prefixText: '\$ ',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (val) => setStateDialog(() => montoRecibido = double.tryParse(val) ?? 0.0),
+                    onSubmitted: (val) {
+                      final monto = double.tryParse(val) ?? 0.0;
+                      if (monto >= _totalVenta) Navigator.pop(ctx, monto);
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (montoRecibido >= _totalVenta)
+                    Text('Cambio: \$${cambio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      ActionChip(
+                        label: const Text('Exacto'),
+                        onPressed: () {
+                          ctrl.text = _totalVenta.toStringAsFixed(2);
+                          setStateDialog(() => montoRecibido = _totalVenta);
+                        },
+                      ),
+                      ...[50.0, 100.0, 200.0, 500.0].map((den) => ActionChip(
+                        label: Text('\$${den.toInt()}'),
+                        onPressed: () {
+                          ctrl.text = den.toStringAsFixed(2);
+                          setStateDialog(() => montoRecibido = den);
+                        },
+                      )),
+                    ],
+                  ),
+                ],
               ),
-              onSubmitted: (val) {
-                final monto = double.tryParse(val) ?? 0.0;
-                if (monto >= _totalVenta) Navigator.pop(ctx, monto);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () {
-              final monto = double.tryParse(ctrl.text) ?? 0.0;
-              if (monto < _totalVenta) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('El monto recibido es menor al total.'), backgroundColor: Colors.orange),
-                );
-                return;
-              }
-              Navigator.pop(ctx, monto);
-            },
-            child: const Text('Confirmar Cobro'),
-          ),
-        ],
-      ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                FilledButton(
+                  onPressed: () {
+                    final monto = double.tryParse(ctrl.text) ?? 0.0;
+                    if (monto < _totalVenta) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('El monto recibido es menor al total.'), backgroundColor: Colors.orange),
+                      );
+                      return;
+                    }
+                    Navigator.pop(ctx, monto);
+                  },
+                  child: const Text('Confirmar Cobro'),
+                ),
+              ],
+            );
+          }
+        );
+      },
     );
   }
 
@@ -803,6 +845,21 @@ class _VentasScreenState extends State<VentasScreen> {
                   );
                 }
               ),
+            StreamBuilder<List<Venta>>(
+              stream: _firebaseService.getVentasPendientesStream(),
+              builder: (context, snapshot) {
+                final int pendingCount = snapshot.hasData ? snapshot.data!.length : 0;
+                return Badge(
+                  isLabelVisible: pendingCount > 0,
+                  label: Text(pendingCount.toString()),
+                  child: IconButton(
+                    icon: const Icon(Icons.access_time),
+                    tooltip: 'Recuperar Ventas en Espera',
+                    onPressed: pendingCount > 0 ? () => _mostrarVentasPendientes(snapshot.data!) : null,
+                  ),
+                );
+              }
+            ),
             IconButton(
               icon: const Icon(Icons.qr_code_scanner),
               tooltip: 'Escanear producto',
@@ -898,8 +955,17 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   Widget _buildDesktopGrid() {
-    final items = _mostrandoBusqueda ? _resultadosBusqueda : _productosGlobales;
-    if (items.isEmpty) {
+    List<Producto> items = _mostrandoBusqueda ? _resultadosBusqueda : _productosGlobales;
+    
+    // Extraer categorías únicas
+    final categorias = _productosGlobales.map((p) => p.categoria).where((c) => c.isNotEmpty).toSet().toList()..sort();
+
+    // Filtrar por categoría
+    if (!_mostrandoBusqueda && _categoriaSeleccionada != null) {
+      items = items.where((p) => p.categoria == _categoriaSeleccionada).toList();
+    }
+
+    if (items.isEmpty && categorias.isEmpty) {
       return const PremiumEmptyState(
         icon: Icons.inventory_2_outlined,
         title: 'Catálogo Vacío',
@@ -907,61 +973,107 @@ class _VentasScreenState extends State<VentasScreen> {
       );
     }
     
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        childAspectRatio: 0.85,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: items.length > 50 && !_mostrandoBusqueda ? 50 : items.length, // Limit if not searching to keep UI fast
-      itemBuilder: (context, index) {
-        final prod = items[index];
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: InkWell(
-            onTap: () async {
-               _barcodeCtrl.clear();
-               setState(() {
-                 _resultadosBusqueda = [];
-                 _mostrandoBusqueda = false;
-               });
-               await _pedirCantidadYAgregar(prod);
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      children: [
+        if (!_mostrandoBusqueda && categorias.isNotEmpty)
+          SizedBox(
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: Center(
-                      child: Text(prod.nombre[0].toUpperCase(), style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSecondaryContainer)),
-                    ),
-                  ),
-                ),
                 Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(prod.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 4),
-                      Text('\$${prod.precio.toStringAsFixed(2)}', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold)),
-                      Text('Stock: ${prod.cantidad.formatoInventario}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                    ],
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: const Text('Todos'),
+                    selected: _categoriaSeleccionada == null,
+                    onSelected: (sel) {
+                      if (sel) setState(() => _categoriaSeleccionada = null);
+                    },
                   ),
                 ),
+                ...categorias.map((c) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(c),
+                    selected: _categoriaSeleccionada == c,
+                    onSelected: (sel) {
+                      setState(() => _categoriaSeleccionada = sel ? c : null);
+                    },
+                  ),
+                )),
               ],
             ),
           ),
-        );
-      },
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 200,
+              childAspectRatio: 0.80,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: items.length > 50 && !_mostrandoBusqueda ? 50 : items.length, // Limit if not searching to keep UI fast
+            itemBuilder: (context, index) {
+              final prod = items[index];
+              // Generative color based on name hash
+              final colorValue = prod.nombre.hashCode;
+              final r = (colorValue & 0xFF0000) >> 16;
+              final g = (colorValue & 0x00FF00) >> 8;
+              final b = (colorValue & 0x0000FF);
+              final bgColor = Color.fromARGB(255, r % 100 + 100, g % 100 + 100, b % 100 + 100);
+
+              return Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: InkWell(
+                  onTap: () async {
+                     _barcodeCtrl.clear();
+                     setState(() {
+                       _resultadosBusqueda = [];
+                       _mostrandoBusqueda = false;
+                     });
+                     await _pedirCantidadYAgregar(prod);
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              prod.nombre.isNotEmpty ? prod.nombre[0].toUpperCase() : '?', 
+                              style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Colors.white, shadows: [Shadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))]),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(prod.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                            const SizedBox(height: 4),
+                            Text('\$${prod.precio.toStringAsFixed(2)}', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text('Stock: ${prod.cantidad.formatoInventario}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1282,37 +1394,55 @@ class _VentasScreenState extends State<VentasScreen> {
             if (_metodoPago == MetodoPago.credito)
               _buildSelectorCliente(),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.blueGrey,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: (_carrito.isEmpty || _procesando) ? null : () => _confirmarVenta(estado: 'pendiente'),
+                    icon: const Icon(Icons.access_time),
+                    label: const Text('Pausar', style: TextStyle(fontSize: 16)),
                   ),
-                  onPressed: (_carrito.isEmpty || _procesando) ? null : _prepararConfirmacion,
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _procesando
-                        ? const SizedBox(key: ValueKey('loading'), width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Icon(Icons.check_circle_outline, key: ValueKey('check')),
-                  ),
-                  label: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Text(
-                      _procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}',
-                      key: ValueKey<bool>(_procesando),
-                      style: const TextStyle(
-                        fontSize: 16, 
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 7,
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: (_carrito.isEmpty || _procesando) ? null : _prepararConfirmacion,
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: _procesando
+                            ? const SizedBox(key: ValueKey('loading'), width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.check_circle_outline, key: ValueKey('check')),
+                      ),
+                      label: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _procesando ? 'Procesando...' : 'Cobrar (F12) - \$${_totalVenta.toStringAsFixed(2)}',
+                          key: ValueKey<bool>(_procesando),
+                          style: const TextStyle(
+                            fontSize: 16, 
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
@@ -1441,6 +1571,7 @@ class _VentasScreenState extends State<VentasScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('TOTAL:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.grey)),
+            const SizedBox(width: 8),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -1453,6 +1584,192 @@ class _VentasScreenState extends State<VentasScreen> {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            IconButton(
+              icon: const Icon(Icons.access_time),
+              tooltip: 'Pausar',
+              onPressed: (_carrito.isEmpty || _procesando) ? null : () => _confirmarVenta(estado: 'pendiente'),
+            ),
+            FilledButton(
+              onPressed: (_carrito.isEmpty || _procesando) ? null : _prepararConfirmacion,
+              child: const Text('Cobrar', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _mostrarVentasPendientes(List<Venta> pendientes) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, sc) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('Ventas en Espera', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(),
+            Expanded(
+              child: ListView.builder(
+                controller: sc,
+                itemCount: pendientes.length,
+                itemBuilder: (context, index) {
+                  final v = pendientes[index];
+                  return ListTile(
+                    leading: const CircleAvatar(child: Icon(Icons.access_time)),
+                    title: Text('Venta #${v.id.substring(0,5).toUpperCase()}'),
+                    subtitle: Text('${v.items.length} artículos • ${v.fecha.hour.toString().padLeft(2, '0')}:${v.fecha.minute.toString().padLeft(2, '0')}'),
+                    trailing: Text('\$${v.total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      Navigator.pop(ctx);
+                      
+                      final int? accion = await showDialog<int>(
+                        context: context,
+                        builder: (ctxAccion) => AlertDialog(
+                          title: Text('Venta #${v.id.substring(0,5).toUpperCase()}'),
+                          content: const Text('¿Qué deseas hacer con esta venta en espera?'),
+                          actions: [
+                            TextButton.icon(
+                              onPressed: () => Navigator.pop(ctxAccion, 2),
+                              icon: const Icon(Icons.edit),
+                              label: const Text('Editar / Agregar Productos'),
+                            ),
+                            FilledButton.icon(
+                              onPressed: () => Navigator.pop(ctxAccion, 1),
+                              icon: const Icon(Icons.attach_money),
+                              label: const Text('Cobrar Directamente'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (accion == 1) {
+                        // Abrir cobrar rápido para esta venta
+                        final double? pago = await showDialog<double>(
+                          context: context,
+                          builder: (ctx2) {
+                             final ctrl = TextEditingController();
+                             double montoRecibido = 0.0;
+                             return StatefulBuilder(
+                               builder: (context, setStateDialog) {
+                                 final cambio = (montoRecibido - v.total).clamp(0.0, double.infinity);
+                                 return AlertDialog(
+                                   title: Text('Cobrar Venta #${v.id.substring(0,5).toUpperCase()}'),
+                                   content: Column(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                        Text('Total a cobrar: \$${v.total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 20),
+                                        TextField(
+                                          controller: ctrl,
+                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                          autofocus: true,
+                                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                                          decoration: const InputDecoration(labelText: 'Monto Recibido', prefixText: '\$ ', border: OutlineInputBorder()),
+                                          onChanged: (val) => setStateDialog(() => montoRecibido = double.tryParse(val) ?? 0.0),
+                                        ),
+                                        const SizedBox(height: 16),
+                                        if (montoRecibido >= v.total)
+                                          Text('Cambio: \$${cambio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                                        const SizedBox(height: 16),
+                                        Wrap(
+                                          spacing: 8, runSpacing: 8, alignment: WrapAlignment.center,
+                                          children: [
+                                            ActionChip(label: const Text('Exacto'), onPressed: () { ctrl.text = v.total.toStringAsFixed(2); setStateDialog(() => montoRecibido = v.total); }),
+                                            ...[50.0, 100.0, 200.0, 500.0].map((den) => ActionChip(label: Text('\$${den.toInt()}'), onPressed: () { ctrl.text = den.toStringAsFixed(2); setStateDialog(() => montoRecibido = den); })),
+                                          ],
+                                        ),
+                                     ],
+                                   ),
+                                   actions: [
+                                     TextButton(onPressed: () => Navigator.pop(ctx2), child: const Text('Cancelar')),
+                                     FilledButton(
+                                       onPressed: () {
+                                         final monto = double.tryParse(ctrl.text) ?? 0.0;
+                                         if (monto < v.total) {
+                                           ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('El monto es menor al total.'), backgroundColor: Colors.orange));
+                                           return;
+                                         }
+                                         Navigator.pop(ctx2, monto);
+                                       },
+                                       child: const Text('Cobrar y Cerrar'),
+                                     ),
+                                   ],
+                                 );
+                               }
+                             );
+                          }
+                        );
+
+                        if (pago != null) {
+                           setState(() => _procesando = true);
+                           try {
+                             final turno = await _firebaseService.getTurnoActivo();
+                             await _firebaseService.cobrarVentaPendiente(v.id, MetodoPago.efectivo, v.total, turno?.id);
+                             setState(() => _procesando = false);
+                             if (mounted) {
+                               messenger.showSnackBar(const SnackBar(content: Text('Venta recuperada y cobrada con éxito'), backgroundColor: Colors.green));
+                               await _mostrarDialogoExito(venta: v, negocio: _negocio ?? await _firebaseService.getDatosNegocio(), pago: pago, turno: turno);
+                             }
+                           } catch (e) {
+                             setState(() => _procesando = false);
+                             if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                           }
+                        }
+                      } else if (accion == 2) {
+                        setState(() => _procesando = true);
+                        try {
+                          await _firebaseService.reabrirVentaPendiente(v);
+                          
+                          // Vuelca los artículos de vuelta al carrito local
+                          setState(() {
+                            _carrito.clear();
+                            _carrito.addAll(v.items);
+                            _metodoPago = v.metodoPago;
+                            _clienteSeleccionado = null; 
+                            _costoEnvioCtrl.text = v.costoEnvio.toString();
+                            _envioPagadoPorVendedor = v.envioPagadoPorVendedor;
+                            _tipoDescuento = v.tipoDescuento;
+                            _valorDescuentoCtrl.text = v.valorDescuento.toString();
+                          });
+                          
+                          // Recuperar cliente si existe de forma segura a través del servicio
+                          if (v.clienteId != null) {
+                            final cliente = await _firebaseService.getCliente(v.clienteId!);
+                            if (cliente != null && mounted) {
+                              setState(() => _clienteSeleccionado = cliente);
+                            }
+                          }
+                          
+                          setState(() => _procesando = false);
+                          
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              const SnackBar(content: Text('Venta reabierta y restaurada en el carrito'), backgroundColor: Colors.blue)
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _procesando = false);
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(content: Text('Error al reabrir: $e'), backgroundColor: Colors.red)
+                            );
+                          }
+                        }
+                      }
+                    },
+                  );
+                },
               ),
             ),
           ],

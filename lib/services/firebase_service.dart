@@ -201,7 +201,10 @@ class FirebaseService {
 
     return query.snapshots().map(
       (snap) => snap.docs
-          .map((doc) => Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .map(
+            (doc) =>
+                Producto.fromMap(doc.data() as Map<String, dynamic>, doc.id),
+          )
           .toList(),
     );
   }
@@ -438,7 +441,10 @@ class FirebaseService {
   }
 
   /// Actualiza una categoría existente y sus productos asociados si el nombre cambió.
-  Future<void> actualizarCategoria(Categoria categoria, {String? nombreAnterior}) async {
+  Future<void> actualizarCategoria(
+    Categoria categoria, {
+    String? nombreAnterior,
+  }) async {
     try {
       final batch = FirebaseFirestore.instance.batch();
 
@@ -447,7 +453,9 @@ class FirebaseService {
 
       // 2. Si el nombre cambió, actualizar todos los productos que usaban el nombre viejo
       if (nombreAnterior != null && nombreAnterior != categoria.nombre) {
-        final productosSnap = await _productosRef.where('categoria', isEqualTo: nombreAnterior).get();
+        final productosSnap = await _productosRef
+            .where('categoria', isEqualTo: nombreAnterior)
+            .get();
         for (var doc in productosSnap.docs) {
           batch.update(doc.reference, {'categoria': categoria.nombre});
         }
@@ -576,7 +584,9 @@ class FirebaseService {
 
   // ── Bitácora (Audit Trail) ───────────────────────────────────────────────
 
-  final CollectionReference _bitacoraRef = FirebaseFirestore.instance
+  CollectionReference get _bitacoraRef => FirebaseFirestore.instance
+      .collection('negocios')
+      .doc(_negocioId)
       .collection('bitacora');
 
   /// Genera un Map para el log de bitácora (Helper Interno para Atomicidad)
@@ -776,7 +786,7 @@ class FirebaseService {
       }
     }
 
-    // El chequeo de caja abierta se movió dentro de la transacción 
+    // El chequeo de caja abierta se movió dentro de la transacción
     // para validar si el negocio realmente la usa (FinOps/UX).
 
     try {
@@ -784,13 +794,17 @@ class FirebaseService {
         // 1. Lecturas obligatorias antes de escrituras
         // a) Datos del negocio (para validar si usa caja)
         final snapNegocio = await transaction.get(_negocioDataRef);
-        final usaCaja = snapNegocio.exists ? (snapNegocio.get('usaCajaRegistradora') ?? true) : true;
+        final usaCaja = snapNegocio.exists
+            ? (snapNegocio.get('usaCajaRegistradora') ?? true)
+            : true;
 
         // b) Obtener turno de caja (opcional/flexible)
 
         DocumentSnapshot? docTurnoSnapshot;
         if (turnoCajaId != null) {
-          docTurnoSnapshot = await transaction.get(_turnosCajaRef.doc(turnoCajaId));
+          docTurnoSnapshot = await transaction.get(
+            _turnosCajaRef.doc(turnoCajaId),
+          );
         } else if (usaCaja) {
           // Búsqueda flexible: si el negocio usa caja pero no se pasó ID, buscamos el turno activo del usuario
           final activeQuery = await _turnosCajaRef
@@ -799,7 +813,9 @@ class FirebaseService {
               .limit(1)
               .get();
           if (activeQuery.docs.isNotEmpty) {
-            docTurnoSnapshot = await transaction.get(activeQuery.docs.first.reference);
+            docTurnoSnapshot = await transaction.get(
+              activeQuery.docs.first.reference,
+            );
           }
         }
 
@@ -919,12 +935,18 @@ class FirebaseService {
         }
 
         // d) Actualizar turno de caja según método de pago (INTEGRACIÓN FLEXIBLE)
-        if (docTurnoSnapshot != null && docTurnoSnapshot.exists) {
+        if (venta.estado != 'pendiente' &&
+            docTurnoSnapshot != null &&
+            docTurnoSnapshot.exists) {
           final refTurno = docTurnoSnapshot.reference;
-          
+
           if (venta.metodoPago == MetodoPago.efectivo) {
             // 1. Actualizar total de ventas en efectivo
-            final valorActual = (docTurnoSnapshot.data() as Map<String, dynamic>)['ventasEfectivo'] as num? ?? 0.0;
+            final valorActual =
+                (docTurnoSnapshot.data()
+                        as Map<String, dynamic>)['ventasEfectivo']
+                    as num? ??
+                0.0;
             transaction.update(refTurno, {
               'ventasEfectivo': valorActual + ventaParaGuardar.total,
             });
@@ -935,7 +957,8 @@ class FirebaseService {
               'turnoId': docTurnoSnapshot.id,
               'tipo': 'ingreso',
               'monto': ventaParaGuardar.total,
-              'concepto': 'Venta POS #${docVenta.id.substring(0, 5).toUpperCase()}',
+              'concepto':
+                  'Venta POS #${docVenta.id.substring(0, 5).toUpperCase()}',
               'fecha': DateTime.now().toIso8601String(),
             });
           } else {
@@ -954,7 +977,11 @@ class FirebaseService {
               default:
                 campoActualizar = 'ventasEfectivo';
             }
-            final valorActual = (docTurnoSnapshot.data() as Map<String, dynamic>)[campoActualizar] as num? ?? 0.0;
+            final valorActual =
+                (docTurnoSnapshot.data()
+                        as Map<String, dynamic>)[campoActualizar]
+                    as num? ??
+                0.0;
             transaction.update(refTurno, {
               campoActualizar: valorActual + ventaParaGuardar.total,
             });
@@ -971,6 +998,200 @@ class FirebaseService {
       throw Exception('Error al registrar venta (Firebase): ${e.message}');
     } catch (e) {
       throw Exception('Error en transacción de venta: $e');
+    }
+  }
+
+  // ── Cobrar Venta Pendiente (Parked Sales) ─────────────────────────────────
+
+  Future<void> cobrarVentaPendiente(
+    String ventaId,
+    MetodoPago metodo,
+    double total,
+    String? turnoCajaId,
+  ) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final docVentaRef = _ventasRef.doc(ventaId);
+        final snapVenta = await transaction.get(docVentaRef);
+        if (!snapVenta.exists) throw Exception('La venta no existe.');
+
+        // Actualizamos venta a completada
+        transaction.update(docVentaRef, {
+          'estado': 'completada',
+          'metodoPago': metodo.name,
+        });
+
+        // 1. Lecturas obligatorias
+        final snapNegocio = await transaction.get(_negocioDataRef);
+        final usaCaja = snapNegocio.exists
+            ? (snapNegocio.get('usaCajaRegistradora') ?? true)
+            : true;
+
+        DocumentSnapshot? docTurnoSnapshot;
+        if (turnoCajaId != null) {
+          docTurnoSnapshot = await transaction.get(
+            _turnosCajaRef.doc(turnoCajaId),
+          );
+        } else if (usaCaja) {
+          final activeQuery = await _turnosCajaRef
+              .where('estado', isEqualTo: EstadoTurno.abierto.name)
+              .where('usuarioId', isEqualTo: _currentUserId)
+              .limit(1)
+              .get();
+          if (activeQuery.docs.isNotEmpty) {
+            docTurnoSnapshot = await transaction.get(
+              activeQuery.docs.first.reference,
+            );
+          }
+        }
+
+        // 2. Escrituras en caja
+        if (docTurnoSnapshot != null && docTurnoSnapshot.exists) {
+          final refTurno = docTurnoSnapshot.reference;
+
+          if (metodo == MetodoPago.efectivo) {
+            final valorActual =
+                (docTurnoSnapshot.data()
+                        as Map<String, dynamic>)['ventasEfectivo']
+                    as num? ??
+                0.0;
+            transaction.update(refTurno, {
+              'ventasEfectivo': valorActual + total,
+            });
+
+            final docMov = refTurno.collection('movimientos').doc();
+            transaction.set(docMov, {
+              'turnoId': docTurnoSnapshot.id,
+              'tipo': 'ingreso',
+              'monto': total,
+              'concepto':
+                  'Cobro Venta #${docVentaRef.id.substring(0, 5).toUpperCase()}',
+              'fecha': DateTime.now().toIso8601String(),
+            });
+          } else {
+            String campoActualizar;
+            switch (metodo) {
+              case MetodoPago.tarjeta:
+                campoActualizar = 'ventasTarjeta';
+                break;
+              case MetodoPago.transferencia:
+                campoActualizar = 'ventasTransferencia';
+                break;
+              case MetodoPago.credito:
+                campoActualizar = 'ventasCredito';
+                break;
+              default:
+                campoActualizar = 'ventasEfectivo';
+            }
+            final valorActual =
+                (docTurnoSnapshot.data()
+                        as Map<String, dynamic>)[campoActualizar]
+                    as num? ??
+                0.0;
+            transaction.update(refTurno, {
+              campoActualizar: valorActual + total,
+            });
+          }
+        }
+
+        final descripcionLog =
+            'Cobro de venta pausada #${docVentaRef.id.substring(0, 5).toUpperCase()} por \$${total.toStringAsFixed(2)}';
+        _inyectarLogTransaccional(
+          transaction,
+          'VENTA_RECUPERADA',
+          descripcionLog,
+        );
+      });
+    } catch (e) {
+      throw Exception('Error al cobrar venta pendiente: $e');
+    }
+  }
+
+  /// [FinOps] Obtiene las ventas en espera (pendientes) del día actual
+  Stream<List<Venta>> getVentasPendientesStream() {
+    return _ventasRef
+        .where('estado', isEqualTo: 'pendiente')
+        .limit(50)
+        .snapshots()
+        .map((snap) {
+          final todas = snap.docs
+              .map((d) => Venta.fromMap(d.data() as Map<String, dynamic>, d.id))
+              .toList();
+          final hoy = DateTime.now();
+          return todas
+              .where(
+                (v) =>
+                    v.fecha.year == hoy.year &&
+                    v.fecha.month == hoy.month &&
+                    v.fecha.day == hoy.day,
+              )
+              .toList()
+            ..sort((a, b) => b.fecha.compareTo(a.fecha));
+        });
+  }
+
+  Future<void> reabrirVentaPendiente(Venta venta) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        // ── 1. FASE DE LECTURAS (Todos los get deben ir estrictamente primero) ──
+
+        // 1a. Leer la venta explícitamente (Obligatorio para que Firebase valide la regla de "estado == pendiente")
+        final ventaRef = _ventasRef.doc(venta.id);
+        final snapVenta = await transaction.get(ventaRef);
+
+        if (!snapVenta.exists) {
+          throw Exception(
+            'La venta ya no existe o fue cobrada en otro dispositivo.',
+          );
+        }
+
+        // 1b. Leer todos los productos involucrados
+        Map<String, DocumentSnapshot> productosSnaps = {};
+        for (final item in venta.items) {
+          final prodRef = _productosRef.doc(item.productoId);
+          productosSnaps[item.productoId] = await transaction.get(prodRef);
+        }
+
+        // ── 2. FASE DE ESCRITURAS (Updates, Sets y Deletes van al final) ──
+
+        // 2a. Restaurar el stock y registrar el movimiento en Kardex
+        for (final item in venta.items) {
+          final snapProd = productosSnaps[item.productoId]!;
+          if (snapProd.exists) {
+            final currentStock =
+                (snapProd.get('cantidad') as num?)?.toDouble() ?? 0.0;
+
+            transaction.update(snapProd.reference, {
+              'cantidad': currentStock + item.cantidad,
+            });
+
+            final kardexDoc = _kardexRef.doc();
+            final mov = MovimientoInventario(
+              id: kardexDoc.id,
+              productoId: item.productoId,
+              tipoMovimiento: TipoMovimiento.entrada,
+              cantidadAlterada: item.cantidad,
+              stockResultante: currentStock + item.cantidad,
+              motivo:
+                  'Reapertura de Venta en Espera #${venta.id.substring(0, 5).toUpperCase()}',
+              fecha: DateTime.now(),
+              usuarioId: _currentUserId,
+            );
+            transaction.set(kardexDoc, mov.toMap());
+          }
+        }
+
+        // 2b. Eliminar la venta pausada y guardar bitácora
+        transaction.delete(ventaRef);
+        _inyectarLogTransaccional(
+          transaction,
+          'VENTAS',
+          'Se reabrió la venta en espera #${venta.id.substring(0, 5).toUpperCase()}',
+        );
+      });
+    } catch (e) {
+      debugPrint('Error en reabrirVentaPendiente: $e');
+      throw Exception('Error al reabrir venta pendiente: $e');
     }
   }
 
@@ -1120,7 +1341,10 @@ class FirebaseService {
 
   // ── Compras ───────────────────────────────────────────────────────────────
 
-  Future<void> registrarCompra(Compra compra, {double? nuevoPrecioVenta}) async {
+  Future<void> registrarCompra(
+    Compra compra, {
+    double? nuevoPrecioVenta,
+  }) async {
     // 1. Buscar turno activo fuera de la transacción (opcional)
     final turnoDoc = await _obtenerTurnoActivoDoc();
 
@@ -1172,7 +1396,9 @@ class FirebaseService {
 
           if (nuevoPrecioVenta != null && nuevoPrecioVenta > 0) {
             updateData['precio'] = nuevoPrecioVenta;
-            updateData['nombreLower'] = data['nombre'].toString().toLowerCase(); // Aseguramos consistencia
+            updateData['nombreLower'] = data['nombre']
+                .toString()
+                .toLowerCase(); // Aseguramos consistencia
           }
 
           transaction.update(snap.reference, updateData);
@@ -1223,7 +1449,7 @@ class FirebaseService {
                 (snapTurno.data() as Map<String, dynamic>)['egresosEfectivo']
                     as num? ??
                 0.0;
-            
+
             // a) Actualizar total de egresos
             transaction.update(refTurno, {
               'egresosEfectivo': egresosActuales + compra.costoTotal,
@@ -1554,7 +1780,9 @@ class FirebaseService {
       final data = doc.data() as Map<String, dynamic>;
       final stock = (data['cantidad'] as num?)?.toDouble() ?? 0.0;
       final costoPromedio =
-          (data['costoPromedio'] as num? ?? data['costo_promedio'] as num? ?? data['costo'] as num?)
+          (data['costoPromedio'] as num? ??
+                  data['costo_promedio'] as num? ??
+                  data['costo'] as num?)
               ?.toDouble() ??
           0.0;
       if (stock > 0) totalCapital += stock * costoPromedio;
@@ -1763,10 +1991,15 @@ class FirebaseService {
         .toList();
   }
 
-  Future<Cliente?> getCliente(String clienteId) async {
-    final doc = await _clientesRef.doc(clienteId).get();
-    if (!doc.exists) return null;
-    return Cliente.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+  Future<Cliente?> getCliente(String id) async {
+    try {
+      final doc = await _clientesRef.doc(id).get();
+      if (!doc.exists) return null;
+      return Cliente.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    } catch (e) {
+      debugPrint('Error al obtener cliente: $e');
+      return null;
+    }
   }
 
   // ── Abonos ────────────────────────────────────────────────────────────────

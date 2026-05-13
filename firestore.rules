@@ -115,12 +115,17 @@ service cloud.firestore {
       // ─────────────────────────────────────────────────────────────────────
       // SUBCOLECCIÓN: ventas
       // ─────────────────────────────────────────────────────────────────────
-      match /ventas/{ventaId} {
+     match /ventas/{ventaId} {
         allow read: if perteneceANegocio(negocioId);
         allow create: if perteneceANegocio(negocioId);
-        // Las cancelaciones y devoluciones son updates; solo dueño puede ejecutarlos
-        allow update: if esDueno(negocioId);
-        allow delete: if false; // Las ventas NUNCA se eliminan
+        
+        // El dueño puede hacer devoluciones/cancelaciones (update a cualquier venta).
+        // Los empleados pueden hacer update (cobrar) SOLO si la venta estaba 'pendiente'.
+        allow update: if esDueno(negocioId) || (perteneceANegocio(negocioId) && resource.data.estado == 'pendiente');
+        
+        // Las ventas completadas NUNCA se eliminan. 
+        // Solo se permite borrar ventas 'pendientes' (cuando el cajero decide reabrirlas o cancelarlas).
+        allow delete: if perteneceANegocio(negocioId) && resource.data.estado == 'pendiente';
       }
 
       // ─────────────────────────────────────────────────────────────────────

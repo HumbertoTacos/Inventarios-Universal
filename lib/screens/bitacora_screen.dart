@@ -24,7 +24,11 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
   DateTimeRange? _rangoSeleccionado;
   
   // Referencia a la colección para el query directo
-  final CollectionReference _bitacoraRef = FirebaseFirestore.instance.collection('bitacora');
+  // Referencia a la colección anidada para FinOps y Seguridad
+  CollectionReference get _bitacoraRef {
+    final id = AuthService().currentNegocioId;
+    return FirebaseFirestore.instance.collection('negocios').doc(id).collection('bitacora');
+  }
 
   Future<void> _seleccionarRangoFechas() async {
     final DateTimeRange? picked = await showDateRangePicker(
