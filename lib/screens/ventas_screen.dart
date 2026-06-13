@@ -19,6 +19,7 @@ import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 import '../widgets/premium_widgets.dart';
 import '../controllers/configuracion_controller.dart';
+import '../services/network_service.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -829,6 +830,34 @@ class _VentasScreenState extends State<VentasScreen> {
           currentRoute: 'ventas',
           title: 'Punto de Venta',
           actions: [
+            StreamBuilder<bool>(
+              stream: NetworkService().onOfflineChange,
+              initialData: NetworkService().isOffline,
+              builder: (context, snapshot) {
+                final isOffline = snapshot.data ?? false;
+                if (!isOffline) return const SizedBox.shrink();
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade800,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                          SizedBox(width: 6),
+                          Text('MODO OFFLINE', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
             if (ConfiguracionController.instance.usaCajaRegistradora)
               FutureBuilder(
                 future: _firebaseService.getTurnoActivo(),

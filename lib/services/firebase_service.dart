@@ -20,6 +20,7 @@ import '../models/cuenta_por_pagar.dart';
 import '../models/movimiento_kardex.dart';
 
 import 'auth_service.dart';
+import 'network_service.dart';
 
 /// Resultado paginado que incluye la lista de productos y el cursor para la siguiente página.
 class ProductosPaginadosResult {
@@ -33,6 +34,11 @@ class FirebaseService {
     final id = AuthService().currentNegocioId;
     if (id.isEmpty) throw Exception("No hay negocio seleccionado");
     return id;
+  }
+
+  String? getNegocioIdOrNull() {
+    final id = AuthService().currentNegocioId;
+    return id.isEmpty ? null : id;
   }
 
   CollectionReference get _productosRef => FirebaseFirestore.instance
@@ -778,7 +784,25 @@ class FirebaseService {
 
   // ── Ventas ────────────────────────────────────────────────────────────────
 
-  Future<void> registrarVenta(Venta venta, {String? turnoCajaId}) async {
+  Future<void> registrarVenta(Venta venta, {String? turnoCajaId, bool isSyncing = false}) async {
+    // ── INTERCEPTOR OFFLINE ──
+    if (!isSyncing && NetworkService().isOffline) {
+      final outboxRef = FirebaseFirestore.instance
+          .collection('negocios')
+          .doc(_negocioId)
+          .collection('cola_offline')
+          .doc();
+      
+      await outboxRef.set({
+        'id': outboxRef.id,
+        'tipoOperacion': 'registrarVenta',
+        'payload': venta.toMap(),
+        'estado': 'pendiente',
+        'fechaCreacion': DateTime.now().toIso8601String(),
+      });
+      return; // Retornamos éxito inmediato a la UI
+    }
+
     // Validación de crédito
     if (venta.metodoPago == MetodoPago.credito) {
       if (venta.clienteId == null || venta.clienteId!.isEmpty) {

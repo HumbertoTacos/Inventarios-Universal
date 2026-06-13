@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/turno_caja.dart';
 import '../models/movimiento_caja.dart';
 import '../services/firebase_service.dart';
 import '../services/impresion_service.dart';
-import '../widgets/premium_widgets.dart'; // [UI Polish]
+import '../widgets/premium_widgets.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 
@@ -21,11 +22,27 @@ class _CajaScreenState extends State<CajaScreen> {
   bool _isLoading = true;
 
   final TextEditingController _fondoInicialController = TextEditingController();
+  final TextEditingController _efectivoFisicoController = TextEditingController();
+  double _efectivoFisico = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _efectivoFisicoController.addListener(() {
+      if (mounted) {
+        setState(() {
+          _efectivoFisico = double.tryParse(_efectivoFisicoController.text) ?? 0.0;
+        });
+      }
+    });
     _cargarTurnoActivo();
+  }
+
+  @override
+  void dispose() {
+    _fondoInicialController.dispose();
+    _efectivoFisicoController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarTurnoActivo() async {
@@ -167,56 +184,36 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  Future<void> _iniciarArqueoCiego() async {
+  Future<void> _confirmarCierreCaja() async {
     if (_turnoActivo == null) return;
-    final efectivoCtrl = TextEditingController();
+    if (_efectivoFisicoController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, ingresa el efectivo físico')),
+      );
+      return;
+    }
 
-    final resultado = await showDialog<double>(
+    final confirm = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Arqueo de Caja'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Ingresa el efectivo físico total contado en la caja.',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: efectivoCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Efectivo Físico Contado (\$)',
-                prefixIcon: Icon(Icons.payments_outlined),
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
+        title: const Text('Confirmar Cierre'),
+        content: const Text('¿Estás seguro? Esta acción es irreversible y cerrará la caja.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            onPressed: () {
-              final val = double.tryParse(efectivoCtrl.text);
-              if (val != null && val >= 0) {
-                Navigator.pop(ctx, val);
-              }
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            child: const Text('Calcular y Cerrar'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, Cerrar Caja'),
           ),
         ],
       ),
     );
 
-    if (resultado != null) {
-      await _cerrarCaja(resultado);
+    if (confirm == true) {
+      await _cerrarCaja(_efectivoFisico);
     }
   }
 
@@ -226,18 +223,21 @@ class _CajaScreenState extends State<CajaScreen> {
       final turnoAntesDeCerrar = _turnoActivo!;
       await _firebaseService.cerrarTurnoCaja(_turnoActivo!.id, efectivoContado);
       
-      final esperado = turnoAntesDeCerrar.totalEsperadoEfectivo;
-      final diferencia = efectivoContado - esperado;
+      final negocio = await _firebaseService.getDatosNegocio();
+      await ImpresionService.imprimirCorteZ(
+        turnoAntesDeCerrar.copyWith(
+          efectivoContado: efectivoContado,
+          fechaCierre: DateTime.now(),
+        ),
+        negocio,
+      );
 
+      _efectivoFisicoController.clear();
       await _cargarTurnoActivo();
-
+      
       if (mounted) {
-        await _mostrarFeedbackArqueo(diferencia, esperado, efectivoContado);
-        _preguntarImprimirCorteZ(
-          turnoAntesDeCerrar.copyWith(
-            efectivoContado: efectivoContado,
-            fechaCierre: DateTime.now(),
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Turno cerrado correctamente.')),
         );
       }
     } catch (e) {
@@ -246,64 +246,6 @@ class _CajaScreenState extends State<CajaScreen> {
         setState(() => _isLoading = false);
       }
     }
-  }
-
-  Future<void> _mostrarFeedbackArqueo(double diferencia, double esperado, double contado) async {
-    String titulo = 'Cuadre Exacto';
-    Color color = Colors.green;
-    String mensaje = 'El efectivo contado coincide perfectamente con el sistema.';
-
-    if (diferencia > 0) {
-      titulo = 'Sobrante en Caja';
-      color = Colors.blue;
-      mensaje = 'Hay un sobrante de \$${diferencia.toStringAsFixed(2)}.\nEsperado: \$${esperado.toStringAsFixed(2)}\nContado: \$${contado.toStringAsFixed(2)}';
-    } else if (diferencia < 0) {
-      titulo = 'Faltante en Caja';
-      color = Colors.red;
-      mensaje = 'Hay un faltante de \$${diferencia.abs().toStringAsFixed(2)}.\nEsperado: \$${esperado.toStringAsFixed(2)}\nContado: \$${contado.toStringAsFixed(2)}';
-    }
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(titulo, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        content: Text(mensaje),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Entendido'),
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<void> _preguntarImprimirCorteZ(TurnoCaja turno) async {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Caja Cerrada'),
-        content: const Text(
-          '¿Deseas imprimir el comprobante de Corte Z para administración?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('No, gracias'),
-          ),
-          FilledButton.icon(
-            icon: const Icon(Icons.print),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final negocio = await _firebaseService.getDatosNegocio();
-              ImpresionService.imprimirCorteZ(turno, negocio);
-            },
-            label: const Text('Imprimir Ticket'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -378,134 +320,188 @@ class _CajaScreenState extends State<CajaScreen> {
   Widget _buildCerrarCaja() {
     final turno = _turnoActivo!;
     final cs = Theme.of(context).colorScheme;
+    
+    final esperado = turno.totalEsperadoEfectivo;
+    final diferencia = _efectivoFisico - esperado;
+    
+    String difText;
+    Color difColor;
+    if (_efectivoFisicoController.text.isEmpty) {
+      difText = 'Ingresa el efectivo contado';
+      difColor = Colors.grey;
+    } else if (diferencia == 0) {
+      difText = 'Cuadre Perfecto: \$0.00';
+      difColor = Colors.green;
+    } else if (diferencia < 0) {
+      difText = 'Faltante: -\$${diferencia.abs().toStringAsFixed(2)}';
+      difColor = Colors.red;
+    } else {
+      difText = 'Sobrante: +\$${diferencia.toStringAsFixed(2)}';
+      difColor = Colors.blue;
+    }
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Banner de Estado
-          PremiumCard(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            color: Colors.green.withValues(alpha: 0.1),
-            borderRadius: 16,
-            child: Row(
-              children: [
-                const Icon(Icons.lock_open_rounded, color: Colors.green),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Turno de Caja Abierto',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-                  ),
-                ),
-                Text(
-                  'Desde: ${DateFormat('HH:mm').format(turno.fechaApertura)}',
-                  style: TextStyle(color: Colors.green.shade800, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Grid de Métricas Principales
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
-              return GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.5,
-                children: [
-                  _MetricCard(
-                    title: 'Fondo Inicial',
-                    value: turno.fondoInicial,
-                    icon: Icons.account_balance_wallet_outlined,
-                    color: Colors.blue,
-                  ),
-                  _MetricCard(
-                    title: 'Ventas Efectivo',
-                    value: turno.ventasEfectivo,
-                    icon: Icons.payments_outlined,
-                    color: Colors.green,
-                  ),
-                  _MetricCard(
-                    title: 'Entradas Extra',
-                    value: turno.entradasEfectivo,
-                    icon: Icons.add_circle_outline,
-                    color: Colors.teal,
-                  ),
-                  _MetricCard(
-                    title: 'Egresos/Retiros',
-                    value: turno.egresosEfectivo,
-                    icon: Icons.remove_circle_outline,
-                    color: Colors.red,
-                  ),
-                  _MetricCard(
-                    title: 'En Caja (Esperado)',
-                    value: turno.totalEsperadoEfectivo,
-                    icon: Icons.point_of_sale_outlined,
-                    color: cs.primary,
-                    isHighlight: true,
-                  ),
-                ],
-              );
-            },
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Otros Métodos de Pago
-          PremiumCard(
-            padding: const EdgeInsets.all(20),
-            borderRadius: 16,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Otros Métodos de Pago', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                const SizedBox(height: 12),
-                _PaymentRow(label: 'Tarjeta', value: turno.ventasTarjeta, icon: Icons.credit_card),
-                _PaymentRow(label: 'Transferencia', value: turno.ventasTransferencia, icon: Icons.account_balance),
-                _PaymentRow(label: 'Crédito', value: turno.ventasCredito, icon: Icons.timer_outlined),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 32),
-          
-          // Acciones
-          Row(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.f12): _confirmarCierreCaja,
+      },
+      child: Focus(
+        autofocus: true,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _mostrarDialogoMovimiento,
-                  icon: const Icon(Icons.swap_horiz),
-                  label: const Text('MOVIMIENTO MANUAL'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.all(20),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
+              // Banner de Estado
+              PremiumCard(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: 16,
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_open_rounded, color: Colors.green),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Turno de Caja Abierto',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                      ),
+                    ),
+                    Text(
+                      'Desde: ${DateFormat('HH:mm').format(turno.fechaApertura)}',
+                      style: TextStyle(color: Colors.green.shade800, fontSize: 13),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _iniciarArqueoCiego,
-                  icon: const Icon(Icons.lock_outline),
-                  label: const Text('CERRAR CAJA'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
-                    padding: const EdgeInsets.all(20),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              
+              const SizedBox(height: 24),
+              
+              // Grid de Métricas Principales
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 1.5,
+                    children: [
+                      _MetricCard(
+                        title: 'Fondo Inicial',
+                        value: turno.fondoInicial,
+                        icon: Icons.account_balance_wallet_outlined,
+                        color: Colors.blue,
+                      ),
+                      _MetricCard(
+                        title: 'Ventas Efectivo',
+                        value: turno.ventasEfectivo,
+                        icon: Icons.payments_outlined,
+                        color: Colors.green,
+                      ),
+                      _MetricCard(
+                        title: 'Entradas Extra',
+                        value: turno.entradasEfectivo,
+                        icon: Icons.add_circle_outline,
+                        color: Colors.teal,
+                      ),
+                      _MetricCard(
+                        title: 'Egresos/Retiros',
+                        value: turno.egresosEfectivo,
+                        icon: Icons.remove_circle_outline,
+                        color: Colors.red,
+                      ),
+                      _MetricCard(
+                        title: 'En Caja (Esperado)',
+                        value: turno.totalEsperadoEfectivo,
+                        icon: Icons.point_of_sale_outlined,
+                        color: cs.primary,
+                        isHighlight: true,
+                      ),
+                    ],
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 24),
+              
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: PremiumCard(
+                      padding: const EdgeInsets.all(20),
+                      borderRadius: 16,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Otros Métodos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          const SizedBox(height: 12),
+                          _PaymentRow(label: 'Tarjeta', value: turno.ventasTarjeta, icon: Icons.credit_card),
+                          _PaymentRow(label: 'Transferencia', value: turno.ventasTransferencia, icon: Icons.account_balance),
+                          _PaymentRow(label: 'Crédito', value: turno.ventasCredito, icon: Icons.timer_outlined),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _mostrarDialogoMovimiento,
+                              icon: const Icon(Icons.swap_horiz),
+                              label: const Text('MOVIMIENTO MANUAL'),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    flex: 2,
+                    child: PremiumCard(
+                      padding: const EdgeInsets.all(24),
+                      borderRadius: 16,
+                      child: Column(
+                        children: [
+                          const Text('¿Cuánto efectivo físico hay en el cajón?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _efectivoFisicoController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.payments, size: 32),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            difText,
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: difColor),
+                          ),
+                          const SizedBox(height: 24),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 60,
+                            child: FilledButton.icon(
+                              onPressed: _confirmarCierreCaja,
+                              icon: const Icon(Icons.lock, size: 28),
+                              label: const Text('Cerrar Turno y Emitir Corte (F12)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

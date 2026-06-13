@@ -51,3 +51,7 @@ app.*.map.json
 
 # Analysis files
 analyze*.txt
+
+.agents/
+
+skills-lock.json
