@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/services.dart';
 
+import '../models/empleado.dart';
+
 class PermisosEmpleado {
   final bool puedeAjustarStock;
   final bool puedeEditarProductos;
@@ -129,6 +131,7 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   UserData? currentUserData;
+  Empleado? empleadoActivo;
 
   String get currentNegocioId => currentUserData?.negocioId ?? '';
 
@@ -430,5 +433,10 @@ class AuthService {
   Future<void> logout() async {
     await _auth.signOut();
     currentUserData = null;
+    empleadoActivo = null;
+  }
+
+  void setEmpleadoActivo(Empleado? empleado) {
+    empleadoActivo = empleado;
   }
 }

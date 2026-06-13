@@ -9,6 +9,7 @@ import '../screens/gestion_categorias_screen.dart';
 import '../screens/mi_equipo_screen.dart';
 import '../screens/bitacora_screen.dart';
 import '../screens/configuracion_negocio_screen.dart';
+import '../screens/configuracion_impresora_screen.dart';
 import '../screens/auth_gate.dart';
 import '../screens/caja_screen.dart';
 import '../screens/gestion_proveedores_screen.dart';
@@ -201,6 +202,12 @@ class _AppDrawerState extends State<AppDrawer> {
                     title: 'Configuración del Negocio',
                     routeName: 'configuracion',
                     screen: const ConfiguracionNegocioScreen(),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.print_outlined,
+                    title: 'Impresora Bluetooth',
+                    routeName: 'impresora',
+                    screen: const ConfiguracionImpresoraScreen(),
                   ),
                 ],
               ],

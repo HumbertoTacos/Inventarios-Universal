@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
 import 'services/network_service.dart';
-import 'services/sync_service.dart';
+import 'services/auth_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +20,6 @@ void main() async {
   );
 
   await NetworkService().init();
-  SyncService().init();
 
   runApp(const MiInventarioApp());
 }
@@ -54,8 +55,35 @@ class AppColors {
   static const Color outline       = Color(0xFFCBD5E1); // slate-300
 }
 
-class MiInventarioApp extends StatelessWidget {
+class MiInventarioApp extends StatefulWidget {
   const MiInventarioApp({super.key});
+
+  @override
+  State<MiInventarioApp> createState() => _MiInventarioAppState();
+}
+
+class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (AuthService().empleadoActivo != null) {
+        AuthService().setEmpleadoActivo(null);
+        navigatorKey.currentState?.pushReplacementNamed('/pin_lock');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,8 +91,12 @@ class MiInventarioApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Inventarios Universal',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(textTheme),
+      routes: {
+        '/pin_lock': (context) => const AuthGate(), // Temporal para pruebas
+      },
       home: const AuthGate(),
     );
   }

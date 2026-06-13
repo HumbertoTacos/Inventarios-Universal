@@ -70,6 +70,11 @@ class Venta {
   /// ID del cliente asociado. Requerido cuando metodoPago == credito.
   final String? clienteId;
 
+  // Empleado que realizó la venta y su comisión
+  final String? empleadoId;
+  final String? empleadoNombre;
+  final double comisionGenerada;
+
   // Valores calculados que se guardan fijos en Firestore
   final double subtotal; // Suma de items.subtotal
   final double descuentoAplicado; // Monto descontado sobre el subtotal
@@ -88,6 +93,9 @@ class Venta {
     this.tipoDescuento = TipoDescuento.ninguno,
     this.valorDescuento = 0.0,
     this.clienteId,
+    this.empleadoId,
+    this.empleadoNombre,
+    this.comisionGenerada = 0.0,
     double? subtotalInyectado,
     double? descuentoInyectado,
     double? totalInyectado,
@@ -155,6 +163,9 @@ class Venta {
       'costoTotal': costoTotal,
       'utilidad': utilidad,
       if (clienteId != null) 'clienteId': clienteId,
+      if (empleadoId != null) 'empleadoId': empleadoId,
+      if (empleadoNombre != null) 'empleadoNombre': empleadoNombre,
+      'comisionGenerada': comisionGenerada,
     };
   }
 
@@ -187,6 +198,9 @@ class Venta {
       costoTotalInyectado: (map['costoTotal'] as num?)?.toDouble(),
       utilidadInyectado: (map['utilidad'] as num?)?.toDouble(),
       clienteId: map['clienteId'] as String?,
+      empleadoId: map['empleadoId'] as String?,
+      empleadoNombre: map['empleadoNombre'] as String?,
+      comisionGenerada: (map['comisionGenerada'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

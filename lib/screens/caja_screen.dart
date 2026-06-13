@@ -5,6 +5,7 @@ import '../models/turno_caja.dart';
 import '../models/movimiento_caja.dart';
 import '../services/firebase_service.dart';
 import '../services/impresion_service.dart';
+import '../services/impresion_bluetooth_service.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
@@ -224,11 +225,19 @@ class _CajaScreenState extends State<CajaScreen> {
       await _firebaseService.cerrarTurnoCaja(_turnoActivo!.id, efectivoContado);
       
       final negocio = await _firebaseService.getDatosNegocio();
+      
+      final turnoConCierre = turnoAntesDeCerrar.copyWith(
+        efectivoContado: efectivoContado,
+        fechaCierre: DateTime.now(),
+      );
+
       await ImpresionService.imprimirCorteZ(
-        turnoAntesDeCerrar.copyWith(
-          efectivoContado: efectivoContado,
-          fechaCierre: DateTime.now(),
-        ),
+        turnoConCierre,
+        negocio,
+      );
+
+      await ImpresionBluetoothService().imprimirCorteZ(
+        turnoConCierre,
         negocio,
       );
 
