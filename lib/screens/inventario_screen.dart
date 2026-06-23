@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'dart:convert';
-import 'dart:io';
 import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/proveedor.dart';

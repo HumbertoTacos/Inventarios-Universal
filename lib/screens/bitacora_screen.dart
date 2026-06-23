@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:intl/intl.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../models/bitacora_log.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import '../widgets/premium_widgets.dart'; // [UI Polish]
+import 'package:file_saver/file_saver.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import '../widgets/premium_widgets.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 
@@ -47,9 +48,8 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
     if (logs.isEmpty) return;
 
     try {
-      // 1. Preparar datos
       List<List<dynamic>> rows = [];
-      rows.add(['Fecha', 'Módulo', 'Usuario', 'Descripción']); // Cabecera
+      rows.add(['Fecha', 'Módulo', 'Usuario', 'Descripción']);
 
       for (var log in logs) {
         rows.add([
@@ -60,22 +60,24 @@ class _BitacoraScreenState extends State<BitacoraScreen> {
         ]);
       }
 
-      // 2. Convertir a CSV
-      String csvData = const ListToCsvConverter().convert(rows);
-
-      // 3. Guardar temporalmente
-      final directory = await getTemporaryDirectory();
+      final csvData = const ListToCsvConverter().convert(rows);
       final dateStr = DateFormat('yyyyMMdd').format(DateTime.now());
-      final path = '${directory.path}/bitacora_$dateStr.csv';
-      final file = File(path);
-      await file.writeAsString(csvData);
+      final fileName = 'bitacora_$dateStr';
 
-      // 4. Compartir/Abrir
-      await Share.shareXFiles([XFile(path)], text: 'Bitácora de Movimientos');
+      // BOM UTF-8 para que Excel abra con acentos
+      final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csvData)]);
+
+      // FileSaver: web → descarga navegador, Android → carpeta Descargas
+      await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: bytes,
+        ext: 'csv',
+        mimeType: MimeType.csv,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al exportar: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error al exportar: \$e'), backgroundColor: Colors.red),
         );
       }
     }

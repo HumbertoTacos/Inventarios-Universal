@@ -1,4 +1,5 @@
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../models/venta.dart';
@@ -15,10 +16,12 @@ class ImpresionBluetoothService {
   static const String _printerMacKey = 'printer_mac_address';
 
   Future<List<BluetoothDevice>> getDevices() async {
+    if (kIsWeb) return [];
     return await bluetooth.getBondedDevices();
   }
 
   Future<bool> conectar(BluetoothDevice device) async {
+    if (kIsWeb) return false;
     try {
       final isConnected = await bluetooth.isConnected ?? false;
       if (isConnected) {
@@ -37,6 +40,7 @@ class ImpresionBluetoothService {
   }
 
   Future<void> autoconectar() async {
+    if (kIsWeb) return;
     final prefs = await SharedPreferences.getInstance();
     final macAddress = prefs.getString(_printerMacKey);
     if (macAddress != null) {
@@ -54,6 +58,7 @@ class ImpresionBluetoothService {
   }
 
   Future<void> imprimirTicketVenta(Venta venta, Negocio datosNegocio) async {
+    if (kIsWeb) return; // Bluetooth no disponible en web
     final isConnected = await bluetooth.isConnected ?? false;
     if (!isConnected) {
       await autoconectar();
@@ -105,6 +110,7 @@ class ImpresionBluetoothService {
   }
 
   Future<void> imprimirCorteZ(TurnoCaja turno, Negocio datosNegocio) async {
+    if (kIsWeb) return; // Bluetooth no disponible en web
     final isConnected = await bluetooth.isConnected ?? false;
     if (!isConnected) {
       await autoconectar();

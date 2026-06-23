@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'screens/auth_gate.dart';
+import 'screens/pin_lock_screen.dart';
+import 'screens/ventas_screen.dart';
 import 'services/network_service.dart';
 import 'services/auth_service.dart';
 
@@ -13,11 +16,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Optimización de costos: habilitar caché offline local
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
+  // Offline cache: solo Android/Desktop — web usa IndexedDB automático
+  if (!kIsWeb) {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
 
   await NetworkService().init();
 
@@ -77,7 +82,11 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+    // paused = Android background, hidden = iOS/Desktop, inactive = web tab hidden
+    final shouldLock = state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        (kIsWeb && state == AppLifecycleState.inactive);
+    if (shouldLock) {
       if (AuthService().empleadoActivo != null) {
         AuthService().setEmpleadoActivo(null);
         navigatorKey.currentState?.pushReplacementNamed('/pin_lock');
@@ -95,7 +104,9 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       debugShowCheckedModeBanner: false,
       theme: _buildTheme(textTheme),
       routes: {
-        '/pin_lock': (context) => const AuthGate(), // Temporal para pruebas
+        '/': (context) => const AuthGate(),
+        '/pin_lock': (context) => const PinLockScreen(),
+        '/pos': (context) => const VentasScreen(),
       },
       home: const AuthGate(),
     );

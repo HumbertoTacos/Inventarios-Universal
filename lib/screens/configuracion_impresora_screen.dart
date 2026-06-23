@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import '../services/impresion_bluetooth_service.dart';
 
@@ -21,6 +22,7 @@ class _ConfiguracionImpresoraScreenState extends State<ConfiguracionImpresoraScr
   }
 
   Future<void> _loadDevices() async {
+    if (kIsWeb) return; // Bluetooth no disponible en web
     setState(() => _isLoading = true);
     try {
       final devices = await _impresionService.getDevices();
@@ -87,7 +89,28 @@ class _ConfiguracionImpresoraScreenState extends State<ConfiguracionImpresoraScr
           )
         ],
       ),
-      body: _isLoading
+      body: kIsWeb
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.bluetooth_disabled, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'Impresora Bluetooth no disponible en Web',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Usa la app en Android para imprimir tickets físicos.',
+                    style: TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          : _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [

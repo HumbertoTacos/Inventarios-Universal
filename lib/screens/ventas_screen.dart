@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/producto.dart';
@@ -889,11 +890,12 @@ class _VentasScreenState extends State<VentasScreen> {
                 );
               }
             ),
-            IconButton(
-              icon: const Icon(Icons.qr_code_scanner),
-              tooltip: 'Escanear producto',
-              onPressed: _escanearParaVender,
-            ),
+            if (!kIsWeb)
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner),
+                tooltip: 'Escanear producto',
+                onPressed: _escanearParaVender,
+              ),
             IconButton(
               icon: const Icon(Icons.search),
               tooltip: 'Catálogo (F10)',
