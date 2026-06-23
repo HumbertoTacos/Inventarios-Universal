@@ -26,6 +26,9 @@ class DashboardData {
   final double margenPorcentaje;
   final int totalVentas;
   final List<TopProducto> topProductos;
+  final List<TopProducto> peoresProductos;
+  final List<TopProducto> productosBajoStock;
+  final List<TopProducto> sugerenciasCompra;
   final int diasConsultados;
   
   /// Utilidad neta acumulada por proveedor.
@@ -44,6 +47,9 @@ class DashboardData {
     required this.margenPorcentaje,
     required this.totalVentas,
     required this.topProductos,
+    required this.peoresProductos,
+    required this.productosBajoStock,
+    required this.sugerenciasCompra,
     required this.diasConsultados,
     required this.utilidadPorProveedor,
     required this.nombresProveedores,
@@ -58,6 +64,9 @@ class DashboardData {
         margenPorcentaje: 0,
         totalVentas: 0,
         topProductos: [],
+        peoresProductos: [],
+        productosBajoStock: [],
+        sugerenciasCompra: [],
         diasConsultados: dias,
         utilidadPorProveedor: {},
         nombresProveedores: {},

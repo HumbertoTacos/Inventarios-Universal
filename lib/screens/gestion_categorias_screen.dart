@@ -217,115 +217,52 @@ class _CategoriaCard extends StatelessWidget {
         elevation: 1,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                backgroundColor: colorScheme.secondaryContainer,
-                child: Text(
-                  categoria.nombre.isNotEmpty
-                      ? categoria.nombre[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSecondaryContainer,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _mostrarDialogoEditar(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: colorScheme.secondaryContainer,
+                  child: Text(
+                    categoria.nombre.isNotEmpty
+                        ? categoria.nombre[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSecondaryContainer,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      categoria.nombre,
-                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                    ),
-                    const SizedBox(height: 8),
-                    // Atributos
-                    ...categoria.atributos.map((attr) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    attr.esListaFija
-                                        ? Icons.list_alt_outlined
-                                        : Icons.edit_outlined,
-                                    size: 14,
-                                    color: colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    attr.nombre,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: colorScheme.onSurface,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 1),
-                                    decoration: BoxDecoration(
-                                      color: attr.esListaFija
-                                          ? colorScheme.primaryContainer
-                                          : colorScheme.surfaceContainerHighest,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      attr.esListaFija ? 'Lista' : 'Texto libre',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: attr.esListaFija
-                                            ? colorScheme.onPrimaryContainer
-                                            : colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (attr.esListaFija && attr.opciones.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Wrap(
-                                  spacing: 4,
-                                  runSpacing: 4,
-                                  children: attr.opciones
-                                      .map((o) => Chip(
-                                            label: Text(o,
-                                                style: const TextStyle(fontSize: 11)),
-                                            padding: EdgeInsets.zero,
-                                            materialTapTargetSize:
-                                                MaterialTapTargetSize.shrinkWrap,
-                                            visualDensity: VisualDensity.compact,
-                                            backgroundColor:
-                                                colorScheme.surfaceContainerHighest,
-                                          ))
-                                      .toList(),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )),
-                  ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        categoria.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${categoria.atributos.length} atributos configurados',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                tooltip: 'Editar categoría',
-                onPressed: () => _mostrarDialogoEditar(context),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                tooltip: 'Eliminar categoría',
-                onPressed: () => _intentarEliminar(context),
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  tooltip: 'Eliminar categoría',
+                  onPressed: () => _intentarEliminar(context),
+                ),
+              ],
+            ),
           ),
         ),
       ),

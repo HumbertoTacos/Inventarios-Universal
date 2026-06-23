@@ -117,7 +117,35 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
               const SizedBox(height: 32),
               _buildBarChartSection(data, isDesktop),
               const SizedBox(height: 32),
-              _buildPieChartSection(data, isDesktop),
+              if (isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildTopProducts(data, isDesktop)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildWorstProducts(data, isDesktop)),
+                  ],
+                )
+              else ...[
+                _buildTopProducts(data, isDesktop),
+                const SizedBox(height: 32),
+                _buildWorstProducts(data, isDesktop),
+              ],
+              const SizedBox(height: 32),
+              if (isDesktop)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildInventoryAlerts(data, isDesktop)),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildPurchaseSuggestions(data, isDesktop)),
+                  ],
+                )
+              else ...[
+                _buildInventoryAlerts(data, isDesktop),
+                const SizedBox(height: 32),
+                _buildPurchaseSuggestions(data, isDesktop),
+              ],
               const SizedBox(height: 40),
             ],
           ),
@@ -363,19 +391,62 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     );
   }
 
-  Widget _buildPieChartSection(DashboardData data, bool isDesktop) {
-    if (data.topProductos.isEmpty) {
-      return const SizedBox.shrink();
-    }
+  Widget _buildTopProducts(DashboardData data, bool isDesktop) {
+    return _buildProductListCard(
+      title: 'Top 5 Más Vendidos',
+      icon: Icons.trending_up,
+      iconColor: Colors.green,
+      productos: data.topProductos,
+      showIngreso: true,
+      emptyMessage: 'No hay ventas suficientes.',
+    );
+  }
 
-    final colors = [
-      Colors.indigoAccent,
-      Colors.pinkAccent,
-      Colors.amber,
-      Colors.teal,
-      Colors.cyan,
-    ];
+  Widget _buildWorstProducts(DashboardData data, bool isDesktop) {
+    return _buildProductListCard(
+      title: 'Menos Vendidos (Poca Rotación)',
+      icon: Icons.trending_down,
+      iconColor: Colors.redAccent,
+      productos: data.peoresProductos,
+      showIngreso: true,
+      emptyMessage: 'No hay ventas suficientes.',
+    );
+  }
 
+  Widget _buildInventoryAlerts(DashboardData data, bool isDesktop) {
+    return _buildProductListCard(
+      title: 'Alertas de Stock',
+      icon: Icons.warning_amber_rounded,
+      iconColor: Colors.orange,
+      productos: data.productosBajoStock,
+      showIngreso: false,
+      isAlert: true,
+      emptyMessage: 'Todo el inventario está en niveles óptimos.',
+    );
+  }
+
+  Widget _buildPurchaseSuggestions(DashboardData data, bool isDesktop) {
+    return _buildProductListCard(
+      title: 'Sugerencias de Compra',
+      icon: Icons.lightbulb_outline,
+      iconColor: Colors.blueAccent,
+      productos: data.sugerenciasCompra,
+      showIngreso: false,
+      emptyMessage: 'No hay sugerencias por el momento.',
+      subtitle: 'Basado en ventas altas y stock bajo',
+    );
+  }
+
+  Widget _buildProductListCard({
+    required String title,
+    required IconData icon,
+    required Color iconColor,
+    required List<TopProducto> productos,
+    required bool showIngreso,
+    required String emptyMessage,
+    bool isAlert = false,
+    String? subtitle,
+  }) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -385,85 +456,105 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Top 5 Productos (Por Ingreso)',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 24),
             Row(
               children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 24),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: SizedBox(
-                    height: 200,
-                    child: PieChart(
-                      PieChartData(
-                        sectionsSpace: 2,
-                        centerSpaceRadius: 40,
-                        sections: List.generate(data.topProductos.length, (i) {
-                          final p = data.topProductos[i];
-                          return PieChartSectionData(
-                            color: colors[i % colors.length],
-                            value: p.ingresoGenerado,
-                            title: '${((p.ingresoGenerado / data.ingresosTotales) * 100).toStringAsFixed(1)}%',
-                            radius: 50,
-                            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                          );
-                        }),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                if (isDesktop) ...[
-                  const SizedBox(width: 32),
-                  Expanded(child: _buildLegend(data, colors)),
-                ]
               ],
             ),
-            if (!isDesktop) ...[
-              const SizedBox(height: 24),
-              _buildLegend(data, colors),
-            ],
+            const SizedBox(height: 24),
+            if (productos.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    emptyMessage,
+                    style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: productos.length,
+                separatorBuilder: (context, index) => Divider(color: Colors.grey.shade200, height: 16),
+                itemBuilder: (context, index) {
+                  final p = productos[index];
+                  return Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 14,
+                        backgroundColor: isAlert ? Colors.red.shade50 : Colors.blue.shade50,
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isAlert ? Colors.red : Colors.blue,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              p.nombre,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              isAlert ? 'Stock actual: ${p.cantidadVendida.toInt()} uds' : 'Vendidos: ${p.cantidadVendida.toInt()} uds',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isAlert ? Colors.red.shade700 : Colors.grey.shade600,
+                                fontWeight: isAlert ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (showIngreso)
+                        Text(
+                          p.ingresoGenerado.formatoMoneda,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                        ),
+                    ],
+                  );
+                },
+              ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildLegend(DashboardData data, List<Color> colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(data.topProductos.length, (i) {
-        final p = data.topProductos[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12.0),
-          child: Row(
-            children: [
-              Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: colors[i % colors.length],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  p.nombre,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                p.ingresoGenerado.formatoMoneda,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-            ],
-          ),
-        );
-      }),
     );
   }
 }

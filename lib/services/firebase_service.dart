@@ -1977,9 +1977,10 @@ class FirebaseService {
         ? (ganancia / ingresosTotales) * 100
         : 0.0;
 
-    final top =
-        (contadores.entries.toList()
-              ..sort((a, b) => b.value.compareTo(a.value)))
+    final sortedEntries = contadores.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final top = sortedEntries
             .take(5)
             .map(
               (e) => TopProducto(
@@ -1991,6 +1992,46 @@ class FirebaseService {
             )
             .toList();
 
+    final peores = sortedEntries.reversed
+            .take(5)
+            .map(
+              (e) => TopProducto(
+                productoId: e.key,
+                nombre: nombres[e.key] ?? 'Desconocido',
+                cantidadVendida: e.value,
+                ingresoGenerado: ingresosProd[e.key] ?? 0,
+              ),
+            )
+            .toList();
+
+    final snapBajoStock = await _productosRef
+        .where('activo', isEqualTo: true)
+        .where('esBase', isEqualTo: true)
+        .where('cantidad', isLessThanOrEqualTo: 5)
+        .orderBy('cantidad')
+        .limit(10)
+        .get(const GetOptions(source: Source.serverAndCache));
+
+    final bajoStock = snapBajoStock.docs.map((d) {
+      final data = d.data() as Map<String, dynamic>;
+      return TopProducto(
+        productoId: d.id,
+        nombre: data['nombre'] as String? ?? 'Desconocido',
+        cantidadVendida: (data['cantidad'] as num?)?.toDouble() ?? 0.0, // usamos cantidadVendida para guardar el stock actual
+        ingresoGenerado: 0,
+      );
+    }).toList();
+
+    final sugerencias = <TopProducto>[];
+    for (var b in bajoStock) {
+      if (top.any((t) => t.productoId == b.productoId)) {
+        sugerencias.add(b);
+      }
+    }
+    if (sugerencias.isEmpty && bajoStock.isNotEmpty) {
+      sugerencias.addAll(bajoStock.take(3));
+    }
+
     return DashboardData(
       ingresosPorDia: ingresosPorDia,
       costosPorDia: costosPorDia,
@@ -2000,6 +2041,9 @@ class FirebaseService {
       margenPorcentaje: margen,
       totalVentas: totalVentas,
       topProductos: top,
+      peoresProductos: peores,
+      productosBajoStock: bajoStock,
+      sugerenciasCompra: sugerencias,
       diasConsultados: dias,
       utilidadPorProveedor: utilidadPorProveedor,
       nombresProveedores: nombresProveedores,
