@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import '../services/impresion_bluetooth_service.dart';
+import '../widgets/responsive_scaffold.dart';
+
 
 class ConfiguracionImpresoraScreen extends StatefulWidget {
   const ConfiguracionImpresoraScreen({Key? key}) : super(key: key);
@@ -79,16 +81,15 @@ class _ConfiguracionImpresoraScreenState extends State<ConfiguracionImpresoraScr
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Configurar Impresora'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDevices,
-          )
-        ],
-      ),
+    return ResponsiveScaffold(
+      currentRoute: 'impresora',
+      title: 'Configurar Impresora',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _loadDevices,
+        )
+      ],
       body: kIsWeb
           ? const Center(
               child: Column(

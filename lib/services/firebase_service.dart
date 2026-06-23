@@ -250,16 +250,18 @@ class FirebaseService {
     return null;
   }
 
-  Future<void> agregarProducto(Producto producto) async {
+  Future<String> agregarProducto(Producto producto) async {
     try {
       final batch = FirebaseFirestore.instance.batch();
-      batch.set(_productosRef.doc(), producto.toMap());
+      final docRef = _productosRef.doc();
+      batch.set(docRef, producto.toMap());
       _inyectarLogBatch(
         batch,
         'INVENTARIO',
         'Agregó nuevo producto: ${producto.nombre}',
       );
       await batch.commit();
+      return docRef.id;
     } on FirebaseException catch (e) {
       throw Exception('Error al agregar producto: ${e.message}');
     }

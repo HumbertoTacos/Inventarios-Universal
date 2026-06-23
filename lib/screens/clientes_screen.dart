@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/cliente.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
@@ -59,6 +60,65 @@ class _ClientesScreenState extends State<ClientesScreen> {
       context,
       MaterialPageRoute(builder: (_) => DetalleClienteScreen(cliente: cliente)),
     );
+  }
+
+  Future<void> _llamarCliente(String telefono) async {
+    if (telefono.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Este cliente no tiene teléfono registrado')),
+      );
+      return;
+    }
+    final cleanPhone = telefono.replaceAll(RegExp(r'\D'), '');
+    final uri = Uri(scheme: 'tel', path: cleanPhone);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo iniciar la llamada')),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo iniciar la llamada')),
+        );
+      }
+    }
+  }
+
+  Future<void> _abrirWhatsAppCliente(String telefono, String nombre) async {
+    if (telefono.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Este cliente no tiene teléfono registrado')),
+      );
+      return;
+    }
+    String cleanPhone = telefono.replaceAll(RegExp(r'\D'), '');
+    if (cleanPhone.length == 10) {
+      cleanPhone = '52$cleanPhone';
+    }
+    final uri = Uri.parse('https://wa.me/$cleanPhone');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
+      }
+    }
   }
 
   void _mostrarFormularioAgregar([Cliente? editar]) {
@@ -323,13 +383,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _actionIcon(Icons.message, Colors.green, () {
-                    // Lógica para WhatsApp (opcional)
-                  }),
+                  _actionIcon(Icons.message, Colors.green, () => _abrirWhatsAppCliente(c.telefono, c.nombre)),
                   const SizedBox(width: 8),
-                  _actionIcon(Icons.call, Colors.blue, () {
-                    // Lógica para Llamada (opcional)
-                  }),
+                  _actionIcon(Icons.call, Colors.blue, () => _llamarCliente(c.telefono)),
                 ],
               )
             else

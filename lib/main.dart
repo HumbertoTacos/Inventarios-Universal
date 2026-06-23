@@ -30,21 +30,21 @@ void main() async {
 }
 
 /// Paleta de colores centralizada para todo el sistema.
-/// Índigo comercial + grises limpios + superficie #F8F9FA.
+/// Azul slate comercial + grises suaves + superficie blanca.
 class AppColors {
   AppColors._();
 
-  // Primario: Índigo profundo — confianza y tecnología
-  static const Color primary       = Color(0xFF3730A3); // indigo-700
-  static const Color primaryLight  = Color(0xFF818CF8); // indigo-400
-  static const Color primaryDark   = Color(0xFF1E1B4B); // indigo-950
+  // Primario: Azul Slate suave — confianza y tecnología
+  static const Color primary       = Color(0xFF2E5B88); // slate blue
+  static const Color primaryLight  = Color(0xFF6A90B5); // slate-400
+  static const Color primaryDark   = Color(0xFF1A3855); // slate-950
 
-  // Secundario / acento positivo
-  static const Color secondary     = Color(0xFF059669); // emerald-600
-  static const Color secondaryLight= Color(0xFF6EE7B7); // emerald-300
+  // Secundario / acento
+  static const Color secondary     = Color(0xFF475569); // slate-600
+  static const Color secondaryLight= Color(0xFF94A3B8); // slate-400
 
   // Fondo y superficie
-  static const Color background    = Color(0xFFFFFFFF); // Blanco puro
+  static const Color background    = Color(0xFFF8FAFC); // Slate-50 fondo suave premium
   static const Color surface       = Color(0xFFFFFFFF); // blanco puro para cards
   static const Color surfaceVariant= Color(0xFFF1F5F9); // slate-100
 
@@ -108,7 +108,6 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
         '/pin_lock': (context) => const PinLockScreen(),
         '/pos': (context) => const VentasScreen(),
       },
-      home: const AuthGate(),
     );
   }
 
@@ -116,11 +115,12 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
     final cs = ColorScheme.light(
       primary:         AppColors.primary,
       onPrimary:       AppColors.onPrimary,
-      primaryContainer:const Color(0xFFE0E7FF), // indigo-100
+      primaryContainer:const Color(0xFFE2E8F0), // slate-200 (soft gray-blue)
       onPrimaryContainer: AppColors.primaryDark,
       secondary:       AppColors.secondary,
       onSecondary:     Colors.white,
-      secondaryContainer: const Color(0xFFD1FAE5), // emerald-100
+      secondaryContainer: const Color(0xFFE0F2FE), // sky-100 (very soft blue)
+      onSecondaryContainer: AppColors.primaryDark, // Texto contrastante sobre celeste
       surface:         AppColors.surface,
       onSurface:       AppColors.textPrimary,
       surfaceContainerHighest: AppColors.surfaceVariant,
@@ -238,6 +238,7 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       chipTheme: ChipThemeData(
         backgroundColor:  AppColors.surfaceVariant,
         selectedColor:    AppColors.primary.withAlpha(26),
+        checkmarkColor:   AppColors.primary,
         side: const BorderSide(color: AppColors.outline),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         labelStyle: GoogleFonts.outfit(fontSize: 13),
@@ -263,6 +264,14 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: AppColors.textPrimary,
         contentTextStyle: GoogleFonts.outfit(color: Colors.white),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: Colors.black87);
+          }
+          return null;
+        }),
       ),
     );
   }

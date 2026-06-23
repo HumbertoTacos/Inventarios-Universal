@@ -4,6 +4,7 @@ import '../services/firebase_service.dart';
 import '../widgets/premium_widgets.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class GestionProveedoresScreen extends StatefulWidget {
   const GestionProveedoresScreen({super.key});
@@ -212,12 +213,12 @@ class _ProveedorListTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.phone_outlined),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Llamando a ${proveedor.telefono}...')),
-                );
-              },
+              icon: const Icon(Icons.message, color: Colors.green),
+              onPressed: () => _abrirWhatsAppNumero(context, proveedor.telefono),
+            ),
+            IconButton(
+              icon: const Icon(Icons.phone_outlined, color: Colors.blue),
+              onPressed: () => _llamarNumero(context, proveedor.telefono),
             ),
             PopupMenuButton(
               itemBuilder: (context) => [
@@ -326,12 +327,31 @@ class _ProveedorGrid extends StatelessWidget {
               const Spacer(),
               Row(
                 children: [
-                  Icon(Icons.phone_outlined, 
-                    size: 14, 
-                    color: colorScheme.primary
+                  InkWell(
+                    onTap: () => _llamarNumero(context, p.telefono),
+                    borderRadius: BorderRadius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone_outlined, 
+                            size: 14, 
+                            color: colorScheme.primary
+                          ),
+                          const SizedBox(width: 4),
+                          Text(p.telefono, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  Text(p.telefono, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(Icons.message, color: Colors.green, size: 18),
+                    onPressed: () => _abrirWhatsAppNumero(context, p.telefono),
+                  ),
                   if (p.diasVisita != null) ...[
                     const Spacer(),
                     Icon(Icons.calendar_today_outlined, size: 14, color: colorScheme.secondary),
@@ -555,6 +575,59 @@ class _ProveedorFormState extends State<_ProveedorForm> {
           child: w,
         ),
       )).toList(),
+    );
+  }
+}
+
+Future<void> _llamarNumero(BuildContext context, String telefono) async {
+  if (telefono.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Este proveedor no tiene teléfono registrado')),
+    );
+    return;
+  }
+  final messenger = ScaffoldMessenger.of(context);
+  final cleanPhone = telefono.replaceAll(RegExp(r'\D'), '');
+  final uri = Uri(scheme: 'tel', path: cleanPhone);
+  try {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No se pudo iniciar la llamada')),
+      );
+    }
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('No se pudo iniciar la llamada')),
+    );
+  }
+}
+
+Future<void> _abrirWhatsAppNumero(BuildContext context, String telefono) async {
+  if (telefono.trim().isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Este proveedor no tiene teléfono registrado')),
+    );
+    return;
+  }
+  final messenger = ScaffoldMessenger.of(context);
+  String cleanPhone = telefono.replaceAll(RegExp(r'\D'), '');
+  if (cleanPhone.length == 10) {
+    cleanPhone = '52$cleanPhone';
+  }
+  final uri = Uri.parse('https://wa.me/$cleanPhone');
+  try {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+      );
+    }
+  } catch (_) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('No se pudo abrir WhatsApp')),
     );
   }
 }

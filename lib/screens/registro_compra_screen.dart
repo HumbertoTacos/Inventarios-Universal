@@ -9,6 +9,7 @@ import '../widgets/premium_widgets.dart';
 import '../widgets/responsive_scaffold.dart';
 import '../utils/responsive_layout.dart';
 import 'barcode_scanner_screen.dart';
+import 'agregar_producto_screen.dart';
 
 class RegistroCompraScreen extends StatefulWidget {
   const RegistroCompraScreen({super.key});
@@ -189,6 +190,16 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
     }
   }
 
+  Future<void> _abrirCrearProducto() async {
+    final Producto? nuevo = await Navigator.push<Producto?>(
+      context,
+      MaterialPageRoute(builder: (_) => const AgregarProductoScreen()),
+    );
+    if (nuevo != null && mounted) {
+      _agregarProducto(nuevo);
+    }
+  }
+
   Future<void> _registrarCompra() async {
     if (_idProveedorSeleccionado == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -295,9 +306,19 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
                   decoration: InputDecoration(
                     hintText: 'Buscar por nombre o escanear código...',
                     prefixIcon: const Icon(Icons.search),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      onPressed: _escanearBarcode,
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.add, color: Colors.blue),
+                          tooltip: 'Crear Producto Nuevo',
+                          onPressed: _abrirCrearProducto,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _escanearBarcode,
+                        ),
+                      ],
                     ),
                     border: const OutlineInputBorder(),
                   ),
@@ -333,10 +354,15 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
 
   Widget _buildItemsList() {
     if (_itemsCompra.isEmpty) {
-      return const PremiumEmptyState(
+      return PremiumEmptyState(
         icon: Icons.add_shopping_cart,
         title: 'Lista de recepción vacía',
         subtitle: 'Escanea productos para ingresar mercancía.',
+        action: FilledButton.icon(
+          onPressed: _abrirCrearProducto,
+          icon: const Icon(Icons.add),
+          label: const Text('Crear Producto Nuevo'),
+        ),
       );
     }
 

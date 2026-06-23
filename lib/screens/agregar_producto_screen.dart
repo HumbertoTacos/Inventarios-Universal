@@ -556,7 +556,7 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     );
 
     try {
-      await _firebaseService.agregarProducto(producto);
+      final id = await _firebaseService.agregarProducto(producto);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -564,7 +564,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context);
+        final nuevoProducto = producto.copyWith(id: id);
+        Navigator.pop(context, nuevoProducto);
       }
     } catch (e) {
       if (mounted) {

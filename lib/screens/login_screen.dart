@@ -4,6 +4,7 @@ import '../services/auth_service.dart';
 import '../main.dart';
 import 'registro_screen.dart';
 import 'auth_gate.dart';
+import 'recuperar_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -353,7 +354,24 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const RecuperarPasswordScreen()),
+              ),
+              child: Text(
+                '¿Olvidaste tu contraseña?',
+                style: GoogleFonts.outfit(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // Botón principal
           if (_isLoading)

@@ -119,6 +119,7 @@ class Producto {
   }
 
   Producto copyWith({
+    String? id,
     String? nombre,
     String? categoria,
     double? costoPromedio,
@@ -144,7 +145,7 @@ class Producto {
     bool? permiteDecimales,
   }) {
     return Producto(
-      id: id,
+      id: id ?? this.id,
       nombre: nombre ?? this.nombre,
       categoria: categoria ?? this.categoria,
       costoPromedio: costoPromedio ?? this.costoPromedio,
