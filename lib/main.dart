@@ -237,11 +237,13 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       // ── Chips ─────────────────────────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor:  AppColors.surfaceVariant,
-        selectedColor:    AppColors.primary.withAlpha(26),
-        checkmarkColor:   AppColors.primary,
+        selectedColor:    AppColors.primary.withAlpha(50),
+        checkmarkColor:   Colors.black,
+        iconTheme:        const IconThemeData(color: Colors.black),
         side: const BorderSide(color: AppColors.outline),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        labelStyle: GoogleFonts.outfit(fontSize: 13),
+        labelStyle: GoogleFonts.outfit(fontSize: 13, color: Colors.black, fontWeight: FontWeight.w600),
+        secondaryLabelStyle: GoogleFonts.outfit(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
 
@@ -266,11 +268,19 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
         contentTextStyle: GoogleFonts.outfit(color: Colors.white),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        iconTheme: WidgetStateProperty.resolveWith<IconThemeData?>((states) {
+        backgroundColor: AppColors.surface,
+        indicatorColor: cs.secondaryContainer,
+        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Colors.black87);
+            return GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13);
           }
-          return null;
+          return GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.w500, fontSize: 13);
+        }),
+        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: Colors.black, size: 26);
+          }
+          return const IconThemeData(color: Colors.black87, size: 24);
         }),
       ),
     );

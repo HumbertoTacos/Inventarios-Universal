@@ -510,7 +510,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
               children: [
                 Icon(
                   item.icon,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  color: isSelected ? Colors.black : colorScheme.onSurfaceVariant,
                   size: 22,
                 ),
                 if (widget.extended) ...[
@@ -520,7 +520,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                       item.title,
                       style: TextStyle(
                         color: isSelected
-                            ? colorScheme.primary
+                            ? Colors.black
                             : colorScheme.onSurface,
                         fontWeight:
                             isSelected ? FontWeight.bold : FontWeight.normal,
@@ -791,7 +791,7 @@ class _MobileShellState extends State<_MobileShell> {
             ),
             child: Icon(
               item.icon, 
-              color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+              color: isSelected ? Colors.black : colorScheme.onSurfaceVariant,
               size: 20,
             ),
           ),
@@ -799,7 +799,7 @@ class _MobileShellState extends State<_MobileShell> {
             item.title,
             style: TextStyle(
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+              color: isSelected ? Colors.black : colorScheme.onSurface,
             ),
           ),
           trailing: isSelected ? Icon(Icons.check, color: colorScheme.primary, size: 18) : null,
