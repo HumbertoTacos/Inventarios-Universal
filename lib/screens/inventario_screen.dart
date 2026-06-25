@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:csv/csv.dart';
 import 'dart:convert';
+import 'dart:async';
 import '../models/producto.dart';
 import '../models/categoria.dart';
 import '../models/proveedor.dart';
@@ -66,7 +67,10 @@ class _InventarioScreenState extends State<InventarioScreen> {
   DocumentSnapshot? _lastDoc;
   Producto? _searchResult; // Para mostrar un resultado exacto por SKU
 
-  // Estado de Carga
+  String? _atributoSeleccionado;
+  Timer? _debounceTimer;
+
+  // Optimización: Cached user data
   bool _isLoading = true; // Carga inicial
   bool _isFetchingMore = false; // Cargando página siguiente
   bool _hasMoreData = true; // ¿Quedan más datos en Firebase?
@@ -96,8 +100,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
     _searchCtrl.dispose();
+    _scrollController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -290,13 +295,20 @@ class _InventarioScreenState extends State<InventarioScreen> {
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: (v) {
-                  // Búsqueda en tiempo real si tiene letras, o al submit si solo dígitos
+                  _debounceTimer?.cancel();
                   if (v.trim().isEmpty) {
-                    _fetchInitial();
+                    setState(() {
+                      _isSearching = false;
+                      _isSearchingNombre = false;
+                      _productosFiltradosNombre = [];
+                    });
                     return;
                   }
-                  if (!RegExp(r'^\d+$').hasMatch(v.trim()))
-                    _ejecutarBusqueda(v);
+                  if (!RegExp(r'^\d+$').hasMatch(v.trim())) {
+                    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                      _ejecutarBusqueda(v);
+                    });
+                  }
                 },
                 onSubmitted: _ejecutarBusqueda,
                 decoration: InputDecoration(
@@ -310,8 +322,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
                             setState(() {
                               _isSearchingNombre = false;
                               _productosFiltradosNombre = [];
+                              _isSearching = false;
                             });
-                            _fetchInitial();
                           },
                         )
                       : IconButton(
