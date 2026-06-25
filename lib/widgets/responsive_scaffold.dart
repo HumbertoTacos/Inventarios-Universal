@@ -279,173 +279,146 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     VoidCallback? onToggle,
     Negocio? negocio,
   ) {
-    // Sidebar background — very slightly tinted
-    const sidebarBg = Color(0xFF1A2D45);
-    const sidebarBgLight = Color(0xFF213552);
-    const textOnSidebar = Colors.white;
-    const textOnSidebarMuted = Color(0xFF8BACC4);
-    const sidebarAccent = Color(0xFF4A9EE8);
-    const sidebarActiveItem = Color(0xFF2E5B88);
+    // Sidebar profesional: blanco, borde derecho sutil
+    const Color sidebarBg    = Color(0xFFFFFFFF);
+    const Color borderColor  = Color(0xFFE5E7EB);
+    const Color textPrimary  = Color(0xFF111827);
+    const Color textMuted    = Color(0xFF6B7280);
+    const Color accent       = Color(0xFF2563EB);
+    const Color activeBg     = Color(0xFFF3F4F6);
 
     return Container(
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [sidebarBg, sidebarBgLight],
+        color: sidebarBg,
+        border: Border(
+          right: BorderSide(color: borderColor, width: 1),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 16,
-            offset: Offset(2, 0),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ───────────────────────────────────────────────────────
+          // ── Header ─────────────────────────────────────────────────────
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(
-              widget.extended ? 16 : 8,
-              MediaQuery.of(context).padding.top + 16,
-              widget.extended ? 8 : 8,
-              16,
+              widget.extended ? 16 : 0,
+              MediaQuery.of(context).padding.top + 12,
+              widget.extended ? 12 : 0,
+              12,
             ),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.15),
-              border: const Border(
-                bottom: BorderSide(color: Color(0x22FFFFFF), width: 1),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: borderColor, width: 1),
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Toggle button row
+                // Toggle
                 Row(
                   mainAxisAlignment: widget.extended
                       ? MainAxisAlignment.spaceBetween
                       : MainAxisAlignment.center,
                   children: [
                     if (widget.extended)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 4),
-                        child: Text(
-                          'MENÚ',
-                          style: TextStyle(
-                            color: textOnSidebarMuted,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
+                      Expanded(
+                        child: Row(
+                          children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: activeBg,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.network(
+                                      negocio.logoUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.storefront_outlined,
+                                        size: 16,
+                                        color: textMuted,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 16,
+                                    color: textMuted,
+                                  ),
                           ),
-                        ),
-                      ),
-                    Material(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: onToggle,
-                        child: Padding(
-                          padding: const EdgeInsets.all(6),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              widget.extended ? Icons.menu_open_rounded : Icons.menu_rounded,
-                              key: ValueKey(widget.extended),
-                              color: textOnSidebarMuted,
-                              size: 20,
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              negocio?.nombre ?? userData?.negocioNombre ?? 'Mi Negocio',
+                              style: const TextStyle(
+                                color: textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
+                        ],
+                      ),
+                    )
+                  else
+                      Container(
+                        width: 28,
+                        height: 28,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: activeBg,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: Image.network(
+                                  negocio.logoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.storefront_outlined,
+                                    size: 16,
+                                    color: textMuted,
+                                  ),
+                                ),
+                              )
+                            : const Icon(
+                                Icons.storefront_outlined,
+                                size: 16,
+                                color: textMuted,
+                              ),
+                      ),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(6),
+                      onTap: onToggle,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          widget.extended ? Icons.chevron_left : Icons.menu,
+                          color: textMuted,
+                          size: 18,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Logo + info
-                Center(
-                  child: Container(
-                    width: widget.extended ? 56 : 44,
-                    height: widget.extended ? 56 : 44,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: sidebarAccent.withValues(alpha: 0.35),
-                          blurRadius: 12,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
-                          ? Image.network(
-                              negocio.logoUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.storefront_rounded,
-                                size: widget.extended ? 28 : 22,
-                                color: const Color(0xFF2E5B88),
-                              ),
-                            )
-                          : Icon(
-                              Icons.storefront_rounded,
-                              size: widget.extended ? 28 : 22,
-                              color: const Color(0xFF2E5B88),
-                            ),
-                    ),
-                  ),
-                ),
                 if (widget.extended) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          negocio?.nombre ?? userData?.negocioNombre ?? 'Mi Negocio',
-                          style: const TextStyle(
-                            color: textOnSidebar,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          userData?.nombre ?? '',
-                          style: const TextStyle(
-                            color: textOnSidebarMuted,
-                            fontSize: 12,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: sidebarAccent.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: sidebarAccent.withValues(alpha: 0.35), width: 1),
-                          ),
-                          child: Text(
-                            (userData?.rol ?? '').toUpperCase(),
-                            style: const TextStyle(
-                              color: sidebarAccent,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Text(
+                      userData?.nombre ?? '',
+                      style: const TextStyle(
+                        color: textMuted,
+                        fontSize: 11,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -453,52 +426,52 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
             ),
           ),
 
-          // ── Navigation List ───────────────────────────────────────────────
+          // ── Navigation List ───────────────────────────────────────────
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                _buildSectionHeader('Operaciones', textOnSidebarMuted),
-                _buildNavItemFromRoute(items, 'ventas', sidebarAccent, sidebarActiveItem),
+                _buildSectionHeader('Operaciones', textMuted),
+                _buildNavItemFromRoute(items, 'ventas', accent, activeBg, textPrimary, textMuted),
                 if (_configController.usaCajaRegistradora)
-                  _buildNavItemFromRoute(items, 'caja', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'historial', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'clientes', sidebarAccent, sidebarActiveItem),
+                  _buildNavItemFromRoute(items, 'caja', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'historial', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'clientes', accent, activeBg, textPrimary, textMuted),
 
                 _buildDivider(),
 
-                _buildSectionHeader('Inventario', textOnSidebarMuted),
-                _buildNavItemFromRoute(items, 'inventario', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'actualizacion_precios', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'ajuste_inventario', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'categorias', sidebarAccent, sidebarActiveItem),
+                _buildSectionHeader('Inventario', textMuted),
+                _buildNavItemFromRoute(items, 'inventario', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'actualizacion_precios', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'ajuste_inventario', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'categorias', accent, activeBg, textPrimary, textMuted),
 
                 _buildDivider(),
 
-                _buildSectionHeader('Compras', textOnSidebarMuted),
-                _buildNavItemFromRoute(items, 'proveedores', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'registro_compra', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'sugerencias_compra', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'cuentas_por_pagar', sidebarAccent, sidebarActiveItem),
+                _buildSectionHeader('Compras', textMuted),
+                _buildNavItemFromRoute(items, 'proveedores', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'registro_compra', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'sugerencias_compra', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'cuentas_por_pagar', accent, activeBg, textPrimary, textMuted),
 
                 _buildDivider(),
 
-                _buildSectionHeader('Administración', textOnSidebarMuted),
-                _buildNavItemFromRoute(items, 'estadisticas', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'equipo', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'bitacora', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'configuracion', sidebarAccent, sidebarActiveItem),
-                _buildNavItemFromRoute(items, 'impresora', sidebarAccent, sidebarActiveItem),
+                _buildSectionHeader('Administración', textMuted),
+                _buildNavItemFromRoute(items, 'estadisticas', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'equipo', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'bitacora', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'configuracion', accent, activeBg, textPrimary, textMuted),
+                _buildNavItemFromRoute(items, 'impresora', accent, activeBg, textPrimary, textMuted),
               ],
             ),
           ),
 
-          // ── Logout ────────────────────────────────────────────────────────
+          // ── Logout ────────────────────────────────────────────────────
           Container(
             decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: Color(0x22FFFFFF), width: 1)),
+              border: Border(top: BorderSide(color: borderColor, width: 1)),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: _buildLogoutTile(context),
           ),
         ],
@@ -506,16 +479,14 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     );
   }
 
+
   Widget _buildDivider() {
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: widget.extended ? 16 : 12,
-        vertical: 6,
+        horizontal: widget.extended ? 12 : 10,
+        vertical: 4,
       ),
-      child: Container(
-        height: 1,
-        color: const Color(0x18FFFFFF),
-      ),
+      child: const Divider(height: 1, color: Color(0xFFE5E7EB)),
     );
   }
 
@@ -523,27 +494,29 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     List<_RailItem> items,
     String route,
     Color accentColor,
-    Color activeItemColor,
+    Color activeBg,
+    Color textPrimary,
+    Color textMuted,
   ) {
     final i = items.indexWhere((it) => it.route == route);
     if (i == -1) return const SizedBox.shrink();
     final item = items[i];
     final isSelected = widget.currentRoute == route;
-    return _buildNavItem(item, isSelected, accentColor, activeItemColor);
+    return _buildNavItem(item, isSelected, accentColor, activeBg, textPrimary, textMuted);
   }
 
   Widget _buildSectionHeader(String title, Color mutedColor) {
-    if (!widget.extended) return const SizedBox(height: 4);
+    if (!widget.extended) return const SizedBox(height: 2);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
           color: mutedColor,
-          letterSpacing: 1.5,
+          letterSpacing: 0.8,
         ),
       ),
     );
@@ -553,11 +526,10 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     _RailItem item,
     bool isSelected,
     Color accentColor,
-    Color activeItemColor,
+    Color activeBg,
+    Color textPrimary,
+    Color textMuted,
   ) {
-    const textOnSidebar = Colors.white;
-    const textOnSidebarMuted = Color(0xFF8BACC4);
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: AnimatedContainer(
@@ -604,7 +576,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
 
                   Icon(
                     item.icon,
-                    color: isSelected ? accentColor : textOnSidebarMuted,
+                    color: isSelected ? accentColor : textMuted,
                     size: 20,
                   ),
                   if (widget.extended) ...[
@@ -613,7 +585,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                       child: Text(
                         item.title,
                         style: TextStyle(
-                          color: isSelected ? textOnSidebar : textOnSidebarMuted,
+                          color: isSelected ? textPrimary : textMuted,
                           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                           fontSize: 13.5,
                         ),
@@ -631,7 +603,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
   }
 
   Widget _buildLogoutTile(BuildContext context) {
-    const Color logoutColor = Color(0xFFFF6B6B);
+    const Color logoutColor = Color(0xFFDC2626);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),

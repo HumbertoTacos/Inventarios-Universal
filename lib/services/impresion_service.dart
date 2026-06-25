@@ -113,6 +113,125 @@ class ImpresionService {
     }
   }
 
+  /// Genera e imprime etiquetas en formato Planilla A4 (ej. 4x6 etiquetas por hoja)
+  /// Permite seleccionar en qué posición iniciar (para aprovechar hojas parcialmente usadas)
+  static Future<void> imprimirPlanillaEtiquetasA4({
+    required Producto producto,
+    required int cantidad,
+    required int posicionInicial, // 1-indexed
+  }) async {
+    if (producto.codigoBarras == null || producto.codigoBarras!.isEmpty) {
+      throw Exception('El producto no tiene código de barras configurado.');
+    }
+
+    final pdf = pw.Document();
+    
+    // Formato A4 estándar
+    const format = PdfPageFormat.a4;
+    
+    // Configuración de cuadrícula 4 columnas x 6 filas = 24 etiquetas por hoja
+    const int columnas = 4;
+    const int filas = 6;
+    const int etiquetasPorHoja = columnas * filas;
+
+    // Márgenes de la hoja (1 cm aprox)
+    const double margin = 10 * PdfPageFormat.mm;
+    
+    // Dimensiones de cada etiqueta
+    final double cellWidth = (format.width - (margin * 2)) / columnas;
+    final double cellHeight = (format.height - (margin * 2)) / filas;
+
+    int etiquetasImpresas = 0;
+    int posicionActual = posicionInicial - 1; // 0-indexed para lógica interna
+
+    // Calcular cuántas hojas necesitamos
+    final int posicionesTotales = posicionActual + cantidad;
+    final int hojasNecesarias = (posicionesTotales / etiquetasPorHoja).ceil();
+
+    for (int hoja = 0; hoja < hojasNecesarias; hoja++) {
+      pdf.addPage(
+        pw.Page(
+          pageFormat: format,
+          margin: pw.EdgeInsets.all(margin),
+          build: (pw.Context context) {
+            final List<pw.Widget> gridChildren = [];
+
+            for (int f = 0; f < filas; f++) {
+              for (int c = 0; c < columnas; c++) {
+                final int indexAbsoluto = (hoja * etiquetasPorHoja) + (f * columnas) + c;
+                
+                pw.Widget contenidoCelda = pw.SizedBox(); // Vacío por defecto
+
+                // Si estamos en el rango de etiquetas a imprimir
+                if (indexAbsoluto >= posicionActual && etiquetasImpresas < cantidad) {
+                  contenidoCelda = pw.Container(
+                    width: cellWidth,
+                    height: cellHeight,
+                    padding: const pw.EdgeInsets.all(4 * PdfPageFormat.mm),
+                    // Border opcional para ver el corte, lo dejamos transparente o muy suave
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey300, width: 0.5, style: pw.BorderStyle.dashed),
+                    ),
+                    child: pw.Center(
+                      child: pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            producto.nombre.toUpperCase(),
+                            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
+                            textAlign: pw.TextAlign.center,
+                            maxLines: 2,
+                            overflow: pw.TextOverflow.clip,
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            '\$${producto.precio.toStringAsFixed(2)}',
+                            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                            textAlign: pw.TextAlign.center,
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.SizedBox(
+                            height: 30,
+                            width: cellWidth * 0.85,
+                            child: pw.BarcodeWidget(
+                              barcode: Barcode.code128(),
+                              data: producto.codigoBarras!,
+                              drawText: true,
+                              textStyle: pw.TextStyle(fontSize: 7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                  etiquetasImpresas++;
+                }
+
+                gridChildren.add(
+                  pw.Positioned(
+                    left: c * cellWidth,
+                    top: f * cellHeight,
+                    child: contenidoCelda,
+                  )
+                );
+              }
+            }
+
+            return pw.Stack(children: gridChildren);
+          },
+        ),
+      );
+    }
+
+    if (kIsWeb) {
+      final bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'Planilla_Etiquetas_${producto.nombre}.pdf');
+    } else {
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save(), name: 'Planilla_Etiquetas_${producto.nombre}');
+    }
+  }
+
   /// Genera e imprime el Ticket de Venta Profesional para impresoras térmicas (58mm/80mm)
   static Future<void> imprimirTicketVenta({
     required Venta venta,

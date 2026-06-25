@@ -9,6 +9,8 @@ import '../models/categoria.dart';
 import '../models/proveedor.dart';
 import '../models/venta.dart';
 import '../services/firebase_service.dart';
+import '../services/exportacion_service.dart';
+import '../widgets/dialogo_impresion_etiquetas.dart';
 import 'agregar_producto_screen.dart';
 import 'barcode_scanner_screen.dart';
 import 'editar_producto_screen.dart';
@@ -1108,7 +1110,6 @@ class _InventarioScreenState extends State<InventarioScreen> {
       if (!mounted) return;
       showDialog(
         context: context,
-        barrierDismissible: false,
         builder: (_) => AlertDialog(
           content: Row(
             children: [
@@ -1324,20 +1325,9 @@ class _InventarioScreenState extends State<InventarioScreen> {
                 ListTile(
                   leading: const Icon(Icons.print_outlined),
                   title: const Text('Imprimir Etiqueta'),
-                  onTap: () async {
+                  onTap: () {
                     Navigator.pop(context);
-                    try {
-                      await ImpresionService.imprimirEtiquetaProducto(producto);
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(e.toString()),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
+                    DialogoImpresionEtiquetas.mostrar(context, producto);
                   },
                 ),
             ],

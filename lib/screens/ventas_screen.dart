@@ -400,7 +400,6 @@ class _VentasScreenState extends State<VentasScreen> {
 
     final String? inputPin = await showDialog<String>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
@@ -691,7 +690,6 @@ class _VentasScreenState extends State<VentasScreen> {
     
     return showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Column(
           children: [
@@ -1975,7 +1973,6 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
   Future<void> _mostrarDialogoNuevaCategoria() async {
     final nueva = await showDialog<Categoria>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => CategoriaFormDialog(
         firebaseService: widget.firebaseService,
       ),

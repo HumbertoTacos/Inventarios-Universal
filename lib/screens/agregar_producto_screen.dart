@@ -85,7 +85,6 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
   Future<void> _mostrarDialogoNuevaCategoria() async {
     final nueva = await showDialog<Categoria>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => CategoriaFormDialog(
         firebaseService: _firebaseService,
       ),

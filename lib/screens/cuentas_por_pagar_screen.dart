@@ -190,7 +190,6 @@ class _CuentasPorPagarScreenState extends State<CuentasPorPagarScreen> {
 
     showDialog(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Registrar Abono'),

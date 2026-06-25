@@ -5,6 +5,8 @@ import '../models/producto.dart';
 import '../models/proveedor.dart';
 import '../services/firebase_service.dart';
 import 'barcode_scanner_screen.dart';
+import '../services/exportacion_service.dart';
+import '../widgets/dialogo_impresion_etiquetas.dart';
 import '../services/impresion_service.dart';
 
 class EditarProductoScreen extends StatefulWidget {
@@ -138,16 +140,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
             IconButton(
               icon: const Icon(Icons.print_outlined),
               tooltip: 'Imprimir Etiqueta',
-              onPressed: () async {
-                try {
-                  await ImpresionService.imprimirEtiquetaProducto(widget.producto);
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-                    );
-                  }
-                }
+              onPressed: () {
+                DialogoImpresionEtiquetas.mostrar(context, widget.producto);
               },
             ),
         ],

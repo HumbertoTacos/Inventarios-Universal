@@ -97,7 +97,6 @@ class GestionCategoriasScreen extends StatelessWidget {
   ) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => CategoriaFormDialog(firebaseService: firebaseService),
     );
   }
@@ -185,7 +184,6 @@ class _CategoriaCard extends StatelessWidget {
   Future<void> _mostrarDialogoEditar(BuildContext context) async {
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
       builder: (ctx) => CategoriaFormDialog(
         firebaseService: firebaseService,
         categoria: categoria,

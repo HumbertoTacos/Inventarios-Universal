@@ -29,35 +29,38 @@ void main() async {
   runApp(const MiInventarioApp());
 }
 
-/// Paleta de colores centralizada para todo el sistema.
-/// Azul slate premium + grises fríos + superficie blanca.
+/// Paleta profesional: grises neutros + UN solo azul de acento, usado con moderación.
 class AppColors {
   AppColors._();
 
-  // Primario: Azul cobalto rico — confianza y modernidad
-  static const Color primary       = Color(0xFF2563EB); // blue-600
-  static const Color primaryLight  = Color(0xFF60A5FA); // blue-400
-  static const Color primaryDark   = Color(0xFF1E3A8A); // blue-900
+  // Primario: azul corporativo discreto — aparece solo donde hay acción real
+  static const Color primary       = Color(0xFF2563EB);
+  static const Color primaryDark   = Color(0xFF1E40AF);
 
-  // Secundario / acento
-  static const Color secondary     = Color(0xFF475569); // slate-600
-  static const Color secondaryLight= Color(0xFF94A3B8); // slate-400
+  // Texto: jerarquía con grises neutros
+  static const Color textPrimary   = Color(0xFF111827); // casi negro, texto principal
+  static const Color textSecondary = Color(0xFF6B7280); // gris medio, texto de apoyo
+  static const Color textDisabled  = Color(0xFF9CA3AF); // gris claro, deshabilitado
 
-  // Fondo y superficie
-  static const Color background    = Color(0xFFF1F5F9); // slate-100 — gris muy suave
-  static const Color surface       = Color(0xFFFFFFFF); // blanco puro para cards
-  static const Color surfaceVariant= Color(0xFFE8EEF6); // azul-gris muy claro
+  // Superficies: todo parte del blanco
+  static const Color background    = Color(0xFFF9FAFB); // gris-blanco muy sutil
+  static const Color surface       = Color(0xFFFFFFFF);
+  static const Color surfaceHover  = Color(0xFFF3F4F6); // fondo hover/activo
+
+  // Bordes
+  static const Color outline       = Color(0xFFE5E7EB); // borde estándar
+  static const Color outlineStrong = Color(0xFFD1D5DB); // borde con más peso
+
+  // Legado — mantener compatibilidad
+  static const Color secondary     = Color(0xFF6B7280);
+  static const Color secondaryLight= Color(0xFF9CA3AF);
+  static const Color surfaceVariant= Color(0xFFF3F4F6);
+  static const Color onPrimary     = Color(0xFFFFFFFF);
 
   // Estados
-  static const Color error         = Color(0xFFDC2626); // red-600
-  static const Color warning       = Color(0xFFF59E0B); // amber-500
-  static const Color success       = Color(0xFF16A34A); // green-600
-
-  // Texto
-  static const Color onPrimary     = Color(0xFFFFFFFF);
-  static const Color textPrimary   = Color(0xFF0F172A); // slate-900
-  static const Color textSecondary = Color(0xFF64748B); // slate-500
-  static const Color outline       = Color(0xFFCBD5E1); // slate-300
+  static const Color error         = Color(0xFFDC2626);
+  static const Color warning       = Color(0xFFF59E0B);
+  static const Color success       = Color(0xFF16A34A);
 }
 
 class MiInventarioApp extends StatefulWidget {
@@ -112,24 +115,24 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
   }
 
   ThemeData _buildTheme(TextTheme baseTextTheme) {
-    final cs = ColorScheme.light(
+    const cs = ColorScheme.light(
       primary:              AppColors.primary,
       onPrimary:            AppColors.onPrimary,
-      primaryContainer:     const Color(0xFFDBEAFE), // blue-100
+      primaryContainer:     Color(0xFFEFF6FF),  // azul muy pálido
       onPrimaryContainer:   AppColors.primaryDark,
       secondary:            AppColors.secondary,
       onSecondary:          Colors.white,
-      secondaryContainer:   const Color(0xFFDEEBFF), // blue-50 tinted
-      onSecondaryContainer: AppColors.primaryDark,
+      secondaryContainer:   Color(0xFFF3F4F6),
+      onSecondaryContainer: AppColors.textPrimary,
       surface:              AppColors.surface,
       onSurface:            AppColors.textPrimary,
-      surfaceContainerLowest: const Color(0xFFF8FAFC),
-      surfaceContainerLow:  const Color(0xFFF1F5F9),
-      surfaceContainer:     const Color(0xFFE8EEF6),
-      surfaceContainerHigh: const Color(0xFFDDE4EF),
+      surfaceContainerLowest: Color(0xFFFCFCFC),
+      surfaceContainerLow:  Color(0xFFF9FAFB),
+      surfaceContainer:     Color(0xFFF3F4F6),
+      surfaceContainerHigh: Color(0xFFE5E7EB),
       surfaceContainerHighest: AppColors.surfaceVariant,
-      outlineVariant:       const Color(0xFFDDE4EF),
-      outline:              AppColors.outline,
+      outlineVariant:       AppColors.outline,
+      outline:              AppColors.outlineStrong,
       error:                AppColors.error,
       onError:              Colors.white,
     );
@@ -140,33 +143,32 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       scaffoldBackgroundColor: AppColors.background,
       textTheme:      baseTextTheme,
 
-      // ── AppBar ────────────────────────────────────────────────────────────
+      // ── AppBar ─────────────────────────────────────────────────────────────
       appBarTheme: AppBarTheme(
         backgroundColor:  AppColors.surface,
         foregroundColor:  AppColors.textPrimary,
         elevation:        0,
         scrolledUnderElevation: 1,
         surfaceTintColor: Colors.transparent,
-        shadowColor:      AppColors.outline.withAlpha(128),
+        shadowColor:      AppColors.outline.withAlpha(80),
         centerTitle:      false,
         titleTextStyle: GoogleFonts.outfit(
-          fontSize: 18,
+          fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.textSecondary, size: 20),
       ),
 
       // ── Cards ─────────────────────────────────────────────────────────────
       cardTheme: CardThemeData(
         color:     AppColors.surface,
         elevation: 0,
-        shadowColor: const Color(0x1A2563EB),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFDDE4EF), width: 1),
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: AppColors.outline, width: 1),
         ),
-        margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
       ),
 
       // ── Inputs ────────────────────────────────────────────────────────────
@@ -209,26 +211,26 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
         ),
       ),
 
-      // ── ElevatedButton ────────────────────────────────────────────────────
+      // ── ElevatedButton ─────────────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
-          minimumSize:    const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+          minimumSize:    const Size(0, 40),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 14),
           elevation: 0,
         ),
       ),
 
-      // ── OutlinedButton ────────────────────────────────────────────────────
+      // ── OutlinedButton ─────────────────────────────────────────────────────
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          minimumSize:    const Size(double.infinity, 52),
-          side:           const BorderSide(color: AppColors.outline, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w600, fontSize: 15),
+          foregroundColor: AppColors.textPrimary,
+          minimumSize:    const Size(0, 40),
+          side:           const BorderSide(color: AppColors.outline),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          textStyle: GoogleFonts.outfit(fontWeight: FontWeight.w500, fontSize: 14),
         ),
       ),
 
