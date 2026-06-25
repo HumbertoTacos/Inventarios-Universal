@@ -98,7 +98,7 @@ class GestionCategoriasScreen extends StatelessWidget {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _CategoriaFormDialog(firebaseService: firebaseService),
+      builder: (ctx) => CategoriaFormDialog(firebaseService: firebaseService),
     );
   }
 }
@@ -186,7 +186,7 @@ class _CategoriaCard extends StatelessWidget {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _CategoriaFormDialog(
+      builder: (ctx) => CategoriaFormDialog(
         firebaseService: firebaseService,
         categoria: categoria,
       ),
@@ -272,20 +272,20 @@ class _CategoriaCard extends StatelessWidget {
 
 // ── Diálogo para agregar/editar categoría ───────────────────────────────────
 
-class _CategoriaFormDialog extends StatefulWidget {
+class CategoriaFormDialog extends StatefulWidget {
   final FirebaseService firebaseService;
   final Categoria? categoria; // Si no es nulo, estamos editando
 
-  const _CategoriaFormDialog({
+  const CategoriaFormDialog({
     required this.firebaseService,
     this.categoria,
   });
 
   @override
-  State<_CategoriaFormDialog> createState() => _CategoriaFormDialogState();
+  State<CategoriaFormDialog> createState() => CategoriaFormDialogState();
 }
 
-class _CategoriaFormDialogState extends State<_CategoriaFormDialog> {
+class CategoriaFormDialogState extends State<CategoriaFormDialog> {
   final _nombreCtrl = TextEditingController();
   List<AtributoCategoria> _atributos = [];
 
@@ -348,10 +348,51 @@ class _CategoriaFormDialogState extends State<_CategoriaFormDialog> {
           atributos: List<AtributoCategoria>.from(_atributos),
           orden: widget.categoria!.orden,
         );
+
+        // Verificar atributos eliminados
+        final oldAttrs = widget.categoria!.atributos.map((e) => e.nombre).toSet();
+        final newAttrs = editada.atributos.map((e) => e.nombre).toSet();
+        final deletedAttrs = oldAttrs.difference(newAttrs);
+
+        if (deletedAttrs.isNotEmpty) {
+          final confirm = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Confirmar eliminación'),
+              content: Text(
+                'Al borrar ${deletedAttrs.length == 1 ? 'este atributo' : 'estos atributos'} (${deletedAttrs.join(', ')}), se perderá de TODOS los productos vinculados a esta categoría.\n\n¿Estás seguro?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Sí, borrar'),
+                ),
+              ],
+            ),
+          );
+
+          if (confirm != true) {
+            setState(() => _guardando = false);
+            return;
+          }
+        }
+
         await widget.firebaseService.actualizarCategoria(
+          widget.categoria!,
           editada,
-          nombreAnterior: widget.categoria!.nombre,
         );
+
+        if (mounted) {
+          Navigator.pop(context, editada);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$nombre" actualizada correctamente.')),
+          );
+        }
       } else {
         final nueva = Categoria(
           id: '',
@@ -359,26 +400,36 @@ class _CategoriaFormDialogState extends State<_CategoriaFormDialog> {
           atributos: List<AtributoCategoria>.from(_atributos),
           orden: 0,
         );
-        await widget.firebaseService.agregarCategoria(nueva);
-      }
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _esEdicion
-                  ? '"$nombre" actualizada correctamente.'
-                  : '"$nombre" agregada correctamente.',
-            ),
-          ),
+        final id = await widget.firebaseService.agregarCategoria(nueva);
+        final categoriaCreada = Categoria(
+          id: id,
+          nombre: nombre,
+          atributos: List<AtributoCategoria>.from(_atributos),
+          orden: 0,
         );
+
+        if (mounted) {
+          Navigator.pop(context, categoriaCreada);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('"$nombre" agregada correctamente.')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _guardando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Error al guardar'),
+            content: Text(e.toString()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
     }

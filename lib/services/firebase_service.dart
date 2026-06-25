@@ -446,38 +446,79 @@ class FirebaseService {
   }
 
   /// Agrega una nueva categoría.
-  Future<void> agregarCategoria(Categoria categoria) async {
+  Future<String> agregarCategoria(Categoria categoria) async {
     try {
-      await _categoriasRef.add(categoria.toMap());
+      final docRef = await _categoriasRef.add(categoria.toMap());
+      return docRef.id;
     } on FirebaseException catch (e) {
       throw Exception('Error al agregar categoría: ${e.message}');
     }
   }
 
-  /// Actualiza una categoría existente y sus productos asociados si el nombre cambió.
+  /// Actualiza una categoría existente y propaga los cambios a sus productos asociados.
   Future<void> actualizarCategoria(
-    Categoria categoria, {
-    String? nombreAnterior,
-  }) async {
+    Categoria viejaCategoria,
+    Categoria nuevaCategoria,
+  ) async {
     try {
-      final batch = FirebaseFirestore.instance.batch();
+      var batch = FirebaseFirestore.instance.batch();
+      int opsCount = 0;
 
       // 1. Actualizar el documento de la categoría
-      batch.update(_categoriasRef.doc(categoria.id), categoria.toMap());
+      batch.update(_categoriasRef.doc(nuevaCategoria.id), nuevaCategoria.toMap());
+      opsCount++;
 
-      // 2. Si el nombre cambió, actualizar todos los productos que usaban el nombre viejo
-      if (nombreAnterior != null && nombreAnterior != categoria.nombre) {
-        final productosSnap = await _productosRef
-            .where('categoria', isEqualTo: nombreAnterior)
-            .get();
-        for (var doc in productosSnap.docs) {
-          batch.update(doc.reference, {'categoria': categoria.nombre});
+      // 2. Propagar a los productos vinculados
+      final productosQuery = await _productosRef
+          .where('categoria', isEqualTo: viejaCategoria.nombre)
+          .get();
+
+      // Nombres de atributos de la nueva categoría
+      final nuevosAtributos = nuevaCategoria.atributos.map((a) => a.nombre).toSet();
+
+      for (var doc in productosQuery.docs) {
+        final data = doc.data() as Map<String, dynamic>? ?? {};
+        
+        // Manejo ultra robusto para atributos
+        final rawAttrs = data['atributos'];
+        Map<String, dynamic> attrs = {};
+        if (rawAttrs is Map) {
+          attrs = Map<String, dynamic>.from(rawAttrs);
+        }
+
+        // Sincronización de Atributos
+        final List<String> atributosAEliminar = [];
+        for (final key in attrs.keys) {
+          if (!nuevosAtributos.contains(key)) {
+            atributosAEliminar.add(key);
+          }
+        }
+        
+        for (final key in atributosAEliminar) {
+          attrs.remove(key);
+        }
+
+        // Añadir al batch
+        batch.update(doc.reference, {
+          'atributos': attrs,
+          'categoria': nuevaCategoria.nombre,
+        });
+
+        opsCount++;
+        
+        // Firestore limita los batches a 500 operaciones
+        if (opsCount >= 490) {
+          await batch.commit();
+          batch = FirebaseFirestore.instance.batch();
+          opsCount = 0;
         }
       }
 
-      await batch.commit();
-    } on FirebaseException catch (e) {
-      throw Exception('Error al actualizar categoría: ${e.message}');
+      if (opsCount > 0) {
+        await batch.commit();
+      }
+    } catch (e) {
+      throw Exception('Error al actualizar categoría: $e');
     }
   }
 
@@ -1630,6 +1671,7 @@ class FirebaseService {
     required Venta venta,
     required double costoEnvioDevolucion,
     required bool volverAVender,
+    bool envioPagadoPorVendedor = true,
   }) async {
     try {
       // ── Pre-validaciones (fuera de la transacción para poder hacer queries) ──
@@ -1689,6 +1731,7 @@ class FirebaseService {
           'estado': 'devuelta',
           'costoEnvioDevolucion': costoEnvioDevolucion,
           'devueltoAlInventario': volverAVender,
+          'envioDevolucionPagadoPorVendedor': envioPagadoPorVendedor,
         });
 
         // b) Devolver productos al inventario + registrar en Kardex (solo si volverAVender)
@@ -1742,7 +1785,9 @@ class FirebaseService {
           final historial =
               (turnoData['historialRetiros'] as List<dynamic>?)?.toList() ?? [];
 
-          final totalEgreso = venta.total + costoEnvioDevolucion;
+          final totalEgreso = envioPagadoPorVendedor 
+              ? venta.total + costoEnvioDevolucion
+              : venta.total - costoEnvioDevolucion;
 
           // a) Crear documento de MovimientoCaja como Egreso
           final docMovRef = turnoActualSnap.reference
@@ -2190,6 +2235,34 @@ class FirebaseService {
       });
     } on FirebaseException catch (e) {
       throw Exception('Error al registrar abono: ${e.message}');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Agrega una deuda manualmente al cliente sin requerir una venta.
+  Future<void> agregarDeudaManual(String clienteId, double monto, String notas) async {
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final docCliente = await transaction.get(_clientesRef.doc(clienteId));
+        if (!docCliente.exists) throw Exception('Cliente no encontrado.');
+        final saldoActual =
+            (docCliente.data() as Map<String, dynamic>)['saldoDeudor']
+                as num? ??
+            0.0;
+        
+        transaction.update(docCliente.reference, {
+          'saldoDeudor': saldoActual + monto,
+        });
+
+        _inyectarLogTransaccional(
+          transaction,
+          'CREDITOS',
+          'Agregó deuda manual de \$${monto.toStringAsFixed(2)} al cliente ID: $clienteId. Notas: $notas',
+        );
+      });
+    } on FirebaseException catch (e) {
+      throw Exception('Error al agregar deuda manual: ${e.message}');
     } catch (e) {
       rethrow;
     }

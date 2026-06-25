@@ -103,14 +103,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
     final uri = Uri.parse('https://wa.me/$cleanPhone');
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No se pudo abrir WhatsApp')),
-          );
-        }
+      final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo abrir WhatsApp')),
+        );
       }
     } catch (_) {
       if (mounted) {

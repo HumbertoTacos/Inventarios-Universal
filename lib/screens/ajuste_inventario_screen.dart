@@ -446,18 +446,26 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 24),
-          TextFormField(
-            controller: _cantidadCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Cantidad a ajustar',
-              prefixIcon: Icon(Icons.tune_outlined),
-              suffixText: 'Unidades',
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-            ],
-            validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+            TextFormField(
+              controller: _cantidadCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Cantidad a descontar / mermar',
+                prefixIcon: Icon(Icons.remove_circle_outline),
+                suffixText: 'Unidades',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+              ],
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Requerido';
+                final val = double.tryParse(v);
+                if (val == null || val <= 0) return 'Mayor a cero';
+                if (_productoSeleccionado != null && val > _productoSeleccionado!.cantidad) {
+                  return 'No puedes descontar más del stock actual';
+                }
+                return null;
+              },
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(

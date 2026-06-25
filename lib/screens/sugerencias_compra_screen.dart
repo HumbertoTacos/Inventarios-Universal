@@ -258,9 +258,16 @@ class _SugerenciasCompraScreenState extends State<SugerenciasCompraScreen> {
     final url = Uri.parse(
         "https://wa.me/?text=${Uri.encodeComponent(textoFormateado)}");
 
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
+    try {
+      final success = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No se pudo abrir WhatsApp'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

@@ -386,11 +386,13 @@ class _ProveedorFormState extends State<_ProveedorForm> {
   late TextEditingController _correoCtrl;
   late TextEditingController _rfcCtrl;
   late TextEditingController _contactoCtrl;
-  late TextEditingController _visitaCtrl;
   late TextEditingController _notasCtrl;
+  late TextEditingController _otroTipoCtrl;
   String? _tipoSeleccionado;
   
   final List<String> _tipos = ["Abarrotes", "Papelería", "Tecnología", "Servicios", "Bebidas", "Limpieza", "Otro"];
+  final List<String> _diasSemana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+  List<String> _diasSeleccionados = [];
   bool _loading = false;
 
   @override
@@ -402,9 +404,21 @@ class _ProveedorFormState extends State<_ProveedorForm> {
     _correoCtrl = TextEditingController(text: widget.proveedor?.correo);
     _rfcCtrl = TextEditingController(text: widget.proveedor?.rfc_o_nit);
     _contactoCtrl = TextEditingController(text: widget.proveedor?.nombreContacto);
-    _visitaCtrl = TextEditingController(text: widget.proveedor?.diasVisita);
     _notasCtrl = TextEditingController(text: widget.proveedor?.notas);
-    _tipoSeleccionado = widget.proveedor?.tipoProveedor;
+    
+    final d = widget.proveedor?.diasVisita ?? '';
+    if (d.isNotEmpty) {
+      _diasSeleccionados = d.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    
+    final t = widget.proveedor?.tipoProveedor;
+    if (t != null && !_tipos.contains(t)) {
+      _tipoSeleccionado = "Otro";
+      _otroTipoCtrl = TextEditingController(text: t);
+    } else {
+      _tipoSeleccionado = t;
+      _otroTipoCtrl = TextEditingController();
+    }
   }
 
   @override
@@ -415,8 +429,8 @@ class _ProveedorFormState extends State<_ProveedorForm> {
     _correoCtrl.dispose();
     _rfcCtrl.dispose();
     _contactoCtrl.dispose();
-    _visitaCtrl.dispose();
     _notasCtrl.dispose();
+    _otroTipoCtrl.dispose();
     super.dispose();
   }
 
@@ -487,6 +501,17 @@ class _ProveedorFormState extends State<_ProveedorForm> {
               onChanged: (val) => setState(() => _tipoSeleccionado = val),
             ),
           ]),
+          if (_tipoSeleccionado == 'Otro') ...[
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _otroTipoCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Especificar Tipo de Proveedor *',
+                prefixIcon: Icon(Icons.edit_outlined),
+              ),
+              validator: (v) => _tipoSeleccionado == 'Otro' && (v == null || v.isEmpty) ? 'Especifica el tipo' : null,
+            ),
+          ],
           const SizedBox(height: 16),
 
           _buildResponsiveRow(isDesktop, [
@@ -498,15 +523,37 @@ class _ProveedorFormState extends State<_ProveedorForm> {
                 hintText: 'Ej. Don Luis el preventista',
               ),
             ),
-            TextFormField(
-              controller: _visitaCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Días de Visita',
-                prefixIcon: Icon(Icons.calendar_today_outlined),
-                hintText: 'Ej. Lunes y Jueves',
-              ),
-            ),
+            const SizedBox(), // Spacer for alignment if needed, but we'll put the chips below
           ]),
+          const SizedBox(height: 16),
+          
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Días de Visita (Opcional)', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _diasSemana.map((dia) {
+                  final isSelected = _diasSeleccionados.contains(dia);
+                  return FilterChip(
+                    label: Text(dia),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _diasSeleccionados.add(dia);
+                        } else {
+                          _diasSeleccionados.remove(dia);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
 
           TextFormField(
@@ -526,6 +573,11 @@ class _ProveedorFormState extends State<_ProveedorForm> {
               onPressed: _loading ? null : () async {
                 if (_formKey.currentState!.validate()) {
                   setState(() => _loading = true);
+                  String? finalTipo = _tipoSeleccionado;
+                  if (_tipoSeleccionado == 'Otro') {
+                    finalTipo = _otroTipoCtrl.text.trim();
+                  }
+                  final String diasVisitaStr = _diasSeleccionados.join(', ');
                   final p = Proveedor(
                     id: widget.proveedor?.id ?? '',
                     nombreComercial: _nombreCtrl.text,
@@ -534,8 +586,8 @@ class _ProveedorFormState extends State<_ProveedorForm> {
                     correo: _correoCtrl.text.isEmpty ? null : _correoCtrl.text,
                     rfc_o_nit: _rfcCtrl.text.isEmpty ? null : _rfcCtrl.text,
                     nombreContacto: _contactoCtrl.text.isEmpty ? null : _contactoCtrl.text,
-                    tipoProveedor: _tipoSeleccionado,
-                    diasVisita: _visitaCtrl.text.isEmpty ? null : _visitaCtrl.text,
+                    tipoProveedor: finalTipo,
+                    diasVisita: diasVisitaStr.isEmpty ? null : diasVisitaStr,
                     notas: _notasCtrl.text,
                   );
                   await widget.onSave(p);
@@ -618,9 +670,8 @@ Future<void> _abrirWhatsAppNumero(BuildContext context, String telefono) async {
   }
   final uri = Uri.parse('https://wa.me/$cleanPhone');
   try {
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+    final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!success) {
       messenger.showSnackBar(
         const SnackBar(content: Text('No se pudo abrir WhatsApp')),
       );

@@ -5,6 +5,7 @@ import '../models/categoria.dart';
 import '../models/proveedor.dart';
 import '../services/firebase_service.dart';
 import 'barcode_scanner_screen.dart';
+import 'gestion_categorias_screen.dart';
 
 class AgregarProductoScreen extends StatefulWidget {
   const AgregarProductoScreen({super.key});
@@ -81,6 +82,27 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
     });
   }
 
+  Future<void> _mostrarDialogoNuevaCategoria() async {
+    final nueva = await showDialog<Categoria>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CategoriaFormDialog(
+        firebaseService: _firebaseService,
+      ),
+    );
+
+    if (nueva != null) {
+      setState(() {
+        _categoriaSeleccionada = nueva;
+      });
+      _alCambiarCategoria(_categoriaSeleccionada);
+    } else {
+      setState(() {
+        _categoriaSeleccionada = null;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -141,15 +163,30 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                           prefixIcon: Icon(Icons.category_outlined),
                           border: OutlineInputBorder(),
                         ),
-                        items: categorias
-                            .map((cat) => DropdownMenuItem(
-                                  value: cat,
-                                  child: Text(cat.nombre),
-                                ))
-                            .toList(),
-                        onChanged: _alCambiarCategoria,
+                        items: [
+                          ...categorias.map((cat) => DropdownMenuItem(
+                                value: cat,
+                                child: Text(cat.nombre),
+                              )),
+                          if (_categoriaSeleccionada != null && !categorias.any((c) => c.id == _categoriaSeleccionada!.id) && _categoriaSeleccionada!.id != 'NUEVA')
+                            DropdownMenuItem(
+                              value: _categoriaSeleccionada,
+                              child: Text(_categoriaSeleccionada!.nombre),
+                            ),
+                          const DropdownMenuItem(
+                            value: Categoria(id: 'NUEVA', nombre: '+ Crear Nueva Categoría', atributos: []),
+                            child: Text('+ Crear Nueva Categoría', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                          )
+                        ],
+                        onChanged: (val) {
+                          if (val?.id == 'NUEVA') {
+                            _mostrarDialogoNuevaCategoria();
+                          } else {
+                            _alCambiarCategoria(val);
+                          }
+                        },
                         validator: (v) =>
-                            v == null ? 'Selecciona una categoría' : null,
+                            (v == null || v.id == 'NUEVA') ? 'Selecciona una categoría' : null,
                       ),
                       const SizedBox(height: 16),
 
@@ -576,4 +613,5 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
       }
     }
   }
+
 }

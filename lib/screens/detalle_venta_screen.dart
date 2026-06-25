@@ -65,7 +65,8 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
 
   Future<void> _mostrarModalDevolucion() async {
     double costoEnvioDev = 0.0;
-    bool volverAVender = true;
+    int opcionDevolucion = 0; // 0=Almacen, 1=Merma, 2=Tienda/Express
+    bool envioPagadoPorVendedor = true;
 
     final bool? result = await showDialog<bool>(
       context: context,
@@ -76,7 +77,7 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
               children: [
                 Icon(Icons.assignment_return, color: Colors.orange),
                 SizedBox(width: 10),
-                Text('Procesar Devolución'),
+                Expanded(child: Text('Procesar Devolución')),
               ],
             ),
             content: SingleChildScrollView(
@@ -87,26 +88,26 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
                   const Text('¿Cuál es el destino de los productos?', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   
-                  // Opción Restock (Verde)
+                  // Opción 0: Restock (Verde)
                   GestureDetector(
-                    onTap: () => setModalState(() => volverAVender = true),
+                    onTap: () => setModalState(() => opcionDevolucion = 0),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: volverAVender ? Colors.green.shade50 : Colors.transparent,
-                        border: Border.all(color: volverAVender ? Colors.green : Colors.grey.shade300, width: 2),
+                        color: opcionDevolucion == 0 ? Colors.green.shade50 : Colors.transparent,
+                        border: Border.all(color: opcionDevolucion == 0 ? Colors.green : Colors.grey.shade300, width: 2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.inventory_2, color: volverAVender ? Colors.green : Colors.grey),
+                          Icon(Icons.inventory_2, color: opcionDevolucion == 0 ? Colors.green : Colors.grey),
                           const SizedBox(width: 12),
                           const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Regresar a Inventario', style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text('El producto se sumará al stock disponible.', style: TextStyle(fontSize: 11)),
+                                Text('Enviar a Almacén', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text('El producto se sumará al stock. Se mantiene su costo.', style: TextStyle(fontSize: 11)),
                               ],
                             ),
                           ),
@@ -116,26 +117,55 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
                   ),
                   const SizedBox(height: 12),
                   
-                  // Opción Merma (Rojo)
+                  // Opción 1: Merma (Rojo)
                   GestureDetector(
-                    onTap: () => setModalState(() => volverAVender = false),
+                    onTap: () => setModalState(() => opcionDevolucion = 1),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: !volverAVender ? Colors.red.shade50 : Colors.transparent,
-                        border: Border.all(color: !volverAVender ? Colors.red : Colors.grey.shade300, width: 2),
+                        color: opcionDevolucion == 1 ? Colors.red.shade50 : Colors.transparent,
+                        border: Border.all(color: opcionDevolucion == 1 ? Colors.red : Colors.grey.shade300, width: 2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline, color: !volverAVender ? Colors.red : Colors.grey),
+                          Icon(Icons.delete_outline, color: opcionDevolucion == 1 ? Colors.red : Colors.grey),
                           const SizedBox(width: 12),
                           const Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('Registrar como Merma', style: TextStyle(fontWeight: FontWeight.bold)),
-                                Text('Producto dañado. NO se sumará al stock.', style: TextStyle(fontSize: 11)),
+                                Text('Producto dañado o pérdida. NO se sumará al stock.', style: TextStyle(fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Opción 2: Tienda/Express (Naranja)
+                  GestureDetector(
+                    onTap: () => setModalState(() => opcionDevolucion = 2),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: opcionDevolucion == 2 ? Colors.orange.shade50 : Colors.transparent,
+                        border: Border.all(color: opcionDevolucion == 2 ? Colors.orange : Colors.grey.shade300, width: 2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.storefront, color: opcionDevolucion == 2 ? Colors.orange : Colors.grey),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Directo a Tienda (Ignorar)', style: TextStyle(fontWeight: FontWeight.bold)),
+                                Text('Ideal para Express. Como si nada pasara. NO se sumará al stock.', style: TextStyle(fontSize: 11)),
                               ],
                             ),
                           ),
@@ -158,6 +188,19 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
                     ),
                     onChanged: (val) => costoEnvioDev = double.tryParse(val) ?? 0.0,
                   ),
+                  const SizedBox(height: 16),
+                  const Text('¿Quién paga el envío de retorno?', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: true, label: Text('Vendedor')),
+                      ButtonSegment(value: false, label: Text('Cliente')),
+                    ],
+                    selected: {envioPagadoPorVendedor},
+                    onSelectionChanged: (Set<bool> newSelection) {
+                      setModalState(() => envioPagadoPorVendedor = newSelection.first);
+                    },
+                  ),
                 ],
               ),
             ),
@@ -165,7 +208,7 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
               TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: FilledButton.styleFrom(backgroundColor: volverAVender ? Colors.green : Colors.red),
+                style: FilledButton.styleFrom(backgroundColor: opcionDevolucion == 0 ? Colors.green : (opcionDevolucion == 1 ? Colors.red : Colors.orange)),
                 child: const Text('Finalizar Devolución'),
               ),
             ],
@@ -181,7 +224,8 @@ class _DetalleVentaScreenState extends State<DetalleVentaScreen> {
         await _firebaseService.devolverVenta(
           venta: widget.venta,
           costoEnvioDevolucion: costoEnvioDev,
-          volverAVender: volverAVender,
+          volverAVender: opcionDevolucion == 0,
+          envioPagadoPorVendedor: envioPagadoPorVendedor,
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

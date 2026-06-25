@@ -50,6 +50,20 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
     );
   }
 
+  void _mostrarModalDeudaManual(Cliente cliente) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _ModalDeudaManual(
+        cliente: cliente,
+        onRegistrar: (monto, notas) async => await _svc.agregarDeudaManual(cliente.id, monto, notas),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -71,6 +85,12 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
             foregroundColor: cs.onPrimaryContainer,
             elevation: 0,
             actions: [
+              if (AuthService().currentUserData?.rol == AuthService.rolDueno)
+                IconButton(
+                  icon: const Icon(Icons.add_card_outlined),
+                  tooltip: 'Agregar Deuda Manual',
+                  onPressed: () => _mostrarModalDeudaManual(cliente),
+                ),
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 tooltip: 'Editar cliente',
@@ -667,6 +687,139 @@ class _ModalAbonoState extends State<_ModalAbono> {
                     )
                   : const Icon(Icons.check),
               label: Text(_guardando ? 'Registrando...' : 'Confirmar Abono'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Modal de Deuda Manual ───────────────────────────────────────────────────
+
+class _ModalDeudaManual extends StatefulWidget {
+  final Cliente cliente;
+  final Future<void> Function(double, String) onRegistrar;
+
+  const _ModalDeudaManual({required this.cliente, required this.onRegistrar});
+
+  @override
+  State<_ModalDeudaManual> createState() => _ModalDeudaManualState();
+}
+
+class _ModalDeudaManualState extends State<_ModalDeudaManual> {
+  final _formKey = GlobalKey<FormState>();
+  final _montoCtrl = TextEditingController();
+  final _notasCtrl = TextEditingController();
+  bool _guardando = false;
+
+  @override
+  void dispose() {
+    _montoCtrl.dispose();
+    _notasCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _registrar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _guardando = true);
+    try {
+      final monto = double.parse(_montoCtrl.text.trim());
+      final notas = _notasCtrl.text.trim().isEmpty ? 'Deuda manual inicial' : _notasCtrl.text.trim();
+      await widget.onRegistrar(monto, notas);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Deuda registrada correctamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Agregar Deuda Manual',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Agrega un saldo inicial o deuda al cliente sin realizar una venta. Solo disponible para el dueño.',
+              style: TextStyle(color: cs.outline, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _montoCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Monto de la Deuda (\$)',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.attach_money),
+              ),
+              validator: (v) {
+                final n = double.tryParse(v ?? '');
+                if (n == null || n <= 0) return 'Ingresa un monto válido > 0';
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _notasCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Concepto / Notas',
+                border: OutlineInputBorder(),
+                hintText: 'Ej. Saldo inicial',
+              ),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) return 'El concepto es obligatorio';
+                return null;
+              },
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _guardando ? null : _registrar,
+              icon: _guardando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.check),
+              label: Text(_guardando ? 'Guardando...' : 'Confirmar Deuda'),
             ),
           ],
         ),

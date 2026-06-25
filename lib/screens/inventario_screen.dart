@@ -74,6 +74,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
   // Filtros
   Categoria? _filtroCategoria;
   Proveedor? _filtroProveedor;
+  Map<String, String> _filtroAtributos = {};
   List<Categoria> _categorias = [];
   double _totalInventario = 0;
   int _productosBajoStock = 0;
@@ -488,8 +489,25 @@ class _InventarioScreenState extends State<InventarioScreen> {
         ),
       );
     } else {
+      List<Producto> productosAMostrar = _productos;
+      if (_filtroAtributos.isNotEmpty) {
+        productosAMostrar = _productos.where((p) {
+          for (var entry in _filtroAtributos.entries) {
+            final val = p.atributos[entry.key]?.toString().toLowerCase() ?? '';
+            final requiredVal = entry.value.toLowerCase();
+            if (val != requiredVal && !val.contains(requiredVal)) return false;
+          }
+          return true;
+        }).toList();
+      }
+      
+      if (productosAMostrar.isEmpty && _hasMoreData) {
+        // Fetch more if current page matches nothing
+        WidgetsBinding.instance.addPostFrameCallback((_) => _fetchNext());
+      }
+
       mainSliver = _buildSliverGridOrList(
-        _productos,
+        productosAMostrar,
         isDesktop,
         isTablet,
         hasMore: _hasMoreData,
@@ -923,6 +941,8 @@ class _InventarioScreenState extends State<InventarioScreen> {
                               color: Colors.teal,
                               fontWeight: FontWeight.bold,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                       ],
                     ),
@@ -961,10 +981,12 @@ class _InventarioScreenState extends State<InventarioScreen> {
       builder: (_) => _FiltrosBottomSheet(
         filtroCategoriaInicial: _filtroCategoria,
         filtroProveedorInicial: _filtroProveedor,
-        onApply: (cat, prov) {
+        atributosIniciales: _filtroAtributos,
+        onApply: (cat, prov, atributos) {
           setState(() {
             _filtroCategoria = cat;
             _filtroProveedor = prov;
+            _filtroAtributos = atributos;
           });
           _fetchInitial();
         },
@@ -1371,11 +1393,13 @@ class _InventarioScreenState extends State<InventarioScreen> {
 class _FiltrosBottomSheet extends StatefulWidget {
   final Categoria? filtroCategoriaInicial;
   final Proveedor? filtroProveedorInicial;
-  final void Function(Categoria?, Proveedor?) onApply;
+  final Map<String, String> atributosIniciales;
+  final void Function(Categoria?, Proveedor?, Map<String, String>) onApply;
 
   const _FiltrosBottomSheet({
     this.filtroCategoriaInicial,
     this.filtroProveedorInicial,
+    this.atributosIniciales = const {},
     required this.onApply,
   });
 
@@ -1387,12 +1411,14 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
   final FirebaseService _firebaseService = FirebaseService();
   Categoria? _catSelect;
   Proveedor? _provSelect;
+  Map<String, String> _atributosValores = {};
 
   @override
   void initState() {
     super.initState();
     _catSelect = widget.filtroCategoriaInicial;
     _provSelect = widget.filtroProveedorInicial;
+    _atributosValores = Map.from(widget.atributosIniciales);
   }
 
   @override
@@ -1404,112 +1430,176 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
         top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.filter_alt_outlined),
-              const SizedBox(width: 8),
-              Text(
-                'Filtrar Inventario',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Filtro de Categoría
-          StreamBuilder<List<Categoria>>(
-            stream: _firebaseService.getCategorias(),
-            builder: (context, snapshot) {
-              final categorias = snapshot.data ?? [];
-              return DropdownButtonFormField<Categoria>(
-                value: _catSelect,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category_outlined),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.filter_alt_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Filtrar Inventario',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                items: [
-                  const DropdownMenuItem<Categoria>(
-                    value: null,
-                    child: Text('Todas las categorías'),
-                  ),
-                  ...categorias.map(
-                    (cat) =>
-                        DropdownMenuItem(value: cat, child: Text(cat.nombre)),
-                  ),
-                ],
-                onChanged: (cat) => setState(() => _catSelect = cat),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
+              ],
+            ),
+            const SizedBox(height: 24),
 
-          // Filtro de Proveedor
-          StreamBuilder<List<Proveedor>>(
-            stream: _firebaseService.getProveedores(),
-            builder: (context, snapshot) {
-              final proveedores = snapshot.data ?? [];
-              return DropdownButtonFormField<Proveedor>(
-                value: _provSelect,
-                decoration: const InputDecoration(
-                  labelText: 'Proveedor',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.local_shipping_outlined),
-                ),
-                items: [
-                  const DropdownMenuItem<Proveedor>(
-                    value: null,
-                    child: Text('Todos los proveedores'),
+            // Filtro de Categoría
+            StreamBuilder<List<Categoria>>(
+              stream: _firebaseService.getCategorias(),
+              builder: (context, snapshot) {
+                final categorias = snapshot.data ?? [];
+                return DropdownButtonFormField<Categoria>(
+                  value: _catSelect,
+                  decoration: const InputDecoration(
+                    labelText: 'Categoría',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.category_outlined),
                   ),
-                  ...proveedores.map(
-                    (p) => DropdownMenuItem(
-                      value: p,
-                      child: Text(p.nombreComercial),
+                  items: [
+                    const DropdownMenuItem<Categoria>(
+                      value: null,
+                      child: Text('Todas las categorías'),
                     ),
-                  ),
-                ],
-                onChanged: (p) => setState(() => _provSelect = p),
-              );
-            },
-          ),
+                    ...categorias.map(
+                      (cat) =>
+                          DropdownMenuItem(value: cat, child: Text(cat.nombre)),
+                    ),
+                  ],
+                  onChanged: (cat) {
+                    setState(() {
+                      _catSelect = cat;
+                      _atributosValores.clear(); // Limpiar atributos al cambiar
+                    });
+                  },
+                );
+              },
+            ),
+            const SizedBox(height: 16),
 
-          const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    widget.onApply(null, null);
-                    Navigator.pop(context);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Limpiar Todo'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: FilledButton(
-                  onPressed: () {
-                    widget.onApply(_catSelect, _provSelect);
-                    Navigator.pop(context);
-                  },
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('Aplicar Filtros'),
-                ),
-              ),
+            // Atributos dinámicos
+            if (_catSelect != null && _catSelect!.atributos.isNotEmpty) ...[
+              const Text('Atributos', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+              const SizedBox(height: 8),
+              ..._catSelect!.atributos.map((atr) {
+                if (atr.esListaFija) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: DropdownButtonFormField<String>(
+                      value: _atributosValores[atr.nombre],
+                      decoration: InputDecoration(
+                        labelText: atr.nombre,
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text('Cualquier ${atr.nombre}')),
+                        ...atr.opciones.map((op) => DropdownMenuItem(value: op, child: Text(op))),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          if (val == null) {
+                            _atributosValores.remove(atr.nombre);
+                          } else {
+                            _atributosValores[atr.nombre] = val;
+                          }
+                        });
+                      },
+                    ),
+                  );
+                } else {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: TextFormField(
+                      initialValue: _atributosValores[atr.nombre],
+                      decoration: InputDecoration(
+                        labelText: atr.nombre,
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      onChanged: (val) {
+                        if (val.trim().isEmpty) {
+                          _atributosValores.remove(atr.nombre);
+                        } else {
+                          _atributosValores[atr.nombre] = val.trim();
+                        }
+                      },
+                    ),
+                  );
+                }
+              }).toList(),
+              const SizedBox(height: 4),
             ],
-          ),
-        ],
+
+            // Filtro de Proveedor
+            StreamBuilder<List<Proveedor>>(
+              stream: _firebaseService.getProveedores(),
+              builder: (context, snapshot) {
+                final proveedores = snapshot.data ?? [];
+                return DropdownButtonFormField<Proveedor>(
+                  value: _provSelect,
+                  decoration: const InputDecoration(
+                    labelText: 'Proveedor',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.local_shipping_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem<Proveedor>(
+                      value: null,
+                      child: Text('Todos los proveedores'),
+                    ),
+                    ...proveedores.map(
+                      (p) => DropdownMenuItem(
+                        value: p,
+                        child: Text(p.nombreComercial),
+                      ),
+                    ),
+                  ],
+                  onChanged: (p) => setState(() => _provSelect = p),
+                );
+              },
+            ),
+
+            const SizedBox(height: 32),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      widget.onApply(null, null, {});
+                      Navigator.pop(context);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Limpiar Todo'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      widget.onApply(_catSelect, _provSelect, _atributosValores);
+                      Navigator.pop(context);
+                    },
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: const Text('Aplicar Filtros'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

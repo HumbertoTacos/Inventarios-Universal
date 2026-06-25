@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../models/producto.dart';
 import '../models/venta.dart';
 import '../models/cliente.dart';
+import '../models/categoria.dart';
 import '../services/firebase_service.dart';
 import '../models/turno_caja.dart';
 import 'inventario_screen.dart';
@@ -21,6 +22,8 @@ import '../utils/responsive_layout.dart';
 import '../widgets/premium_widgets.dart';
 import '../controllers/configuracion_controller.dart';
 import '../services/network_service.dart';
+import 'gestion_categorias_screen.dart';
+import '../models/proveedor.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
@@ -78,6 +81,56 @@ class _VentasScreenState extends State<VentasScreen> {
         }
       }
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verificarVisitasProveedores();
+    });
+  }
+
+  Future<void> _verificarVisitasProveedores() async {
+    try {
+      final proveedores = await _firebaseService.getProveedores().first;
+      final hoy = DateTime.now();
+      final manana = hoy.add(const Duration(days: 1));
+      final dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+      final hoyStr = dias[hoy.weekday - 1];
+      final mananaStr = dias[manana.weekday - 1];
+
+      List<String> visitasHoy = [];
+      List<String> visitasManana = [];
+
+      for (var p in proveedores) {
+        if (p.diasVisita != null && p.diasVisita!.isNotEmpty) {
+          if (p.diasVisita!.contains(hoyStr)) {
+            visitasHoy.add(p.nombreComercial);
+          }
+          if (p.diasVisita!.contains(mananaStr)) {
+            visitasManana.add(p.nombreComercial);
+          }
+        }
+      }
+
+      if (visitasHoy.isNotEmpty || visitasManana.isNotEmpty) {
+        String mensaje = '';
+        if (visitasHoy.isNotEmpty) {
+          mensaje += 'Hoy te visita: ${visitasHoy.join(', ')}\n';
+        }
+        if (visitasManana.isNotEmpty) {
+          mensaje += 'Mañana te visitará: ${visitasManana.join(', ')}';
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(mensaje.trim(), style: const TextStyle(fontWeight: FontWeight.bold)),
+              duration: const Duration(seconds: 10),
+              backgroundColor: Colors.blue.shade800,
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(label: 'OK', textColor: Colors.white, onPressed: () {}),
+            ),
+          );
+        }
+      }
+    } catch (_) {}
   }
 
   void _onConfigChanged() {
@@ -1111,32 +1164,53 @@ class _VentasScreenState extends State<VentasScreen> {
   Widget _buildOmniBox() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: TextField(
-        controller: _barcodeCtrl,
-        focusNode: _barcodeFocusNode,
-        autofocus: true,
-        decoration: InputDecoration(
-          hintText: 'Escanea un código o busca por nombre...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: _barcodeCtrl.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _barcodeCtrl.clear();
-                    setState(() {
-                      _resultadosBusqueda = [];
-                      _mostrandoBusqueda = false;
-                    });
-                    _barcodeFocusNode.requestFocus();
-                  },
-                )
-              : null,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          filled: true,
-          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-        ),
-        onChanged: _onOmniBoxChanged,
-        onSubmitted: _onOmniBoxSubmitted,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _barcodeCtrl,
+              focusNode: _barcodeFocusNode,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Escanea o busca producto...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _barcodeCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _barcodeCtrl.clear();
+                          setState(() {
+                            _resultadosBusqueda = [];
+                            _mostrandoBusqueda = false;
+                          });
+                          _barcodeFocusNode.requestFocus();
+                        },
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        tooltip: 'Escanear con cámara',
+                        onPressed: _escanearParaVender,
+                      ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                filled: true,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+              onChanged: _onOmniBoxChanged,
+              onSubmitted: _onOmniBoxSubmitted,
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 52),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: _mostrarDialogoProductoExpress,
+            icon: const Icon(Icons.flash_on),
+            label: const Text('Express'),
+          ),
+        ],
       ),
     );
   }
@@ -1229,7 +1303,8 @@ class _VentasScreenState extends State<VentasScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Flexible(
+                        Container(
+                          constraints: const BoxConstraints(maxWidth: 80),
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
@@ -1808,4 +1883,285 @@ class _VentasScreenState extends State<VentasScreen> {
       ),
     );
   }
+
+  // ── Producto Express ───────────────────────────────────────────────────────
+
+  Future<void> _mostrarDialogoProductoExpress() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _ModalProductoExpress(
+        firebaseService: _firebaseService,
+        onGuardar: (Producto p, double cantidadVendida) async {
+          final id = await _firebaseService.agregarProducto(p);
+          final pConId = p.copyWith(id: id);
+          if (mounted) {
+            setState(() {
+              _cacheProductos[id] = pConId;
+              _carrito.add(VentaItem(
+                productoId: id,
+                nombre: p.nombre,
+                costoUnitario: p.costoPromedio,
+                precioUnitario: p.precio,
+                cantidad: cantidadVendida,
+              ));
+            });
+          }
+        },
+      ),
+    );
+  }
 }
+
+// ── Modal de Producto Express ───────────────────────────────────────────────
+
+class _ModalProductoExpress extends StatefulWidget {
+  final FirebaseService firebaseService;
+  final Future<void> Function(Producto, double) onGuardar;
+
+  const _ModalProductoExpress({required this.firebaseService, required this.onGuardar});
+
+  @override
+  State<_ModalProductoExpress> createState() => _ModalProductoExpressState();
+}
+
+class _ModalProductoExpressState extends State<_ModalProductoExpress> {
+  final _formKey = GlobalKey<FormState>();
+  final _nombreCtrl = TextEditingController();
+  final _costoCtrl = TextEditingController();
+  final _precioCtrl = TextEditingController();
+
+  Categoria? _categoriaSeleccionada;
+  bool _guardando = false;
+
+  final Map<String, String> _atributos = {};
+  final Map<String, TextEditingController> _atributoCtrl = {};
+
+  final _cantidadVentaCtrl = TextEditingController(text: '1');
+  bool _permiteDecimales = false;
+  String? _idProveedorSeleccionado;
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _costoCtrl.dispose();
+    _precioCtrl.dispose();
+    _cantidadVentaCtrl.dispose();
+    for (final c in _atributoCtrl.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _alCambiarCategoria(Categoria? cat) {
+    setState(() {
+      _categoriaSeleccionada = cat;
+      _atributos.clear();
+      for (final c in _atributoCtrl.values) {
+        c.dispose();
+      }
+      _atributoCtrl.clear();
+      
+      if (cat != null) {
+        for (final attr in cat.atributos) {
+          if (!attr.esListaFija) {
+            _atributoCtrl[attr.nombre] = TextEditingController();
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _mostrarDialogoNuevaCategoria() async {
+    final nueva = await showDialog<Categoria>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => CategoriaFormDialog(
+        firebaseService: widget.firebaseService,
+      ),
+    );
+
+    if (nueva != null) {
+      _alCambiarCategoria(nueva);
+    } else {
+      _alCambiarCategoria(null);
+    }
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _guardando = true);
+    try {
+      final cantidadVendida = double.tryParse(_cantidadVentaCtrl.text.trim()) ?? 1.0;
+      final p = Producto(
+        id: '',
+        nombre: _nombreCtrl.text.trim(),
+        categoria: _categoriaSeleccionada!.nombre,
+        atributos: Map.from(_atributos),
+        cantidad: cantidadVendida, // Entra con la cantidad para que al vender quede en 0
+        costoPromedio: double.parse(_costoCtrl.text.trim()),
+        precio: double.parse(_precioCtrl.text.trim()),
+        descripcion: 'Producto Express',
+        stockMinimo: 0.0,
+        permiteDecimales: _permiteDecimales,
+        activo: true,
+        esBase: true,
+        enPromocion: false,
+        proveedorId: _idProveedorSeleccionado,
+      );
+      await widget.onGuardar(p, cantidadVendida);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        setState(() => _guardando = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Producto Express', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _nombreCtrl,
+              autofocus: false,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Nombre del Producto *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.inventory_2)),
+              validator: (v) => v == null || v.trim().isEmpty ? 'Requerido' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _costoCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Costo *', border: OutlineInputBorder(), prefixText: '\$ ', prefixIcon: Icon(Icons.money_off)),
+                    validator: (v) => v == null || v.trim().isEmpty || double.tryParse(v) == null ? 'Inválido' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _precioCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Precio *', border: OutlineInputBorder(), prefixText: '\$ ', prefixIcon: Icon(Icons.sell)),
+                    validator: (v) => v == null || v.trim().isEmpty || double.tryParse(v) == null ? 'Inválido' : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<List<Categoria>>(
+              stream: widget.firebaseService.getCategorias(),
+              builder: (context, snapshot) {
+                final categorias = snapshot.data ?? [];
+                return DropdownButtonFormField<Categoria>(
+                  value: _categoriaSeleccionada,
+                  decoration: const InputDecoration(labelText: 'Categoría *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
+                  items: [
+                    ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
+                    if (_categoriaSeleccionada != null && !categorias.any((c) => c.id == _categoriaSeleccionada!.id) && _categoriaSeleccionada!.id != 'NUEVA')
+                      DropdownMenuItem(value: _categoriaSeleccionada, child: Text(_categoriaSeleccionada!.nombre)),
+                    const DropdownMenuItem(value: Categoria(id: 'NUEVA', nombre: '+ Crear Nueva Categoría', atributos: []), child: Text('+ Crear Nueva Categoría', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)))
+                  ],
+                  onChanged: (val) {
+                    if (val?.id == 'NUEVA') {
+                      _mostrarDialogoNuevaCategoria();
+                    } else {
+                      _alCambiarCategoria(val);
+                    }
+                  },
+                  validator: (v) => (v == null || v.id == 'NUEVA') ? 'Requerido' : null,
+                );
+              },
+            ),
+            if (_categoriaSeleccionada != null)
+              ..._categoriaSeleccionada!.atributos.map((attr) {
+                if (attr.esListaFija) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey('attr_${_categoriaSeleccionada!.id}_${attr.nombre}'),
+                      value: _atributos[attr.nombre],
+                      decoration: InputDecoration(
+                        labelText: '${attr.nombre} *',
+                        prefixIcon: const Icon(Icons.list_alt_outlined),
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: attr.opciones.map((op) => DropdownMenuItem(value: op, child: Text(op))).toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => _atributos[attr.nombre] = val);
+                      },
+                      validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+                    ),
+                  );
+                } else {
+                  final ctrl = _atributoCtrl[attr.nombre]!;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: TextFormField(
+                      controller: ctrl,
+                      decoration: InputDecoration(
+                        labelText: '${attr.nombre} *',
+                        prefixIcon: const Icon(Icons.edit_note),
+                        border: const OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.sentences,
+                      onChanged: (val) => _atributos[attr.nombre] = val.trim(),
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+                    ),
+                  );
+                }
+              }),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('Venta fraccionada', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Permite decimales (ej. 0.5)'),
+              value: _permiteDecimales,
+              onChanged: (v) => setState(() => _permiteDecimales = v),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Theme.of(context).colorScheme.outline.withAlpha(50))),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _cantidadVentaCtrl,
+              decoration: const InputDecoration(labelText: 'Cantidad a vender *', prefixIcon: Icon(Icons.numbers), border: OutlineInputBorder()),
+              keyboardType: TextInputType.numberWithOptions(decimal: _permiteDecimales),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d*'))],
+              validator: (v) => v == null || v.trim().isEmpty || double.tryParse(v) == null || double.parse(v) <= 0 ? 'Inválido' : null,
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<List<Proveedor>>(
+              stream: widget.firebaseService.getProveedores(),
+              builder: (context, snapshot) {
+                final proveedores = snapshot.data ?? [];
+                return DropdownButtonFormField<String>(
+                  value: _idProveedorSeleccionado,
+                  decoration: const InputDecoration(labelText: 'Proveedor (opcional)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.local_shipping_outlined)),
+                  items: proveedores.map((p) => DropdownMenuItem(value: p.id, child: Text(p.nombreComercial))).toList(),
+                  onChanged: (v) => setState(() => _idProveedorSeleccionado = v),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _guardando ? null : _guardar,
+              icon: _guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.flash_on),
+              label: Text(_guardando ? 'Guardando...' : 'Crear y Agregar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

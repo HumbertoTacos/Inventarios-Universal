@@ -19,7 +19,10 @@ class AdminDashboardScreen extends StatelessWidget {
       if (!userDoc.exists) throw Exception('El usuario ya no existe.');
 
       final data = userDoc.data()!;
-      final rol = data['rol'] as String? ?? 'dueño';
+      final String rawRol = data['rol'] as String? ?? 'dueño';
+      final String rol = rawRol.toLowerCase().trim();
+      final bool isDueno = rol == 'dueño' || rol == 'dueno';
+      
       final negocioId = data['negocioId'] as String?;
 
       final batch = FirebaseFirestore.instance.batch();
@@ -27,11 +30,11 @@ class AdminDashboardScreen extends StatelessWidget {
       // 1. Aprobar al usuario
       batch.update(FirebaseFirestore.instance.collection('usuarios').doc(uid), {
         'estatus': 'aprobado',
-        'rol': rol == AuthService.rolDueno ? AuthService.rolDueno : 'cajero',
+        'rol': isDueno ? AuthService.rolDueno : 'cajero',
       });
 
       // 2. Si es empleado, limpiar la solicitud del negocio
-      if (negocioId != null && rol != AuthService.rolDueno) {
+      if (negocioId != null && !isDueno) {
         batch.delete(
           FirebaseFirestore.instance
               .collection('negocios')
