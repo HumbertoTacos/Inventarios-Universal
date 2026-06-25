@@ -274,6 +274,7 @@ class _RegistroCompraScreenState extends State<RegistroCompraScreen> {
         builder: (context, snapshot) {
           final proveedores = snapshot.data ?? [];
           return DropdownButtonFormField<String>(
+            onTap: () => FocusScope.of(context).unfocus(),
             value: _idProveedorSeleccionado,
             isExpanded: true,
             decoration: const InputDecoration(

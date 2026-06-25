@@ -262,6 +262,7 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                           builder: (context, snapshot) {
                             final proveedores = snapshot.data ?? [];
                             return DropdownButtonFormField<String>(
+                              onTap: () => FocusScope.of(context).unfocus(),
                               value: _idProveedorSeleccionado,
                               decoration: const InputDecoration(
                                 labelText: 'Proveedor Preferido',

@@ -1168,7 +1168,7 @@ class _VentasScreenState extends State<VentasScreen> {
             child: TextField(
               controller: _barcodeCtrl,
               focusNode: _barcodeFocusNode,
-              autofocus: true,
+              autofocus: false,
               decoration: InputDecoration(
                 hintText: 'Escanea o busca producto...',
                 prefixIcon: const Icon(Icons.search),
@@ -2064,6 +2064,7 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
                 final categorias = snapshot.data ?? [];
                 return DropdownButtonFormField<Categoria>(
                   value: _categoriaSeleccionada,
+                  onTap: () => FocusScope.of(context).unfocus(),
                   decoration: const InputDecoration(labelText: 'Categoría *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
                   items: [
                     ...categorias.map((cat) => DropdownMenuItem(value: cat, child: Text(cat.nombre))),
@@ -2090,6 +2091,7 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
                     child: DropdownButtonFormField<String>(
                       key: ValueKey('attr_${_categoriaSeleccionada!.id}_${attr.nombre}'),
                       value: _atributos[attr.nombre],
+                      onTap: () => FocusScope.of(context).unfocus(),
                       decoration: InputDecoration(
                         labelText: '${attr.nombre} *',
                         prefixIcon: const Icon(Icons.list_alt_outlined),
@@ -2143,6 +2145,7 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
                 final proveedores = snapshot.data ?? [];
                 return DropdownButtonFormField<String>(
                   value: _idProveedorSeleccionado,
+                  onTap: () => FocusScope.of(context).unfocus(),
                   decoration: const InputDecoration(labelText: 'Proveedor (opcional)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.local_shipping_outlined)),
                   items: proveedores.map((p) => DropdownMenuItem(value: p.id, child: Text(p.nombreComercial))).toList(),
                   onChanged: (v) => setState(() => _idProveedorSeleccionado = v),

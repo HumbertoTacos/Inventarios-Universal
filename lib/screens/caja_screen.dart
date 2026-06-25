@@ -105,6 +105,7 @@ class _CajaScreenState extends State<CajaScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
+                  onTap: () => FocusScope.of(context).unfocus(),
                   value: tipoMovimiento,
                   decoration: const InputDecoration(
                     labelText: 'Tipo de Movimiento',

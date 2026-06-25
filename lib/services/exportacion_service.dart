@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:csv/csv.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../models/venta.dart';
 
@@ -106,13 +110,7 @@ class ExportacionService {
     final csvString = converter.convert(filas);
     final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csvString)]);
 
-    await FileSaver.instance.saveFile(
-      name: archivo,
-      bytes: bytes,
-      ext: 'csv',
-      mimeType: MimeType.csv,
-    );
-
+    await _guardarOCompartirCSV(archivo, bytes);
     return '$archivo.csv';
   }
 
@@ -205,12 +203,32 @@ class ExportacionService {
     final csvString = converter.convert(filas);
     final bytes = Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csvString)]);
 
-    await FileSaver.instance.saveFile(
-      name: 'plantilla_importacion_productos',
-      bytes: bytes,
-      ext: 'csv',
-      mimeType: MimeType.csv,
-    );
+    await _guardarOCompartirCSV('plantilla_importacion_productos', bytes);
+  }
+
+  static Future<void> _guardarOCompartirCSV(String nombreBase, Uint8List bytes) async {
+    if (kIsWeb) {
+      await FileSaver.instance.saveFile(
+        name: nombreBase,
+        bytes: bytes,
+        ext: 'csv',
+        mimeType: MimeType.csv,
+      );
+    } else {
+      if (Platform.isAndroid || Platform.isIOS) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$nombreBase.csv');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'Aquí tienes el archivo CSV');
+      } else {
+        await FileSaver.instance.saveFile(
+          name: nombreBase,
+          bytes: bytes,
+          ext: 'csv',
+          mimeType: MimeType.csv,
+        );
+      }
+    }
   }
 
   static String _metodoPago(MetodoPago m) {

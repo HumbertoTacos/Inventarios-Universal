@@ -492,6 +492,7 @@ class _ProveedorFormState extends State<_ProveedorForm> {
               ),
             ),
             DropdownButtonFormField<String>(
+              onTap: () => FocusScope.of(context).unfocus(),
               value: _tipoSeleccionado,
               decoration: const InputDecoration(
                 labelText: 'Tipo de Proveedor',

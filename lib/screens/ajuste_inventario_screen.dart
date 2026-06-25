@@ -469,6 +469,7 @@ class _AjusteInventarioScreenState extends State<AjusteInventarioScreen> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
+            onTap: () => FocusScope.of(context).unfocus(),
             value: _motivoSeleccionado,
             decoration: const InputDecoration(
               labelText: 'Motivo del ajuste',
