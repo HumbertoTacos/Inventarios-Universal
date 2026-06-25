@@ -11,23 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # 1. Descargar e instalar Flutter en el servidor de GitHub
-      - name: Instalar Flutter
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          
-      # 2. Descargar las librerías de tu proyecto
       - run: flutter pub get
-      
-      # 3. Compilar la versión web
       - run: flutter build web
-      
-      # 4. Desplegar a Firebase (Esto ya lo generó Firebase, déjalo como está)
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_INVENTARIOS_UNIVERSAL }}'
-          projectId: inventarios-universal
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_INVENTARIOS_UNIVERSAL }}
           channelId: live
+          projectId: inventarios-universal
