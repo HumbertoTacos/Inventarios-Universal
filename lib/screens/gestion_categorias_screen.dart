@@ -327,6 +327,19 @@ class CategoriaFormDialogState extends State<CategoriaFormDialog> {
     setState(() => _atributos.removeAt(index));
   }
 
+  Future<void> _editarAtributo(int index) async {
+    final resultado = await showDialog<AtributoCategoria>(
+      context: context,
+      builder: (ctx) => _AtributoDialog(atributoBase: _atributos[index]),
+    );
+    if (resultado != null) {
+      setState(() {
+        _atributos[index] = resultado;
+        _errorAtributos = null;
+      });
+    }
+  }
+
   Future<void> _guardar() async {
     final nombre = _nombreCtrl.text.trim();
 
@@ -576,6 +589,11 @@ class CategoriaFormDialogState extends State<CategoriaFormDialog> {
                           ),
                         ),
                         IconButton(
+                          icon: const Icon(Icons.edit, size: 18),
+                          onPressed: () => _editarAtributo(i),
+                          color: colorScheme.primary,
+                        ),
+                        IconButton(
                           icon: const Icon(Icons.close, size: 18),
                           onPressed: () => _quitarAtributo(i),
                           color: Colors.red,
@@ -613,7 +631,9 @@ class CategoriaFormDialogState extends State<CategoriaFormDialog> {
 // ── Diálogo para definir un atributo individual ────────────────────────────
 
 class _AtributoDialog extends StatefulWidget {
-  const _AtributoDialog();
+  final AtributoCategoria? atributoBase;
+
+  const _AtributoDialog({super.key, this.atributoBase});
 
   @override
   State<_AtributoDialog> createState() => _AtributoDialogState();
@@ -625,6 +645,16 @@ class _AtributoDialogState extends State<_AtributoDialog> {
   bool _esListaFija = false;
   final List<String> _opciones = [];
   String? _errorNombre;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.atributoBase != null) {
+      _nombreCtrl.text = widget.atributoBase!.nombre;
+      _esListaFija = widget.atributoBase!.esListaFija;
+      _opciones.addAll(widget.atributoBase!.opciones);
+    }
+  }
 
   @override
   void dispose() {
@@ -664,7 +694,7 @@ class _AtributoDialogState extends State<_AtributoDialog> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(
-      title: const Text('Nuevo atributo'),
+      title: Text(widget.atributoBase != null ? 'Editar atributo' : 'Nuevo atributo'),
       scrollable: true,
       content: SizedBox(
         width: 380,
@@ -794,7 +824,7 @@ class _AtributoDialogState extends State<_AtributoDialog> {
         ),
         FilledButton(
           onPressed: _confirmar,
-          child: const Text('Agregar'),
+          child: Text(widget.atributoBase != null ? 'Guardar' : 'Agregar'),
         ),
       ],
     );

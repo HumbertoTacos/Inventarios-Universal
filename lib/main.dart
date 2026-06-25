@@ -30,23 +30,23 @@ void main() async {
 }
 
 /// Paleta de colores centralizada para todo el sistema.
-/// Azul slate comercial + grises suaves + superficie blanca.
+/// Azul slate premium + grises fríos + superficie blanca.
 class AppColors {
   AppColors._();
 
-  // Primario: Azul Slate suave — confianza y tecnología
-  static const Color primary       = Color(0xFF2E5B88); // slate blue
-  static const Color primaryLight  = Color(0xFF6A90B5); // slate-400
-  static const Color primaryDark   = Color(0xFF1A3855); // slate-950
+  // Primario: Azul cobalto rico — confianza y modernidad
+  static const Color primary       = Color(0xFF2563EB); // blue-600
+  static const Color primaryLight  = Color(0xFF60A5FA); // blue-400
+  static const Color primaryDark   = Color(0xFF1E3A8A); // blue-900
 
   // Secundario / acento
   static const Color secondary     = Color(0xFF475569); // slate-600
   static const Color secondaryLight= Color(0xFF94A3B8); // slate-400
 
   // Fondo y superficie
-  static const Color background    = Color(0xFFF8FAFC); // Slate-50 fondo suave premium
+  static const Color background    = Color(0xFFF1F5F9); // slate-100 — gris muy suave
   static const Color surface       = Color(0xFFFFFFFF); // blanco puro para cards
-  static const Color surfaceVariant= Color(0xFFF1F5F9); // slate-100
+  static const Color surfaceVariant= Color(0xFFE8EEF6); // azul-gris muy claro
 
   // Estados
   static const Color error         = Color(0xFFDC2626); // red-600
@@ -113,20 +113,25 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
 
   ThemeData _buildTheme(TextTheme baseTextTheme) {
     final cs = ColorScheme.light(
-      primary:         AppColors.primary,
-      onPrimary:       AppColors.onPrimary,
-      primaryContainer:const Color(0xFFE2E8F0), // slate-200 (soft gray-blue)
-      onPrimaryContainer: AppColors.primaryDark,
-      secondary:       AppColors.secondary,
-      onSecondary:     Colors.white,
-      secondaryContainer: const Color(0xFFE0F2FE), // sky-100 (very soft blue)
-      onSecondaryContainer: AppColors.primaryDark, // Texto contrastante sobre celeste
-      surface:         AppColors.surface,
-      onSurface:       AppColors.textPrimary,
+      primary:              AppColors.primary,
+      onPrimary:            AppColors.onPrimary,
+      primaryContainer:     const Color(0xFFDBEAFE), // blue-100
+      onPrimaryContainer:   AppColors.primaryDark,
+      secondary:            AppColors.secondary,
+      onSecondary:          Colors.white,
+      secondaryContainer:   const Color(0xFFDEEBFF), // blue-50 tinted
+      onSecondaryContainer: AppColors.primaryDark,
+      surface:              AppColors.surface,
+      onSurface:            AppColors.textPrimary,
+      surfaceContainerLowest: const Color(0xFFF8FAFC),
+      surfaceContainerLow:  const Color(0xFFF1F5F9),
+      surfaceContainer:     const Color(0xFFE8EEF6),
+      surfaceContainerHigh: const Color(0xFFDDE4EF),
       surfaceContainerHighest: AppColors.surfaceVariant,
-      outline:         AppColors.outline,
-      error:           AppColors.error,
-      onError:         Colors.white,
+      outlineVariant:       const Color(0xFFDDE4EF),
+      outline:              AppColors.outline,
+      error:                AppColors.error,
+      onError:              Colors.white,
     );
 
     return ThemeData(
@@ -156,9 +161,10 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       cardTheme: CardThemeData(
         color:     AppColors.surface,
         elevation: 0,
+        shadowColor: const Color(0x1A2563EB),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.outline, width: 1),
+          side: const BorderSide(color: Color(0xFFDDE4EF), width: 1),
         ),
         margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
       ),
@@ -269,18 +275,21 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surface,
-        indicatorColor: cs.secondaryContainer,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.primary.withAlpha(20),
+        indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((states) {
           if (states.contains(WidgetState.selected)) {
-            return GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.w600, fontSize: 13);
+            return GoogleFonts.outfit(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12);
           }
-          return GoogleFonts.outfit(color: Colors.black87, fontWeight: FontWeight.w500, fontSize: 13);
+          return GoogleFonts.outfit(color: AppColors.textSecondary, fontWeight: FontWeight.w500, fontSize: 12);
         }),
         iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Colors.black, size: 26);
+            return IconThemeData(color: AppColors.primary, size: 24);
           }
-          return const IconThemeData(color: Colors.black87, size: 24);
+          return IconThemeData(color: AppColors.textSecondary, size: 22);
         }),
       ),
     );

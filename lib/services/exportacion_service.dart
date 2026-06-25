@@ -119,6 +119,7 @@ class ExportacionService {
   /// Genera y descarga una plantilla CSV vacía para la importación de productos.
   static Future<void> descargarPlantillaCSV() async {
     final filas = <List<dynamic>>[
+      // ── Cabeceras ──────────────────────────────────────────────────────────
       [
         'Nombre',
         'Categoria',
@@ -130,17 +131,74 @@ class ExportacionService {
         'Atributos',
         'Proveedor',
       ],
+      // ── Ejemplo 1: producto en piezas con atributos y código de barras ─────
       [
-        'Ejemplo Producto',
-        'General',
-        '150.00',
-        '100.00',
-        '10',
+        'Sábana King Blanca',
+        'Sábanas',
+        '350.00',
+        '220.00',
+        '15',
         'pza',
-        '123456789',
-        'Talla:M, Color:Rojo',
+        '7501234567890',
+        'Tamaño:King, Color:Blanco',
+        '',
+      ],
+      // ── Ejemplo 2: producto en piezas sin código de barras ────────────────
+      [
+        'Cobertor Matrimonial Gris',
+        'Cobertores Lisos',
+        '480.00',
+        '310.00',
+        '8',
+        'pza',
+        '',
+        'Tamaño:Matrimonial, Color:Gris',
+        '',
+      ],
+      // ── Ejemplo 3: producto fraccionado en kg ─────────────────────────────
+      [
+        'Tela de algodón',
+        'Materiales',
+        '45.50',
+        '28.00',
+        '12.75',
+        'kg',
+        '',
+        '',
+        '',
+      ],
+      // ── Ejemplo 4: producto fraccionado en litros ─────────────────────────
+      [
+        'Suavizante concentrado',
+        'Limpieza',
+        '85.00',
+        '55.00',
+        '6.5',
+        'lt',
+        '7509876543210',
+        '',
+        '',
+      ],
+      // ── Ejemplo 5: producto con proveedor (debe existir en el sistema) ─────
+      [
+        'Toalla de baño individual',
+        'Toallas',
+        '120.00',
+        '75.00',
+        '20',
+        'pza',
+        '',
+        'Tamaño:Individual, Color:Azul',
         'Proveedor Ejemplo SA',
       ],
+      // ── Notas (estas filas serán ignoradas si el Nombre está vacío) ────────
+      ['', '', '', '', '', '', '', '', ''],
+      ['--- NOTAS ---', '', '', '', '', '', '', '', ''],
+      ['Unidad puede ser: pza, kg, lt, mt, caja, par u otro texto libre.', '', '', '', '', '', '', '', ''],
+      ['Cantidad acepta decimales: 0.5 = media pieza, 1.75 = 1 kilo 750g.', '', '', '', '', '', '', '', ''],
+      ['Atributos: Clave:Valor separados por comas. Ej: Talla:M, Color:Azul', '', '', '', '', '', '', '', ''],
+      ['Proveedor: debe existir en el sistema, o dejar vacío.', '', '', '', '', '', '', '', ''],
+      ['CodigoBarras: opcional, dejar vacío si no aplica.', '', '', '', '', '', '', '', ''],
     ];
 
     const converter = ListToCsvConverter();

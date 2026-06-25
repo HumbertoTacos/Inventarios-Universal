@@ -80,6 +80,8 @@ class ResponsiveScaffold extends StatelessWidget {
   }
 }
 
+// ─── Desktop Shell ────────────────────────────────────────────────────────────
+
 class _DesktopShell extends StatelessWidget {
   final String currentRoute;
   final String title;
@@ -107,6 +109,7 @@ class _DesktopShell extends StatelessWidget {
       valueListenable: g_sidebarNotifier,
       builder: (context, isExtended, child) {
         return Scaffold(
+          backgroundColor: colorScheme.surfaceContainerLowest,
           body: Row(
             children: [
               if (!hideDrawer)
@@ -120,31 +123,49 @@ class _DesktopShell extends StatelessWidget {
               Expanded(
                 child: Column(
                   children: [
-                    // Custom Desktop Header
+                    // ── Desktop Header ─────────────────────────────────────
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                      color: colorScheme.surface,
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        border: Border(
+                          bottom: BorderSide(
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                            width: 1,
+                          ),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              title,
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  title,
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: colorScheme.onSurface,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          if (actions != null)
-                            ...actions!,
+                          if (actions != null) ...actions!,
                         ],
                       ),
                     ),
-                    if (appBarBottom != null)
-                      appBarBottom!,
-                    Expanded(
-                      child: body,
-                    ),
+                    if (appBarBottom != null) appBarBottom!,
+                    Expanded(child: body),
                   ],
                 ),
               ),
@@ -156,6 +177,8 @@ class _DesktopShell extends StatelessWidget {
     );
   }
 }
+
+// ─── Navigation Rail (Sidebar) ────────────────────────────────────────────────
 
 class AppNavigationRail extends StatefulWidget {
   final String currentRoute;
@@ -193,11 +216,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     if (_authService.currentUserData == null && !_loadingUserData) {
       _loadingUserData = true;
       _authService.reloadUserData().then((_) {
-        if (mounted) {
-          setState(() {
-            _loadingUserData = false;
-          });
-        }
+        if (mounted) setState(() => _loadingUserData = false);
       });
     }
   }
@@ -236,7 +255,7 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     final bool usaCaja = _configController.usaCajaRegistradora;
     final negocio = _configController.negocio;
     final colorScheme = Theme.of(context).colorScheme;
-    
+
     final List<_RailItem> items = _getAvailableMenuItems(userData, usaCaja);
 
     int selectedIndex = items.indexWhere((item) => item.route == widget.currentRoute);
@@ -245,8 +264,9 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
-      width: widget.extended ? 220 : 80,
-      child: _buildSidebarContent(context, colorScheme, userData, items, selectedIndex, widget.onToggle, negocio),
+      width: widget.extended ? 228 : 72,
+      child: _buildSidebarContent(
+        context, colorScheme, userData, items, selectedIndex, widget.onToggle, negocio),
     );
   }
 
@@ -259,278 +279,350 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     VoidCallback? onToggle,
     Negocio? negocio,
   ) {
+    // Sidebar background — very slightly tinted
+    const sidebarBg = Color(0xFF1A2D45);
+    const sidebarBgLight = Color(0xFF213552);
+    const textOnSidebar = Colors.white;
+    const textOnSidebarMuted = Color(0xFF8BACC4);
+    const sidebarAccent = Color(0xFF4A9EE8);
+    const sidebarActiveItem = Color(0xFF2E5B88);
+
     return Container(
-      color: colorScheme.surfaceContainerLow,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [sidebarBg, sidebarBgLight],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 16,
+            offset: Offset(2, 0),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header con logo e info ──────────────────────────────────────
+          // ── Header ───────────────────────────────────────────────────────
           Container(
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(
               widget.extended ? 16 : 8,
               MediaQuery.of(context).padding.top + 16,
-              widget.extended ? 16 : 8,
+              widget.extended ? 8 : 8,
               16,
             ),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  colorScheme.primary,
-                  colorScheme.primary.withValues(alpha: 0.8),
-                ],
+              color: Colors.black.withValues(alpha: 0.15),
+              border: const Border(
+                bottom: BorderSide(color: Color(0x22FFFFFF), width: 1),
               ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Fila superior con botón Hamburguesa
+                // Toggle button row
                 Row(
                   mainAxisAlignment: widget.extended
                       ? MainAxisAlignment.spaceBetween
                       : MainAxisAlignment.center,
                   children: [
                     if (widget.extended)
-                      const Expanded(
+                      const Padding(
+                        padding: EdgeInsets.only(left: 4),
                         child: Text(
                           'MENÚ',
                           style: TextStyle(
-                              color: Colors.white60,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5),
-                          overflow: TextOverflow.ellipsis,
+                            color: textOnSidebarMuted,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2,
+                          ),
                         ),
                       ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(
-                        widget.extended ? Icons.menu_open : Icons.menu,
-                        color: Colors.white70,
-                        size: 20,
+                    Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: onToggle,
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              widget.extended ? Icons.menu_open_rounded : Icons.menu_rounded,
+                              key: ValueKey(widget.extended),
+                              color: textOnSidebarMuted,
+                              size: 20,
+                            ),
+                          ),
+                        ),
                       ),
-                      onPressed: onToggle,
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                // Logo
+                const SizedBox(height: 12),
+                // Logo + info
                 Center(
-                  child: CircleAvatar(
-                    radius: widget.extended ? 30 : 22,
-                  backgroundColor: Colors.white,
-                  child: ClipOval(
-                    child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
-                        ? Image.network(
-                            negocio.logoUrl!,
-                            width: widget.extended ? 60 : 44,
-                            height: widget.extended ? 60 : 44,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context2, e, st) =>
-                                Icon(Icons.storefront, size: widget.extended ? 30 : 22, color: colorScheme.primary),
-                          )
-                        : Icon(Icons.storefront, size: widget.extended ? 30 : 22, color: colorScheme.primary),
+                  child: Container(
+                    width: widget.extended ? 56 : 44,
+                    height: widget.extended ? 56 : 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: sidebarAccent.withValues(alpha: 0.35),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: negocio?.logoUrl != null && negocio!.logoUrl!.isNotEmpty
+                          ? Image.network(
+                              negocio.logoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.storefront_rounded,
+                                size: widget.extended ? 28 : 22,
+                                color: const Color(0xFF2E5B88),
+                              ),
+                            )
+                          : Icon(
+                              Icons.storefront_rounded,
+                              size: widget.extended ? 28 : 22,
+                              color: const Color(0xFF2E5B88),
+                            ),
+                    ),
                   ),
                 ),
-              ),
                 if (widget.extended) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    negocio?.nombre ?? userData?.negocioNombre ?? 'Mi Negocio',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    userData?.nombre ?? '',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      (userData?.rol ?? '').toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.1,
-                      ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          negocio?.nombre ?? userData?.negocioNombre ?? 'Mi Negocio',
+                          style: const TextStyle(
+                            color: textOnSidebar,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          userData?.nombre ?? '',
+                          style: const TextStyle(
+                            color: textOnSidebarMuted,
+                            fontSize: 12,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: sidebarAccent.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: sidebarAccent.withValues(alpha: 0.35), width: 1),
+                          ),
+                          child: Text(
+                            (userData?.rol ?? '').toUpperCase(),
+                            style: const TextStyle(
+                              color: sidebarAccent,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          // ── Botón toggle hamburguesa ──────────────────────────────────────
-          if (onToggle != null)
-            InkWell(
-              onTap: onToggle,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                color: colorScheme.primary.withValues(alpha: 0.15),
-                child: Row(
-                  mainAxisAlignment: widget.extended
-                      ? MainAxisAlignment.end
-                      : MainAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(right: widget.extended ? 12 : 0),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          widget.extended ? Icons.chevron_left : Icons.chevron_right,
-                          key: ValueKey(widget.extended),
-                          color: colorScheme.onPrimary,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
-          // ── Lista de navegación ──────────────────────────────────────────
+          // ── Navigation List ───────────────────────────────────────────────
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               children: [
-                // ── OPERACIONES ──
-                _buildSectionHeader('Operaciones'),
-                _buildNavItemFromRoute(items, 'ventas'),
-                if (_configController.usaCajaRegistradora) _buildNavItemFromRoute(items, 'caja'),
-                _buildNavItemFromRoute(items, 'historial'),
-                _buildNavItemFromRoute(items, 'clientes'),
+                _buildSectionHeader('Operaciones', textOnSidebarMuted),
+                _buildNavItemFromRoute(items, 'ventas', sidebarAccent, sidebarActiveItem),
+                if (_configController.usaCajaRegistradora)
+                  _buildNavItemFromRoute(items, 'caja', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'historial', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'clientes', sidebarAccent, sidebarActiveItem),
 
-                const Divider(indent: 16, endIndent: 16, height: 24),
+                _buildDivider(),
 
-                // ── INVENTARIO ──
-                _buildSectionHeader('Inventario'),
-                _buildNavItemFromRoute(items, 'inventario'),
-                _buildNavItemFromRoute(items, 'actualizacion_precios'),
-                _buildNavItemFromRoute(items, 'ajuste_inventario'),
-                _buildNavItemFromRoute(items, 'categorias'),
+                _buildSectionHeader('Inventario', textOnSidebarMuted),
+                _buildNavItemFromRoute(items, 'inventario', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'actualizacion_precios', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'ajuste_inventario', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'categorias', sidebarAccent, sidebarActiveItem),
 
-                const Divider(indent: 16, endIndent: 16, height: 24),
+                _buildDivider(),
 
-                // ── COMPRAS ──
-                _buildSectionHeader('Compras'),
-                _buildNavItemFromRoute(items, 'proveedores'),
-                _buildNavItemFromRoute(items, 'registro_compra'),
-                _buildNavItemFromRoute(items, 'sugerencias_compra'),
-                _buildNavItemFromRoute(items, 'cuentas_por_pagar'),
+                _buildSectionHeader('Compras', textOnSidebarMuted),
+                _buildNavItemFromRoute(items, 'proveedores', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'registro_compra', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'sugerencias_compra', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'cuentas_por_pagar', sidebarAccent, sidebarActiveItem),
 
-                const Divider(indent: 16, endIndent: 16, height: 24),
+                _buildDivider(),
 
-                // ── ADMINISTRACIÓN ──
-                _buildSectionHeader('Administración'),
-                _buildNavItemFromRoute(items, 'estadisticas'),
-                _buildNavItemFromRoute(items, 'equipo'),
-                _buildNavItemFromRoute(items, 'bitacora'),
-                _buildNavItemFromRoute(items, 'configuracion'),
-                _buildNavItemFromRoute(items, 'impresora'),
+                _buildSectionHeader('Administración', textOnSidebarMuted),
+                _buildNavItemFromRoute(items, 'estadisticas', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'equipo', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'bitacora', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'configuracion', sidebarAccent, sidebarActiveItem),
+                _buildNavItemFromRoute(items, 'impresora', sidebarAccent, sidebarActiveItem),
               ],
             ),
           ),
 
-          // ── Cerrar Sesión ────────────────────────────────────────────────
-          const Divider(height: 1),
-          _buildLogoutTile(context, colorScheme),
-          const SizedBox(height: 8),
+          // ── Logout ────────────────────────────────────────────────────────
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Color(0x22FFFFFF), width: 1)),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: _buildLogoutTile(context),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildNavItemFromRoute(List<_RailItem> items, String route) {
+  Widget _buildDivider() {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.extended ? 16 : 12,
+        vertical: 6,
+      ),
+      child: Container(
+        height: 1,
+        color: const Color(0x18FFFFFF),
+      ),
+    );
+  }
+
+  Widget _buildNavItemFromRoute(
+    List<_RailItem> items,
+    String route,
+    Color accentColor,
+    Color activeItemColor,
+  ) {
     final i = items.indexWhere((it) => it.route == route);
     if (i == -1) return const SizedBox.shrink();
     final item = items[i];
     final isSelected = widget.currentRoute == route;
-    return _buildNavItem(context, Theme.of(context).colorScheme, item, isSelected);
+    return _buildNavItem(item, isSelected, accentColor, activeItemColor);
   }
 
-  Widget _buildSectionHeader(String title) {
-    if (!widget.extended) return const SizedBox(height: 8);
-    
+  Widget _buildSectionHeader(String title, Color mutedColor) {
+    if (!widget.extended) return const SizedBox(height: 4);
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 14, 16, 6),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
-          letterSpacing: 1.1,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: mutedColor,
+          letterSpacing: 1.5,
         ),
       ),
     );
   }
 
   Widget _buildNavItem(
-    BuildContext context,
-    ColorScheme colorScheme,
     _RailItem item,
     bool isSelected,
+    Color accentColor,
+    Color activeItemColor,
   ) {
+    const textOnSidebar = Colors.white;
+    const textOnSidebarMuted = Color(0xFF8BACC4);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Material(
-        color: isSelected ? colorScheme.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => _navigateTo(item.screen, item.route),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.extended ? 12 : 0,
-              vertical: 12,
-            ),
-            child: Row(
-              mainAxisAlignment: widget.extended
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              children: [
-                Icon(
-                  item.icon,
-                  color: isSelected ? Colors.black : colorScheme.onSurfaceVariant,
-                  size: 22,
-                ),
-                if (widget.extended) ...[
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      item.title,
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.black
-                            : colorScheme.onSurface,
-                        fontWeight:
-                            isSelected ? FontWeight.bold : FontWeight.normal,
-                        fontSize: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
+          color: isSelected ? accentColor.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: isSelected
+              ? Border.all(color: accentColor.withValues(alpha: 0.3), width: 1)
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => _navigateTo(item.screen, item.route),
+            hoverColor: Colors.white.withValues(alpha: 0.05),
+            splashColor: accentColor.withValues(alpha: 0.1),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.extended ? 12 : 0,
+                vertical: 10,
+              ),
+              child: Row(
+                mainAxisAlignment: widget.extended
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.center,
+                children: [
+                  // Active indicator line on left
+                  if (widget.extended && isSelected)
+                    Container(
+                      width: 3,
+                      height: 20,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: accentColor,
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    )
+                  else if (widget.extended)
+                    const SizedBox(width: 13),
+
+                  Icon(
+                    item.icon,
+                    color: isSelected ? accentColor : textOnSidebarMuted,
+                    size: 20,
                   ),
+                  if (widget.extended) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: TextStyle(
+                          color: isSelected ? textOnSidebar : textOnSidebarMuted,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontSize: 13.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -538,14 +630,17 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     );
   }
 
-  Widget _buildLogoutTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildLogoutTile(BuildContext context) {
+    const Color logoutColor = Color(0xFFFF6B6B);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
+          hoverColor: logoutColor.withValues(alpha: 0.08),
           onTap: () async {
             await _authService.logout();
             if (context.mounted) {
@@ -566,16 +661,17 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                const Icon(Icons.logout, color: Colors.red, size: 22),
+                if (widget.extended) const SizedBox(width: 13),
+                const Icon(Icons.logout_rounded, color: logoutColor, size: 20),
                 if (widget.extended) ...[
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'Cerrar Sesión',
                       style: TextStyle(
-                        color: Colors.red,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                        color: logoutColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -589,6 +685,8 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
     );
   }
 }
+
+// ─── Rail Item ────────────────────────────────────────────────────────────────
 
 class _RailItem {
   final String route;
@@ -607,35 +705,37 @@ List<_RailItem> _getAvailableMenuItems(UserData? userData, bool usaCaja) {
   final bool puedeVerHistorial = esDueno || (userData?.permisos.puedeVerHistorialVentas ?? true);
   final bool puedeVerEstadisticas = esDueno || (userData?.permisos.puedeVerEstadisticas ?? false);
   debugPrint('DEBUG: _getAvailableMenuItems - esDueno: $esDueno, puedeVerEstadisticas: $puedeVerEstadisticas');
-  
+
   return [
-    _RailItem('ventas', 'Punto de Venta', Icons.point_of_sale, const VentasScreen(), section: 'Operaciones'),
+    _RailItem('ventas', 'Punto de Venta', Icons.point_of_sale_rounded, const VentasScreen(), section: 'Operaciones'),
     if (usaCaja) _RailItem('caja', 'Caja y Turnos', Icons.point_of_sale_outlined, const CajaScreen(), section: 'Operaciones'),
-    if (puedeVerHistorial) _RailItem('historial', 'Historial de Ventas', Icons.history, const HistorialVentasScreen(), section: 'Operaciones'),
-    _RailItem('clientes', 'Clientes y Créditos', Icons.people_outlined, const ClientesScreen(), section: 'Operaciones'),
-    
-    _RailItem('inventario', 'Catálogo de Productos', Icons.inventory_2_outlined, const InventarioScreen(), section: 'Inventario'),
-    _RailItem('actualizacion_precios', 'Actualización de Precios', Icons.price_change_outlined, const ActualizacionPreciosScreen(), section: 'Inventario'),
-    _RailItem('ajuste_inventario', 'Mermas y Ajustes', Icons.auto_fix_high_outlined, const AjusteInventarioScreen(), section: 'Inventario'),
-    if (esDueno) _RailItem('categorias', 'Gestionar Categorías', Icons.category_outlined, const GestionCategoriasScreen(), section: 'Inventario'),
-    
+    if (puedeVerHistorial) _RailItem('historial', 'Historial de Ventas', Icons.receipt_long_rounded, const HistorialVentasScreen(), section: 'Operaciones'),
+    _RailItem('clientes', 'Clientes y Créditos', Icons.people_alt_rounded, const ClientesScreen(), section: 'Operaciones'),
+
+    _RailItem('inventario', 'Catálogo de Productos', Icons.inventory_2_rounded, const InventarioScreen(), section: 'Inventario'),
+    _RailItem('actualizacion_precios', 'Actualización de Precios', Icons.price_change_rounded, const ActualizacionPreciosScreen(), section: 'Inventario'),
+    _RailItem('ajuste_inventario', 'Mermas y Ajustes', Icons.auto_fix_high_rounded, const AjusteInventarioScreen(), section: 'Inventario'),
+    if (esDueno) _RailItem('categorias', 'Gestionar Categorías', Icons.category_rounded, const GestionCategoriasScreen(), section: 'Inventario'),
+
     if (esDueno) ...[
-      _RailItem('proveedores', 'Proveedores', Icons.local_shipping_outlined, const GestionProveedoresScreen(), section: 'Compras y Proveedores'),
-      _RailItem('registro_compra', 'Registrar Entrada (Compra)', Icons.add_business_outlined, const RegistroCompraScreen(), section: 'Compras y Proveedores'),
-      _RailItem('sugerencias_compra', 'Sugerencias de Compra', Icons.auto_graph_outlined, const SugerenciasCompraScreen(), section: 'Compras y Proveedores'),
-      _RailItem('cuentas_por_pagar', 'Cuentas por Pagar', Icons.money_off_csred_outlined, const CuentasPorPagarScreen(), section: 'Compras y Proveedores'),
+      _RailItem('proveedores', 'Proveedores', Icons.local_shipping_rounded, const GestionProveedoresScreen(), section: 'Compras y Proveedores'),
+      _RailItem('registro_compra', 'Registrar Entrada (Compra)', Icons.add_business_rounded, const RegistroCompraScreen(), section: 'Compras y Proveedores'),
+      _RailItem('sugerencias_compra', 'Sugerencias de Compra', Icons.auto_graph_rounded, const SugerenciasCompraScreen(), section: 'Compras y Proveedores'),
+      _RailItem('cuentas_por_pagar', 'Cuentas por Pagar', Icons.money_off_csred_rounded, const CuentasPorPagarScreen(), section: 'Compras y Proveedores'),
     ],
 
-    if (esDueno || puedeVerEstadisticas) _RailItem('estadisticas', 'Estadísticas y Ganancias', Icons.bar_chart, const EstadisticasScreen(), section: 'Administración'),
-    
+    if (esDueno || puedeVerEstadisticas) _RailItem('estadisticas', 'Estadísticas y Ganancias', Icons.bar_chart_rounded, const EstadisticasScreen(), section: 'Administración'),
+
     if (esDueno) ...[
-      _RailItem('equipo', 'Mi Equipo', Icons.people_alt_outlined, const MiEquipoScreen(), section: 'Administración'),
-      _RailItem('bitacora', 'Bitácora de Movimientos', Icons.manage_search_outlined, const BitacoraScreen(), section: 'Administración'),
-      _RailItem('configuracion', 'Configuración del Negocio', Icons.settings_outlined, const ConfiguracionNegocioScreen(), section: 'Administración'),
-      _RailItem('impresora', 'Impresora Bluetooth', Icons.print_outlined, const ConfiguracionImpresoraScreen(), section: 'Administración'),
+      _RailItem('equipo', 'Mi Equipo', Icons.groups_rounded, const MiEquipoScreen(), section: 'Administración'),
+      _RailItem('bitacora', 'Bitácora de Movimientos', Icons.manage_search_rounded, const BitacoraScreen(), section: 'Administración'),
+      _RailItem('configuracion', 'Configuración del Negocio', Icons.settings_rounded, const ConfiguracionNegocioScreen(), section: 'Administración'),
+      _RailItem('impresora', 'Impresora Bluetooth', Icons.print_rounded, const ConfiguracionImpresoraScreen(), section: 'Administración'),
     ]
   ];
 }
+
+// ─── Mobile Shell ─────────────────────────────────────────────────────────────
 
 class _MobileShell extends StatefulWidget {
   final String currentRoute;
@@ -680,11 +780,7 @@ class _MobileShellState extends State<_MobileShell> {
     if (_authService.currentUserData == null && !_loadingUserData) {
       _loadingUserData = true;
       _authService.reloadUserData().then((_) {
-        if (mounted) {
-          setState(() {
-            _loadingUserData = false;
-          });
-        }
+        if (mounted) setState(() => _loadingUserData = false);
       });
     }
   }
@@ -723,10 +819,7 @@ class _MobileShellState extends State<_MobileShell> {
           const end = Offset.zero;
           const curve = Curves.easeInOut;
           final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          return SlideTransition(
-            position: animation.drive(tween),
-            child: child,
-          );
+          return SlideTransition(position: animation.drive(tween), child: child);
         },
       ),
     );
@@ -765,67 +858,84 @@ class _MobileShellState extends State<_MobileShell> {
               child: Text(
                 currentSection.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
                   color: colorScheme.primary.withValues(alpha: 0.7),
-                  letterSpacing: 1.2,
+                  letterSpacing: 1.5,
                 ),
               ),
             ),
           );
         }
       }
-      
+
       final isSelected = currentRoute == item.route;
-      
+
       children.add(
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: isSelected 
-                  ? colorScheme.primary.withValues(alpha: 0.1) 
-                  : colorScheme.surfaceContainerHighest,
-              shape: BoxShape.circle,
+        Material(
+          color: isSelected ? colorScheme.primaryContainer.withValues(alpha: 0.5) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            leading: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? colorScheme.primary.withValues(alpha: 0.12)
+                    : colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                item.icon,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
             ),
-            child: Icon(
-              item.icon, 
-              color: isSelected ? Colors.black : colorScheme.onSurfaceVariant,
-              size: 20,
+            title: Text(
+              item.title,
+              style: TextStyle(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurface,
+                fontSize: 14,
+              ),
             ),
+            trailing: isSelected
+                ? Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                : null,
+            onTap: () {
+              Navigator.pop(context);
+              _navigateTo(item.screen, item.route);
+            },
           ),
-          title: Text(
-            item.title,
-            style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? Colors.black : colorScheme.onSurface,
-            ),
-          ),
-          trailing: isSelected ? Icon(Icons.check, color: colorScheme.primary, size: 18) : null,
-          onTap: () {
-            Navigator.pop(context);
-            _navigateTo(item.screen, item.route);
-          },
         ),
       );
     }
 
-    children.add(const Divider(height: 32));
+    children.add(const Divider(height: 32, indent: 16, endIndent: 16));
     children.add(
       ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
+            color: Colors.red.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.logout, color: Colors.red, size: 20),
+          child: const Icon(Icons.logout_rounded, color: Colors.red, size: 20),
         ),
         title: const Text(
           'Cerrar Sesión',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w700, fontSize: 14),
         ),
         onTap: () async {
           Navigator.pop(context);
@@ -853,7 +963,7 @@ class _MobileShellState extends State<_MobileShell> {
       isScrollControlled: true,
       backgroundColor: colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return DraggableScrollableSheet(
@@ -864,32 +974,33 @@ class _MobileShellState extends State<_MobileShell> {
           builder: (ctx, scrollController) {
             return Column(
               children: [
-                // Pill handler
+                // Pill handle
                 Container(
-                  margin: const EdgeInsets.symmetric(vertical: 12),
-                  width: 40,
+                  margin: const EdgeInsets.symmetric(vertical: 14),
+                  width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Text(
                     'MÁS OPCIONES',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
                       color: colorScheme.primary,
                     ),
                   ),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1, color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 Expanded(
                   child: ListView(
                     controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     children: _buildMoreMenuChildren(context, allItems, widget.currentRoute),
                   ),
                 ),
@@ -906,19 +1017,33 @@ class _MobileShellState extends State<_MobileShell> {
     final userData = _authService.currentUserData;
     final usaCaja = _configController.usaCajaRegistradora;
     final allItems = _getAvailableMenuItems(userData, usaCaja);
+    final colorScheme = Theme.of(context).colorScheme;
 
-    int currentIndex = 0; // Default a Ventas
+    int currentIndex = 0;
     if (widget.currentRoute == 'ventas') currentIndex = 0;
     else if (widget.currentRoute == 'inventario') currentIndex = 1;
     else if (widget.currentRoute == 'clientes') currentIndex = 2;
-    else currentIndex = 3; // 'Más' o cualquier otra ruta se mapea visualmente aquí
+    else currentIndex = 3;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        elevation: 0,
+        scrolledUnderElevation: 2,
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: colorScheme.primary.withValues(alpha: 0.05),
+        shadowColor: Colors.black.withValues(alpha: 0.08),
+        automaticallyImplyLeading: false,
+        title: Text(
+          widget.title,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+            color: colorScheme.onSurface,
+            letterSpacing: -0.3,
+          ),
+        ),
         actions: widget.actions,
         bottom: widget.appBarBottom,
-        automaticallyImplyLeading: false, // Quitar icono del Drawer
       ),
       body: GestureDetector(
         onHorizontalDragEnd: (details) {
@@ -933,36 +1058,61 @@ class _MobileShellState extends State<_MobileShell> {
         child: widget.body,
       ),
       floatingActionButton: widget.floatingActionButton,
-      bottomNavigationBar: widget.hideDrawer ? null : NavigationBar(
-        selectedIndex: currentIndex,
-        onDestinationSelected: (index) {
-          if (index == 0) _navigateTo(const VentasScreen(), 'ventas');
-          else if (index == 1) _navigateTo(const InventarioScreen(), 'inventario');
-          else if (index == 2) _navigateTo(const ClientesScreen(), 'clientes');
-          else if (index == 3) _showMoreMenu(context, allItems);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.point_of_sale_outlined),
-            selectedIcon: Icon(Icons.point_of_sale),
-            label: 'Ventas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2),
-            label: 'Inventario',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Clientes',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.menu),
-            label: 'Más',
-          ),
-        ],
-      ),
+      bottomNavigationBar: widget.hideDrawer
+          ? null
+          : Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                border: Border(
+                  top: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: NavigationBar(
+                selectedIndex: currentIndex,
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
+                indicatorColor: colorScheme.primary.withValues(alpha: 0.12),
+                onDestinationSelected: (index) {
+                  if (index == 0) _navigateTo(const VentasScreen(), 'ventas');
+                  else if (index == 1) _navigateTo(const InventarioScreen(), 'inventario');
+                  else if (index == 2) _navigateTo(const ClientesScreen(), 'clientes');
+                  else if (index == 3) _showMoreMenu(context, allItems);
+                },
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.point_of_sale_outlined),
+                    selectedIcon: Icon(Icons.point_of_sale_rounded),
+                    label: 'Ventas',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.inventory_2_outlined),
+                    selectedIcon: Icon(Icons.inventory_2_rounded),
+                    label: 'Inventario',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.people_alt_outlined),
+                    selectedIcon: Icon(Icons.people_alt_rounded),
+                    label: 'Clientes',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.grid_view_outlined),
+                    selectedIcon: Icon(Icons.grid_view_rounded),
+                    label: 'Más',
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }
