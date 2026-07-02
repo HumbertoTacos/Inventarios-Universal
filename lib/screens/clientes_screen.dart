@@ -19,6 +19,18 @@ class ClientesScreen extends StatefulWidget {
   State<ClientesScreen> createState() => _ClientesScreenState();
 }
 
+enum FiltroCliente {
+  todos,
+  conDeuda,
+  sinDeuda,
+  abonoMenos7Dias,  // <= 7 días
+  abono7A15Dias,    // 8 a 15 días
+  abono15A30Dias,   // 16 a 30 días
+  abonoMas30Dias,   // > 30 días
+  creditoBloqueado,
+}
+
+
 class _ClientesScreenState extends State<ClientesScreen> {
   final FirebaseService _svc = FirebaseService();
   final TextEditingController _searchCtrl = TextEditingController();
@@ -26,7 +38,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   List<Cliente> _resultadosBusqueda = [];
   bool _buscando = false;
   bool _enModoBusqueda = false;
-  String _filtroActivo = 'Todos'; // 'Todos' o 'Deudores'
+  FiltroCliente _filtroActivo = FiltroCliente.todos;
 
   // Rol y permisos del usuario activo
   String get _rol => AuthService().currentUserData?.rol ?? AuthService.rolEmpleado;
@@ -276,23 +288,36 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   Widget _buildFilterChips() {
-    return Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          FilterChip(
-            label: const Text('Todos'),
-            selected: _filtroActivo == 'Todos',
-            onSelected: (val) => setState(() => _filtroActivo = 'Todos'),
-          ),
+          _buildChip('Todos', FiltroCliente.todos),
           const SizedBox(width: 8),
-          FilterChip(
-            label: const Text('Solo con Deuda'),
-            selected: _filtroActivo == 'Deudores',
-            onSelected: (val) => setState(() => _filtroActivo = 'Deudores'),
-          ),
+          _buildChip('Con Deuda', FiltroCliente.conDeuda),
+          const SizedBox(width: 8),
+          _buildChip('Sin Deuda', FiltroCliente.sinDeuda),
+          const SizedBox(width: 8),
+          _buildChip('Abono < 7 días', FiltroCliente.abonoMenos7Dias),
+          const SizedBox(width: 8),
+          _buildChip('Abono 7-15 días', FiltroCliente.abono7A15Dias),
+          const SizedBox(width: 8),
+          _buildChip('Abono 15-30 días', FiltroCliente.abono15A30Dias),
+          const SizedBox(width: 8),
+          _buildChip('Abono > 30 días', FiltroCliente.abonoMas30Dias),
+          const SizedBox(width: 8),
+          _buildChip('Crédito Bloqueado', FiltroCliente.creditoBloqueado),
         ],
       ),
+    );
+  }
+
+  Widget _buildChip(String label, FiltroCliente filtro) {
+    return FilterChip(
+      label: Text(label),
+      selected: _filtroActivo == filtro,
+      onSelected: (_) => setState(() => _filtroActivo = filtro),
     );
   }
 
@@ -308,9 +333,33 @@ class _ClientesScreenState extends State<ClientesScreen> {
     }
 
     // Aplicar Filtro de Chips
-    final filtrados = _filtroActivo == 'Deudores'
-        ? clientes.where((c) => c.tieneDeuda).toList()
-        : clientes;
+    final ahora = DateTime.now();
+    final filtrados = clientes.where((c) {
+      switch (_filtroActivo) {
+        case FiltroCliente.todos:
+          return true;
+        case FiltroCliente.conDeuda:
+          return c.tieneDeuda;
+        case FiltroCliente.sinDeuda:
+          return !c.tieneDeuda;
+        case FiltroCliente.abonoMenos7Dias:
+          if (c.ultimoAbonoFecha == null) return false;
+          return ahora.difference(c.ultimoAbonoFecha!).inDays <= 7;
+        case FiltroCliente.abono7A15Dias:
+          if (c.ultimoAbonoFecha == null) return false;
+          final diff = ahora.difference(c.ultimoAbonoFecha!).inDays;
+          return diff > 7 && diff <= 15;
+        case FiltroCliente.abono15A30Dias:
+          if (c.ultimoAbonoFecha == null) return false;
+          final diff = ahora.difference(c.ultimoAbonoFecha!).inDays;
+          return diff > 15 && diff <= 30;
+        case FiltroCliente.abonoMas30Dias:
+          if (c.ultimoAbonoFecha == null) return false;
+          return ahora.difference(c.ultimoAbonoFecha!).inDays > 30;
+        case FiltroCliente.creditoBloqueado:
+          return c.creditoBloqueado;
+      }
+    }).toList();
 
     // Clientes con deuda al inicio
     final ordenados = [...filtrados]
@@ -361,13 +410,27 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 children: [
                   Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.phone_outlined, size: 12, color: cs.outline),
-                      const SizedBox(width: 4),
-                      Text(c.telefono.isEmpty ? 'Sin teléfono' : c.telefono, style: TextStyle(color: cs.outline, fontSize: 12)),
-                    ],
-                  ),
+                  if (c.ultimoAbonoFecha != null && c.ultimoAbonoMonto != null)
+                    Row(
+                      children: [
+                        Icon(Icons.payment, size: 12, color: cs.outline),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '\$${c.ultimoAbonoMonto!.toStringAsFixed(2)} el ${DateFormat('dd/MM/yy').format(c.ultimoAbonoFecha!)}',
+                            style: TextStyle(color: cs.outline, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 12, color: cs.outline),
+                        const SizedBox(width: 4),
+                        Text('Sin abonos recientes', style: TextStyle(color: cs.outline, fontSize: 12)),
+                      ],
+                    ),
                   if (tieneDeuda) ...[
                     const SizedBox(height: 8),
                     _deudaBadge(c.saldoDeudor, bajoLimite),

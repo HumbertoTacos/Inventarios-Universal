@@ -980,7 +980,32 @@ class _VentasScreenState extends State<VentasScreen> {
                   children: [
                     if (_mostrandoBusqueda) _buildResultadosBusqueda(),
                     const SizedBox(height: 8),
+                    if (_carrito.isNotEmpty) ...[
+                      _buildTicketHeader(),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: DashedDivider(
+                          height: 1, 
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          dashWidth: 5,
+                          dashGap: 3,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     _buildCarritoList(shrinkWrap: true, physics: const NeverScrollableScrollPhysics()),
+                    if (_carrito.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: DashedDivider(
+                          height: 1, 
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                          dashWidth: 5,
+                          dashGap: 3,
+                        ),
+                      ),
+                    ],
                     if (isKeyboardOpen) 
                       _buildMiniFooter()
                     else 
@@ -1016,17 +1041,39 @@ class _VentasScreenState extends State<VentasScreen> {
           child: Container(
             margin: const EdgeInsets.fromLTRB(8, 12, 12, 12),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(-2, 0))],
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withAlpha(80)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
             child: Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Text('Ticket Actual', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                _buildTicketHeader(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: DashedDivider(
+                    height: 1, 
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    dashWidth: 5,
+                    dashGap: 3,
+                  ),
                 ),
                 Expanded(child: _buildCarritoList()),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: DashedDivider(
+                    height: 1, 
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                    dashWidth: 5,
+                    dashGap: 3,
+                  ),
+                ),
                 _buildFooter(isDesktop: true),
               ],
             ),
@@ -1293,42 +1340,156 @@ class _VentasScreenState extends State<VentasScreen> {
                 padding: const EdgeInsets.only(bottom: 8.0),
                 child: PremiumCard(
                   margin: EdgeInsets.zero,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    title: Text(item.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text('${item.cantidad.formatoInventario} x \$${item.precioUnitario.toStringAsFixed(2)}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          constraints: const BoxConstraints(maxWidth: 80),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              '\$${item.subtotal.toStringAsFixed(2)}',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.primary),
-                            ),
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      // Badge de cantidad
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          item.cantidad.formatoInventario,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            fontSize: 14,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                          onPressed: () => _editarCantidadItem(index),
-                          visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 12),
+                      // Nombre y precio unitario
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.nombre,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'c/u \$${item.precioUnitario.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant.withAlpha(180),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          onPressed: () => setState(() => _carrito.removeAt(index)),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Subtotal y acciones
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '\$${item.subtotal.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, color: Colors.blue, size: 18),
+                                onPressed: () => _editarCantidadItem(index),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                              const SizedBox(width: 12),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                onPressed: () => setState(() => _carrito.removeAt(index)),
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               );
             },
           );
+  }
+
+  Widget _buildTicketHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long_outlined,
+                color: Theme.of(context).colorScheme.primary,
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Ticket Actual',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          if (_carrito.isNotEmpty)
+            TextButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Vaciar Ticket'),
+                    content: const Text('¿Estás seguro de que deseas eliminar todos los productos del ticket?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancelar'),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          setState(() => _carrito.clear());
+                          Navigator.pop(ctx);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Vaciar', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.delete_sweep_outlined, size: 18, color: Colors.red),
+              label: const Text('Limpiar', style: TextStyle(color: Colors.red, fontSize: 13)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFooter({bool isDesktop = false}) {
@@ -1434,35 +1595,61 @@ class _VentasScreenState extends State<VentasScreen> {
                     children: [
                       const Text('Descuento:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 4,
+                      Row(
                         children: [
-                          ChoiceChip(
-                            label: const Text('Ninguno', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            selected: _tipoDescuento == TipoDescuento.ninguno,
-                            onSelected: (_) {
-                              setState(() {
-                                _tipoDescuento = TipoDescuento.ninguno;
-                                _valorDescuentoCtrl.text = '0';
-                                _descuentoAutorizado = false;
-                              });
-                            },
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          ChoiceChip(
-                            label: const Text('Monto \$', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            selected: _tipoDescuento == TipoDescuento.fijo,
-                            onSelected: (_) => _intentarCambiarTipoDescuento(TipoDescuento.fijo),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          ChoiceChip(
-                            label: const Text('Porcen. %', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                            selected: _tipoDescuento == TipoDescuento.porcentaje,
-                            onSelected: (_) => _intentarCambiarTipoDescuento(TipoDescuento.porcentaje),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
+                          TipoDescuento.ninguno,
+                          TipoDescuento.fijo,
+                          TipoDescuento.porcentaje,
+                        ].map((t) {
+                          final label = switch(t) {
+                            TipoDescuento.ninguno => 'Ninguno',
+                            TipoDescuento.fijo => 'Monto \$',
+                            TipoDescuento.porcentaje => 'Porcen. %',
+                          };
+                          final isSelected = _tipoDescuento == t;
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(right: t != TipoDescuento.porcentaje ? 4.0 : 0),
+                              child: InkWell(
+                                onTap: () {
+                                  if (t == TipoDescuento.ninguno) {
+                                    setState(() {
+                                      _tipoDescuento = TipoDescuento.ninguno;
+                                      _valorDescuentoCtrl.text = '0';
+                                      _descuentoAutorizado = false;
+                                    });
+                                  } else {
+                                    _intentarCambiarTipoDescuento(t);
+                                  }
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ],
                   ),
@@ -1502,15 +1689,14 @@ class _VentasScreenState extends State<VentasScreen> {
               children: [
                 Expanded(
                   flex: 3,
-                  child: FilledButton.icon(
+                  child: FilledButton.tonalIcon(
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.blueGrey,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                     onPressed: (_carrito.isEmpty || _procesando) ? null : () => _confirmarVenta(estado: 'pendiente'),
                     icon: const Icon(Icons.access_time),
-                    label: const Text('Pausar', style: TextStyle(fontSize: 16)),
+                    label: const Text('Pausar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1578,17 +1764,53 @@ class _VentasScreenState extends State<VentasScreen> {
           child: Row(
             children: metodos.map((m) {
               final (metodo, label, icon) = m;
-              final sel = _metodoPago == metodo;
+              final isSelected = _metodoPago == metodo;
               return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  avatar: Icon(icon, size: 16),
-                  label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  selected: sel,
-                  onSelected: (_) => setState(() {
-                    _metodoPago = metodo;
-                    if (metodo != MetodoPago.credito) _clienteSeleccionado = null;
-                  }),
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => setState(() {
+                      _metodoPago = metodo;
+                      if (metodo != MetodoPago.credito) _clienteSeleccionado = null;
+                    }),
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 105,
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.outlineVariant,
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            icon,
+                            size: 20,
+                            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               );
             }).toList(),
@@ -2180,6 +2402,44 @@ menuMaxHeight: 400,
           ),
         ),
       ),
+    );
+  }
+}
+
+class DashedDivider extends StatelessWidget {
+  final double height;
+  final Color color;
+  final double dashWidth;
+  final double dashGap;
+
+  const DashedDivider({
+    super.key,
+    this.height = 1.0,
+    this.color = Colors.grey,
+    this.dashWidth = 5.0,
+    this.dashGap = 3.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final boxWidth = constraints.constrainWidth();
+        final dashCount = (boxWidth / (dashWidth + dashGap)).floor();
+        return Flex(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          direction: Axis.horizontal,
+          children: List.generate(dashCount, (_) {
+            return SizedBox(
+              width: dashWidth,
+              height: height,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: color),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

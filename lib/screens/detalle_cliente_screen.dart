@@ -526,6 +526,7 @@ class _ModalAbonoState extends State<_ModalAbono> {
   final _montoCtrl = TextEditingController();
   final _notasCtrl = TextEditingController();
   MetodoPago _metodoPago = MetodoPago.efectivo;
+  DateTime _fechaAbono = DateTime.now();
   bool _guardando = false;
 
   @override
@@ -543,7 +544,7 @@ class _ModalAbonoState extends State<_ModalAbono> {
         id: '',
         clienteId: widget.cliente.id,
         monto: double.parse(_montoCtrl.text.trim()),
-        fecha: DateTime.now(),
+        fecha: _fechaAbono,
         metodoPago: _metodoPago,
         cajeroId: AuthService().currentUser?.uid ?? 'unknown',
         notas: _notasCtrl.text.trim().isEmpty ? null : _notasCtrl.text.trim(),
@@ -644,26 +645,97 @@ class _ModalAbonoState extends State<_ModalAbono> {
               style: TextStyle(color: cs.outline, fontSize: 13),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children:
-                  [
-                    MetodoPago.efectivo,
-                    MetodoPago.tarjeta,
-                    MetodoPago.transferencia,
-                  ].map((m) {
-                    final label = switch (m) {
-                      MetodoPago.efectivo => 'Efectivo',
-                      MetodoPago.tarjeta => 'Tarjeta',
-                      MetodoPago.transferencia => 'Transferencia',
-                      _ => m.name,
-                    };
-                    return ChoiceChip(
-                      label: Text(label),
-                      selected: _metodoPago == m,
-                      onSelected: (_) => setState(() => _metodoPago = m),
-                    );
-                  }).toList(),
+            Row(
+              children: [
+                MetodoPago.efectivo,
+                MetodoPago.tarjeta,
+                MetodoPago.transferencia,
+              ].map((m) {
+                final isSelected = _metodoPago == m;
+                final label = switch (m) {
+                  MetodoPago.efectivo => 'Efectivo',
+                  MetodoPago.tarjeta => 'Tarjeta',
+                  MetodoPago.transferencia => 'Transf.',
+                  _ => m.name,
+                };
+                final icon = switch (m) {
+                  MetodoPago.efectivo => Icons.money,
+                  MetodoPago.tarjeta => Icons.credit_card,
+                  MetodoPago.transferencia => Icons.account_balance,
+                  _ => Icons.payment,
+                };
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: m != MetodoPago.transferencia ? 8.0 : 0.0,
+                    ),
+                    child: InkWell(
+                      onTap: () => setState(() => _metodoPago = m),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? cs.primaryContainer : cs.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? cs.primary : cs.outlineVariant,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 20,
+                              color: isSelected ? cs.primary : cs.onSurfaceVariant,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                color: isSelected ? cs.primary : cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: const Text('Fecha y Hora del Abono', style: TextStyle(fontSize: 14)),
+              subtitle: Text(DateFormat('dd/MM/yyyy hh:mm a').format(_fechaAbono)),
+              trailing: const Icon(Icons.edit, size: 20),
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: _fechaAbono,
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime.now(),
+                );
+                if (date != null && mounted) {
+                  final time = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.fromDateTime(_fechaAbono),
+                  );
+                  if (time != null && mounted) {
+                    setState(() {
+                      _fechaAbono = DateTime(
+                        date.year, date.month, date.day, time.hour, time.minute
+                      );
+                    });
+                  }
+                }
+              },
             ),
             const SizedBox(height: 12),
             TextFormField(

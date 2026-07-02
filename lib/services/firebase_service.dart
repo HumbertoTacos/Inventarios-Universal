@@ -2208,12 +2208,14 @@ class FirebaseService {
         final docAbono = _abonosRef.doc();
         transaction.set(docAbono, {...abono.toMap()});
 
-        // b) Restar saldo del cliente
+        // b) Restar saldo del cliente y registrar ultimo abono
         transaction.update(_clientesRef.doc(abono.clienteId), {
           'saldoDeudor': (saldoActual - abono.monto).clamp(
             0.0,
             double.infinity,
           ),
+          'ultimoAbonoMonto': abono.monto,
+          'ultimoAbonoFecha': abono.fecha.toIso8601String(),
         });
 
         // c) Sumar al turno de caja si el abono es en efectivo

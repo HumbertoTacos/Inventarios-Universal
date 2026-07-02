@@ -1432,27 +1432,31 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
         top: 24,
         bottom: MediaQuery.of(context).viewInsets.bottom + 32,
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.filter_alt_outlined),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Filtrar Inventario',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.filter_alt_outlined),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Filtrar Inventario',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
 
             // Filtro de Categoría
             StreamBuilder<List<Categoria>>(
@@ -1578,10 +1582,13 @@ menuMaxHeight: 400,
                 );
               },
             ),
-
-            const SizedBox(height: 32),
-            Row(
-              children: [
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
@@ -1611,7 +1618,6 @@ menuMaxHeight: 400,
             ),
           ],
         ),
-      ),
     );
   }
 }

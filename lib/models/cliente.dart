@@ -11,6 +11,9 @@ class Cliente {
   /// Deuda actual acumulada (suma de ventas a crédito - abonos).
   final double saldoDeudor;
 
+  final double? ultimoAbonoMonto;
+  final DateTime? ultimoAbonoFecha;
+
   final DateTime fechaRegistro;
 
   Cliente({
@@ -21,6 +24,8 @@ class Cliente {
     this.notas,
     required this.limiteCredito,
     this.saldoDeudor = 0.0,
+    this.ultimoAbonoMonto,
+    this.ultimoAbonoFecha,
     required this.fechaRegistro,
   });
 
@@ -46,6 +51,8 @@ class Cliente {
         'notas': notas ?? '',
         'limiteCredito': limiteCredito,
         'saldoDeudor': saldoDeudor,
+        'ultimoAbonoMonto': ultimoAbonoMonto,
+        'ultimoAbonoFecha': ultimoAbonoFecha?.toIso8601String(),
         'fechaRegistro': fechaRegistro.toIso8601String(),
       };
 
@@ -57,6 +64,10 @@ class Cliente {
         notas: map['notas'] as String?,
         limiteCredito: (map['limiteCredito'] as num?)?.toDouble() ?? 0.0,
         saldoDeudor: (map['saldoDeudor'] as num?)?.toDouble() ?? 0.0,
+        ultimoAbonoMonto: (map['ultimoAbonoMonto'] as num?)?.toDouble(),
+        ultimoAbonoFecha: map['ultimoAbonoFecha'] != null
+            ? DateTime.parse(map['ultimoAbonoFecha'])
+            : null,
         fechaRegistro: map['fechaRegistro'] != null
             ? DateTime.parse(map['fechaRegistro'])
             : DateTime.now(),
@@ -69,6 +80,8 @@ class Cliente {
     String? notas,
     double? limiteCredito,
     double? saldoDeudor,
+    double? ultimoAbonoMonto,
+    DateTime? ultimoAbonoFecha,
   }) =>
       Cliente(
         id: id,
@@ -78,6 +91,8 @@ class Cliente {
         notas: notas ?? this.notas,
         limiteCredito: limiteCredito ?? this.limiteCredito,
         saldoDeudor: saldoDeudor ?? this.saldoDeudor,
+        ultimoAbonoMonto: ultimoAbonoMonto ?? this.ultimoAbonoMonto,
+        ultimoAbonoFecha: ultimoAbonoFecha ?? this.ultimoAbonoFecha,
         fechaRegistro: fechaRegistro,
       );
 }
