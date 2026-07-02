@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +10,8 @@ import 'screens/pin_lock_screen.dart';
 import 'screens/ventas_screen.dart';
 import 'services/network_service.dart';
 import 'services/auth_service.dart';
+import 'services/update_service.dart';
+import 'widgets/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -25,6 +28,13 @@ void main() async {
   }
 
   await NetworkService().init();
+
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
 
   runApp(const MiInventarioApp());
 }
@@ -75,6 +85,23 @@ class _MiInventarioAppState extends State<MiInventarioApp> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUpdates();
+    });
+  }
+
+  Future<void> _checkUpdates() async {
+    final updateInfo = await UpdateService().checkForUpdate();
+    if (updateInfo != null && updateInfo.updateAvailable) {
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        showDialog(
+          context: ctx,
+          barrierDismissible: !updateInfo.esObligatorio,
+          builder: (context) => UpdateDialog(updateInfo: updateInfo),
+        );
+      }
+    }
   }
 
   @override

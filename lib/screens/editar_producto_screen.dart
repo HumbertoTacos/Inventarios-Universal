@@ -262,6 +262,8 @@ class _EditarProductoScreenState extends State<EditarProductoScreen> {
                           builder: (context, snapshot) {
                             final proveedores = snapshot.data ?? [];
                             return DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                               onTap: () => FocusScope.of(context).unfocus(),
                               value: _idProveedorSeleccionado,
                               decoration: const InputDecoration(

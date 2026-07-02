@@ -565,7 +565,7 @@ class _VentasScreenState extends State<VentasScreen> {
 
     try {
       final config = ConfiguracionController.instance;
-      final usaCaja = config.negocio?.usaCajaRegistradora ?? _negocio?.usaCajaRegistradora ?? true;
+      final usaCaja = config.negocio?.usaCajaRegistradora ?? _negocio?.usaCajaRegistradora ?? false;
 
       TurnoCaja? turno;
       if (usaCaja) {
@@ -1888,6 +1888,8 @@ class _VentasScreenState extends State<VentasScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
       builder: (ctx) => _ModalProductoExpress(
         firebaseService: _firebaseService,
         onGuardar: (Producto p, double cantidadVendida) async {
@@ -2022,11 +2024,21 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
       padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       child: Form(
         key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Producto Express', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Producto Express', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _nombreCtrl,
@@ -2063,6 +2075,8 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
               builder: (context, snapshot) {
                 final categorias = snapshot.data ?? [];
                 return DropdownButtonFormField<Categoria>(
+isExpanded: true,
+menuMaxHeight: 400,
                   value: _categoriaSeleccionada,
                   onTap: () => FocusScope.of(context).unfocus(),
                   decoration: const InputDecoration(labelText: 'Categoría *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
@@ -2089,6 +2103,8 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
                   return Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                       key: ValueKey('attr_${_categoriaSeleccionada!.id}_${attr.nombre}'),
                       value: _atributos[attr.nombre],
                       onTap: () => FocusScope.of(context).unfocus(),
@@ -2144,6 +2160,8 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
               builder: (context, snapshot) {
                 final proveedores = snapshot.data ?? [];
                 return DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                   value: _idProveedorSeleccionado,
                   onTap: () => FocusScope.of(context).unfocus(),
                   decoration: const InputDecoration(labelText: 'Proveedor (opcional)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.local_shipping_outlined)),
@@ -2158,7 +2176,8 @@ class _ModalProductoExpressState extends State<_ModalProductoExpress> {
               icon: _guardando ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.flash_on),
               label: Text(_guardando ? 'Guardando...' : 'Crear y Agregar'),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

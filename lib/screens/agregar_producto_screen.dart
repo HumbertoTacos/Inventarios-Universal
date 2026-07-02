@@ -156,6 +156,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
 
                       // ── Categoría ──
                       DropdownButtonFormField<Categoria>(
+isExpanded: true,
+menuMaxHeight: 400,
                         onTap: () => FocusScope.of(context).unfocus(),
                         value: _categoriaSeleccionada,
                         decoration: const InputDecoration(
@@ -196,6 +198,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
                         builder: (context, provSnap) {
                           final proveedores = provSnap.data ?? [];
                           return DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                             onTap: () => FocusScope.of(context).unfocus(),
                             value: _idProveedorSeleccionado,
                             decoration: const InputDecoration(
@@ -499,6 +503,8 @@ class _AgregarProductoScreenState extends State<AgregarProductoScreen> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
             onTap: () => FocusScope.of(context).unfocus(),
             key: ValueKey('attr_${categoria.id}_${attr.nombre}'),
             value: _atributos[attr.nombre],

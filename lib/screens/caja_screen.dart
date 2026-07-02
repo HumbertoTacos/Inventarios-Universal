@@ -105,6 +105,8 @@ class _CajaScreenState extends State<CajaScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                   onTap: () => FocusScope.of(context).unfocus(),
                   value: tipoMovimiento,
                   decoration: const InputDecoration(
@@ -281,7 +283,7 @@ class _CajaScreenState extends State<CajaScreen> {
           padding: const EdgeInsets.all(24.0),
           child: _turnoActivo == null
               ? _buildAbrirCaja()
-              : _buildCerrarCaja(),
+              : _buildCerrarCaja(isDesktop: isDesktop),
         ),
       ),
     );
@@ -327,7 +329,7 @@ class _CajaScreenState extends State<CajaScreen> {
     );
   }
 
-  Widget _buildCerrarCaja() {
+  Widget _buildCerrarCaja({required bool isDesktop}) {
     final turno = _turnoActivo!;
     final cs = Theme.of(context).colorScheme;
     
@@ -435,80 +437,92 @@ class _CajaScreenState extends State<CajaScreen> {
               
               const SizedBox(height: 24),
               
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: PremiumCard(
-                      padding: const EdgeInsets.all(20),
-                      borderRadius: 16,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Otros Métodos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const SizedBox(height: 12),
-                          _PaymentRow(label: 'Tarjeta', value: turno.ventasTarjeta, icon: Icons.credit_card),
-                          _PaymentRow(label: 'Transferencia', value: turno.ventasTransferencia, icon: Icons.account_balance),
-                          _PaymentRow(label: 'Crédito', value: turno.ventasCredito, icon: Icons.timer_outlined),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _mostrarDialogoMovimiento,
-                              icon: const Icon(Icons.swap_horiz),
-                              label: const Text('MOVIMIENTO MANUAL'),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
+              Builder(builder: (context) {
+                final cardOtros = PremiumCard(
+                  padding: const EdgeInsets.all(20),
+                  borderRadius: 16,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Otros Métodos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      const SizedBox(height: 12),
+                      _PaymentRow(label: 'Tarjeta', value: turno.ventasTarjeta, icon: Icons.credit_card),
+                      _PaymentRow(label: 'Transferencia', value: turno.ventasTransferencia, icon: Icons.account_balance),
+                      _PaymentRow(label: 'Crédito', value: turno.ventasCredito, icon: Icons.timer_outlined),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _mostrarDialogoMovimiento,
+                          icon: const Icon(Icons.swap_horiz),
+                          label: const Text('MOVIMIENTO MANUAL'),
+                        ),
+                      )
+                    ],
                   ),
-                  const SizedBox(width: 24),
-                  Expanded(
-                    flex: 2,
-                    child: PremiumCard(
-                      padding: const EdgeInsets.all(24),
-                      borderRadius: 16,
-                      child: Column(
-                        children: [
-                          const Text('¿Cuánto efectivo físico hay en el cajón?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 16),
-                          TextField(
-                            controller: _efectivoFisicoController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.payments, size: 32),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            difText,
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: difColor),
-                          ),
-                          const SizedBox(height: 24),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 60,
-                            child: FilledButton.icon(
-                              onPressed: _confirmarCierreCaja,
-                              icon: const Icon(Icons.lock, size: 28),
-                              label: const Text('Cerrar Turno y Emitir Corte (F12)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: Colors.red.shade700,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              ),
-                            ),
-                          )
-                        ],
+                );
+
+                final cardEfectivo = PremiumCard(
+                  padding: const EdgeInsets.all(24),
+                  borderRadius: 16,
+                  child: Column(
+                    children: [
+                      const Text('¿Cuánto efectivo físico hay en el cajón?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _efectivoFisicoController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.payments, size: 32),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Text(
+                        difText,
+                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: difColor),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 60,
+                        child: FilledButton.icon(
+                          onPressed: _confirmarCierreCaja,
+                          icon: const Icon(Icons.lock, size: 28),
+                          label: Text(isDesktop ? 'Cerrar Turno y Emitir Corte (F12)' : 'Cerrar Turno', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.red.shade700,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      )
+                    ],
                   ),
-                ],
-              ),
+                );
+
+                if (isDesktop) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 1, child: cardOtros),
+                      const SizedBox(width: 24),
+                      Expanded(flex: 2, child: cardEfectivo),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      cardEfectivo,
+                      const SizedBox(height: 24),
+                      cardOtros,
+                    ],
+                  );
+                }
+              }),
             ],
           ),
         ),
@@ -537,7 +551,7 @@ class _MetricCard extends StatelessWidget {
     return PremiumCard(
       color: isHighlight ? color.withValues(alpha: 0.1) : null,
       border: isHighlight ? Border.all(color: color, width: 2) : null,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       borderRadius: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -547,18 +561,28 @@ class _MetricCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(icon, color: color, size: 20),
-              Text(
-                title,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
-          Text(
-            '\$${value.toStringAsFixed(2)}',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isHighlight ? color : null,
+          FittedBox(
+            alignment: Alignment.centerLeft,
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '\$${value.toStringAsFixed(2)}',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isHighlight ? color : null,
+              ),
             ),
           ),
         ],

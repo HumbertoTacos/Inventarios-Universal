@@ -1460,6 +1460,8 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
               builder: (context, snapshot) {
                 final categorias = snapshot.data ?? [];
                 return DropdownButtonFormField<Categoria>(
+isExpanded: true,
+menuMaxHeight: 400,
                   onTap: () => FocusScope.of(context).unfocus(),
                   value: _catSelect,
                   decoration: const InputDecoration(
@@ -1497,6 +1499,8 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: DropdownButtonFormField<String>(
+isExpanded: true,
+menuMaxHeight: 400,
                       onTap: () => FocusScope.of(context).unfocus(),
                       value: _atributosValores[atr.nombre],
                       decoration: InputDecoration(
@@ -1549,6 +1553,8 @@ class _FiltrosBottomSheetState extends State<_FiltrosBottomSheet> {
               builder: (context, snapshot) {
                 final proveedores = snapshot.data ?? [];
                 return DropdownButtonFormField<Proveedor>(
+isExpanded: true,
+menuMaxHeight: 400,
                   onTap: () => FocusScope.of(context).unfocus(),
                   value: _provSelect,
                   decoration: const InputDecoration(

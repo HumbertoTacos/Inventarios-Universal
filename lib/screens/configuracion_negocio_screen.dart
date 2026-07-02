@@ -29,7 +29,7 @@ class _ConfiguracionNegocioScreenState extends State<ConfiguracionNegocioScreen>
   bool _isLoading = true;
   bool _isSaving = false;
 
-  bool _usaCajaRegistradora = true;
+  bool _usaCajaRegistradora = false;
   bool _manejaEnvios = false;
 
   late final ConfiguracionController _configController;

@@ -21,7 +21,7 @@ class Negocio {
     this.telefono,
     this.direccion,
     this.pinAutorizacion,
-    this.usaCajaRegistradora = true,
+    this.usaCajaRegistradora = false,
     this.manejaEnvios = false,
     this.capitalInventarioCache,
     this.ultimaActualizacionCapital,
@@ -53,7 +53,7 @@ class Negocio {
       telefono: map['telefono'] as String?,
       direccion: map['direccion'] as String?,
       pinAutorizacion: map['pinAutorizacion'] as String?,
-      usaCajaRegistradora: map['usaCajaRegistradora'] as bool? ?? true,
+      usaCajaRegistradora: map['usaCajaRegistradora'] as bool? ?? false,
       manejaEnvios: map['manejaEnvios'] as bool? ?? false,
       capitalInventarioCache: (map['capitalInventarioCache'] as num?)?.toDouble(),
       ultimaActualizacionCapital: map['ultimaActualizacionCapital'] != null

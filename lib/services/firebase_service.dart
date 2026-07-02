@@ -848,8 +848,8 @@ class FirebaseService {
       // 1. Lecturas obligatorias antes de escrituras
       final snapNegocio = await _negocioDataRef.get();
       final usaCaja = snapNegocio.exists
-          ? (snapNegocio.get('usaCajaRegistradora') ?? true)
-          : true;
+          ? (snapNegocio.get('usaCajaRegistradora') ?? false)
+          : false;
 
       DocumentSnapshot? docTurnoSnapshot;
       if (turnoCajaId != null) {
@@ -1060,8 +1060,8 @@ class FirebaseService {
 
       final snapNegocio = await _negocioDataRef.get();
       final usaCaja = snapNegocio.exists
-          ? (snapNegocio.get('usaCajaRegistradora') ?? true)
-          : true;
+          ? (snapNegocio.get('usaCajaRegistradora') ?? false)
+          : false;
 
       DocumentSnapshot? docTurnoSnapshot;
       if (turnoCajaId != null) {

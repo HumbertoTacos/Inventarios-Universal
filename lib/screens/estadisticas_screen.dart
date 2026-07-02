@@ -167,6 +167,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
           ),
         ),
         DropdownButton<int>(
+isExpanded: true,
+menuMaxHeight: 400,
           value: _diasSeleccionados,
           items: const [
             DropdownMenuItem(value: 7, child: Text('Últimos 7 días')),

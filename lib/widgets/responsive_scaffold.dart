@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../utils/responsive_layout.dart';
 import '../services/auth_service.dart';
 import '../models/negocio.dart';
@@ -25,6 +26,7 @@ import '../controllers/configuracion_controller.dart';
 
 // Notificador global para el estado del sidebar - Esto garantiza persistencia total
 final ValueNotifier<bool> g_sidebarNotifier = ValueNotifier<bool>(true);
+String g_lastMainRoute = 'ventas';
 
 class ResponsiveScaffold extends StatelessWidget {
   final String currentRoute;
@@ -233,6 +235,9 @@ class _AppNavigationRailState extends State<AppNavigationRail> {
 
   void _navigateTo(Widget screen, String routeName) {
     if (widget.currentRoute == routeName) return;
+    if (routeName == 'ventas' || routeName == 'inventario' || routeName == 'clientes') {
+      g_lastMainRoute = routeName;
+    }
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
@@ -769,6 +774,9 @@ class _MobileShellState extends State<_MobileShell> {
 
   void _navigateTo(Widget screen, String routeName, {bool slideRight = true, bool useSlide = false}) {
     if (widget.currentRoute == routeName) return;
+    if (routeName == 'ventas' || routeName == 'inventario' || routeName == 'clientes') {
+      g_lastMainRoute = routeName;
+    }
     if (!useSlide) {
       Navigator.pushReplacement(
         context,
@@ -984,6 +992,8 @@ class _MobileShellState extends State<_MobileShell> {
     );
   }
 
+  DateTime? _lastBackPressTime;
+
   @override
   Widget build(BuildContext context) {
     final userData = _authService.currentUserData;
@@ -997,7 +1007,41 @@ class _MobileShellState extends State<_MobileShell> {
     else if (widget.currentRoute == 'clientes') currentIndex = 2;
     else currentIndex = 3;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final current = widget.currentRoute;
+        final isMain = current == 'ventas' || current == 'inventario' || current == 'clientes';
+
+        if (!isMain) {
+           if (g_lastMainRoute == 'inventario') {
+             _navigateTo(const InventarioScreen(), 'inventario');
+           } else if (g_lastMainRoute == 'clientes') {
+             _navigateTo(const ClientesScreen(), 'clientes');
+           } else {
+             _navigateTo(const VentasScreen(), 'ventas');
+           }
+        } else if (current != 'ventas') {
+           _navigateTo(const VentasScreen(), 'ventas');
+        } else {
+           final now = DateTime.now();
+           if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+             _lastBackPressTime = now;
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(
+                 content: const Text('Vuelve a presionar el botón de regreso para salir'),
+                 duration: const Duration(seconds: 2),
+                 behavior: SnackBarBehavior.floating,
+                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+               ),
+             );
+           } else {
+             SystemNavigator.pop();
+           }
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 2,
@@ -1085,6 +1129,7 @@ class _MobileShellState extends State<_MobileShell> {
                 ],
               ),
             ),
+      ),
     );
   }
 }
