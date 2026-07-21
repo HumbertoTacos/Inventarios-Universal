@@ -6,7 +6,7 @@ import '../models/venta.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 import '../widgets/premium_widgets.dart'; // [UI Polish]
-
+import 'clientes_screen.dart';
 
 class DetalleClienteScreen extends StatefulWidget {
   final Cliente cliente;
@@ -475,35 +475,11 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          24,
-          24,
-          24,
-          MediaQuery.of(context).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Editar Cliente',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Para editar el cliente, vuelve a la lista y usa la opción de edición.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Entendido'),
-            ),
-          ],
-        ),
+      builder: (_) => FormularioCliente(
+        clienteInicial: c,
+        onGuardar: (clienteEditado) async {
+          await _svc.actualizarCliente(clienteEditado);
+        },
       ),
     );
   }

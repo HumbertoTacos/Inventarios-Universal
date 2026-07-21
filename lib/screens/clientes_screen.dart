@@ -136,7 +136,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _FormularioCliente(
+      builder: (_) => FormularioCliente(
         clienteInicial: editar,
         onGuardar: (c) async {
           if (editar == null) {
@@ -496,17 +496,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
 // ── Formulario de Alta/Edición de Cliente ────────────────────────────────────
 
-class _FormularioCliente extends StatefulWidget {
+class FormularioCliente extends StatefulWidget {
   final Cliente? clienteInicial;
   final Future<void> Function(Cliente) onGuardar;
 
-  const _FormularioCliente({this.clienteInicial, required this.onGuardar});
+  const FormularioCliente({super.key, this.clienteInicial, required this.onGuardar});
 
   @override
-  State<_FormularioCliente> createState() => _FormularioClienteState();
+  State<FormularioCliente> createState() => _FormularioClienteState();
 }
 
-class _FormularioClienteState extends State<_FormularioCliente> {
+class _FormularioClienteState extends State<FormularioCliente> {
   final _formKey = GlobalKey<FormState>();
   final _nombreCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
