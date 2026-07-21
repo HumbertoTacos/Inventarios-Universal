@@ -59,7 +59,8 @@ class _DetalleClienteScreenState extends State<DetalleClienteScreen> {
       ),
       builder: (_) => _ModalDeudaManual(
         cliente: cliente,
-        onRegistrar: (monto, notas) async => await _svc.agregarDeudaManual(cliente.id, monto, notas),
+        onRegistrar: (monto, notas, {required bool sobrescribir}) async =>
+            await _svc.agregarDeudaManual(cliente.id, monto, notas, sobrescribir: sobrescribir),
       ),
     );
   }
@@ -747,7 +748,7 @@ class _ModalAbonoState extends State<_ModalAbono> {
 
 class _ModalDeudaManual extends StatefulWidget {
   final Cliente cliente;
-  final Future<void> Function(double, String) onRegistrar;
+  final Future<void> Function(double, String, {required bool sobrescribir}) onRegistrar;
 
   const _ModalDeudaManual({required this.cliente, required this.onRegistrar});
 
@@ -760,6 +761,7 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
   final _montoCtrl = TextEditingController();
   final _notasCtrl = TextEditingController();
   bool _guardando = false;
+  bool _sobrescribir = false;
 
   @override
   void dispose() {
@@ -773,13 +775,13 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
     setState(() => _guardando = true);
     try {
       final monto = double.parse(_montoCtrl.text.trim());
-      final notas = _notasCtrl.text.trim().isEmpty ? 'Deuda manual inicial' : _notasCtrl.text.trim();
-      await widget.onRegistrar(monto, notas);
+      final notas = _notasCtrl.text.trim().isEmpty ? 'Ajuste de deuda manual' : _notasCtrl.text.trim();
+      await widget.onRegistrar(monto, notas, sobrescribir: _sobrescribir);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Deuda registrada correctamente'),
+            content: Text('Deuda actualizada correctamente'),
             backgroundColor: Colors.green,
           ),
         );
@@ -813,15 +815,41 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Agregar Deuda Manual',
+              'Ajustar Deuda Manual',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Agrega un saldo inicial o deuda al cliente sin realizar una venta. Solo disponible para el dueño.',
+              'Ajusta el saldo inicial o corrige la deuda del cliente sin afectar la caja. Solo disponible para dueños.',
               style: TextStyle(color: cs.outline, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Sumar deuda'),
+                  icon: Icon(Icons.add),
+                ),
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('Sobrescribir saldo'),
+                  icon: Icon(Icons.edit),
+                ),
+              ],
+              selected: {_sobrescribir},
+              onSelectionChanged: (Set<bool> val) {
+                setState(() {
+                  _sobrescribir = val.first;
+                  if (_sobrescribir) {
+                    _montoCtrl.text = widget.cliente.saldoDeudor.toStringAsFixed(2);
+                  } else {
+                    _montoCtrl.clear();
+                  }
+                });
+              },
             ),
             const SizedBox(height: 20),
             TextFormField(
@@ -830,14 +858,23 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
                 decimal: true,
               ),
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Monto de la Deuda (\$)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.attach_money),
+              decoration: InputDecoration(
+                labelText: _sobrescribir
+                    ? 'Nuevo Saldo Deudor (\$)'
+                    : 'Monto de la Deuda a agregar (\$)',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.attach_money),
+                helperText: _sobrescribir
+                    ? 'Establece la deuda actual al monto ingresado'
+                    : 'Suma el monto ingresado al saldo actual',
               ),
               validator: (v) {
                 final n = double.tryParse(v ?? '');
-                if (n == null || n <= 0) return 'Ingresa un monto válido > 0';
+                if (n == null || (_sobrescribir ? n < 0 : n <= 0)) {
+                  return _sobrescribir
+                      ? 'Ingresa un monto válido ≥ 0'
+                      : 'Ingresa un monto válido > 0';
+                }
                 return null;
               },
             ),
@@ -847,7 +884,7 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
               decoration: const InputDecoration(
                 labelText: 'Concepto / Notas',
                 border: OutlineInputBorder(),
-                hintText: 'Ej. Saldo inicial',
+                hintText: 'Ej. Corrección por error de captura',
               ),
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'El concepto es obligatorio';
@@ -867,7 +904,7 @@ class _ModalDeudaManualState extends State<_ModalDeudaManual> {
                       ),
                     )
                   : const Icon(Icons.check),
-              label: Text(_guardando ? 'Guardando...' : 'Confirmar Deuda'),
+              label: Text(_guardando ? 'Guardando...' : 'Confirmar Ajuste'),
             ),
           ],
         ),

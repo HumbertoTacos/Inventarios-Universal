@@ -430,6 +430,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                'Última actualización: 20/07/2026',
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  color: AppColors.textSecondary.withAlpha(150),
+                ),
+              ),
+            ),
           ],
         ],
       ),

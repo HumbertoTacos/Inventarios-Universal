@@ -2242,8 +2242,13 @@ class FirebaseService {
     }
   }
 
-  /// Agrega una deuda manualmente al cliente sin requerir una venta.
-  Future<void> agregarDeudaManual(String clienteId, double monto, String notas) async {
+  /// Agrega o sobrescribe una deuda manualmente al cliente sin requerir una venta.
+  Future<void> agregarDeudaManual(
+    String clienteId,
+    double monto,
+    String notas, {
+    bool sobrescribir = false,
+  }) async {
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final docCliente = await transaction.get(_clientesRef.doc(clienteId));
@@ -2252,15 +2257,19 @@ class FirebaseService {
             (docCliente.data() as Map<String, dynamic>)['saldoDeudor']
                 as num? ??
             0.0;
-        
+
+        final nuevoSaldo = sobrescribir ? monto : (saldoActual + monto);
+
         transaction.update(docCliente.reference, {
-          'saldoDeudor': saldoActual + monto,
+          'saldoDeudor': nuevoSaldo,
         });
 
         _inyectarLogTransaccional(
           transaction,
           'CREDITOS',
-          'Agregó deuda manual de \$${monto.toStringAsFixed(2)} al cliente ID: $clienteId. Notas: $notas',
+          sobrescribir
+              ? 'Ajustó deuda manual a \$${monto.toStringAsFixed(2)} (saldo anterior: \$${saldoActual.toStringAsFixed(2)}) al cliente ID: $clienteId. Notas: $notas'
+              : 'Agregó deuda manual de \$${monto.toStringAsFixed(2)} al cliente ID: $clienteId. Notas: $notas',
         );
       });
     } on FirebaseException catch (e) {
